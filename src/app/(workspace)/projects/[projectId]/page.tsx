@@ -62,6 +62,26 @@ function severityTone(status: string): StatusTone {
   return "neutral";
 }
 
+function timelineConfidenceTone(confidence: string): StatusTone {
+  if (confidence === "high") {
+    return "success";
+  }
+
+  if (confidence === "medium") {
+    return "accent";
+  }
+
+  return "neutral";
+}
+
+function formatTimelineDate(date: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(date));
+}
+
 export default async function ProjectDetailPage({
   params,
 }: Readonly<{
@@ -134,6 +154,11 @@ export default async function ProjectDetailPage({
           label="Artifacts"
           value={String(projectData.summary.artifactCount)}
           note="Durable outputs remain attached to the same project workspace."
+        />
+        <MetricCard
+          label="Timeline"
+          value={String(projectData.summary.timelineEventCount)}
+          note="Compiled chronology records turn dated source and canon signals into a durable project timeline."
         />
       </div>
 
@@ -224,7 +249,7 @@ export default async function ProjectDetailPage({
           description="These top-level screens are already structured around project-owned data."
         >
           <div className="space-y-3">
-            {["/sources", "/wiki", "/artifacts", "/ask"].map((href) => (
+            {["/sources", "/wiki", "/artifacts", "/timeline", "/ask"].map((href) => (
               <Link
                 key={href}
                 href={href}
@@ -242,6 +267,69 @@ export default async function ProjectDetailPage({
           </div>
         </SectionCard>
       </div>
+
+      <SectionCard
+        eyebrow="Timeline"
+        title="Compiled chronology"
+        description="Timeline events turn dated source, claim, and canonical page signals into a project-level chronology with visible provenance."
+      >
+        <div className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+          <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
+            <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+              Event count
+            </p>
+            <p className="mt-3 text-4xl font-semibold tracking-tight text-foreground">
+              {projectData.summary.timelineEventCount}
+            </p>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              The full timeline remains a compiled view, not a raw list of dates pulled from project documents.
+            </p>
+            <Link
+              href="/timeline"
+              className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            >
+              Open Timeline
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {projectData.timelineEvents.length > 0 ? (
+              projectData.timelineEvents
+                .slice(-3)
+                .reverse()
+                .map((entry) => (
+                  <div
+                    key={entry.event.id}
+                    className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold tracking-tight text-foreground">
+                            {entry.event.title}
+                          </p>
+                          <StatusPill tone={timelineConfidenceTone(entry.event.confidence)}>
+                            {entry.event.confidence}
+                          </StatusPill>
+                        </div>
+                        <p className="text-sm leading-6 text-muted">
+                          {entry.event.description}
+                        </p>
+                      </div>
+                      <div className="text-right text-sm leading-6 text-muted">
+                        <p>{formatTimelineDate(entry.event.eventDate)}</p>
+                        <p className="capitalize">{entry.event.eventType}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+            ) : (
+              <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm leading-6 text-muted">
+                No compiled timeline events exist yet for this project. Run the timeline compiler to establish chronology.
+              </div>
+            )}
+          </div>
+        </div>
+      </SectionCard>
 
       <div className="grid gap-4 xl:grid-cols-3">
         <SectionCard

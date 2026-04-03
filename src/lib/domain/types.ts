@@ -60,6 +60,24 @@ export type AskAnswerMode =
   | "compare-viewpoints"
   | "identify-contradictions"
   | "follow-up-questions";
+export type TimelineEventDatePrecision =
+  | "exact_day"
+  | "month"
+  | "year"
+  | "unknown_estimated";
+export type TimelineEventType =
+  | "milestone"
+  | "planning"
+  | "research"
+  | "financial"
+  | "document"
+  | "system"
+  | "question";
+export type TimelineEventProvenance =
+  | "source-extraction"
+  | "claim-extraction"
+  | "wiki-extraction"
+  | "object-timestamp-fallback";
 export type LintIssueType =
   | "unsupported_claims"
   | "weakly_supported_page"
@@ -239,6 +257,38 @@ export interface AskSession {
 }
 
 export type AskSessionPayload = Omit<AskSession, "id" | "createdAt" | "updatedAt">;
+
+export interface TimelineEvent {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  eventDate: string;
+  eventDatePrecision: TimelineEventDatePrecision;
+  eventType: TimelineEventType;
+  confidence: RevisionConfidence;
+  sourceIds: string[];
+  wikiPageIds: string[];
+  claimIds: string[];
+  provenance: TimelineEventProvenance;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  metadata?: StringMetadata;
+}
+
+export type TimelineEventDraft = Omit<
+  TimelineEvent,
+  "id" | "createdAt" | "updatedAt"
+> & {
+  stableKey: string;
+};
+
+export interface TimelineCompileState {
+  projectId: string;
+  lastCompiledAt: Timestamp | null;
+  eventCount: number;
+  summary: string;
+}
 
 export interface LintIssue {
   id: string;

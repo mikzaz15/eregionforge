@@ -174,6 +174,7 @@ export default async function WikiPageDetail({
                 data.claims.map((entry) => (
                   <div
                     key={entry.claim.id}
+                    id={`claim-${entry.claim.id}`}
                     className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4"
                   >
                     <div className="flex flex-wrap items-center gap-2">

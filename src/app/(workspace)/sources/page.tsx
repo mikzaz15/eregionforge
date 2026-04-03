@@ -194,6 +194,7 @@ export default async function SourcesPage() {
           {data.sources.map((record) => (
             <div
               key={record.source.id}
+              id={record.source.id}
               className="grid gap-3 rounded-2xl border border-border bg-surface-strong/75 px-4 py-4 lg:grid-cols-[minmax(0,1.3fr)_110px_110px_150px_110px]"
             >
               <div className="space-y-2">

@@ -7,6 +7,7 @@ import type {
   Project,
   Source,
   SourceFragment,
+  TimelineEvent,
   WikiPage,
   WikiPageRevision,
   WikiPageSourceLink,
@@ -601,6 +602,7 @@ export const seedArtifacts: Artifact[] = [
 ];
 
 export const seedAskSessions: AskSession[] = [];
+export const seedTimelineEvents: TimelineEvent[] = [];
 
 export const seedCompileJobs: CompileJob[] = [
   {

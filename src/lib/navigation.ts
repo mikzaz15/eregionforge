@@ -37,6 +37,12 @@ export const workspaceNavigation: NavigationItem[] = [
     shortLabel: "AR",
   },
   {
+    href: "/timeline",
+    label: "Timeline",
+    description: "Compiled chronology of the active project knowledge base.",
+    shortLabel: "TL",
+  },
+  {
     href: "/ask",
     label: "Ask",
     description: "Project-scoped research queries resolved against canon first.",

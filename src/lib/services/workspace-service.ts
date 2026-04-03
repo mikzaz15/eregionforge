@@ -39,6 +39,11 @@ import {
   getProjectLintSnapshot,
   type ProjectLintHealthSummary,
 } from "@/lib/services/lint-service";
+import {
+  getProjectTimelinePageData,
+  listProjectTimelineEvents,
+  type TimelineReferenceRecord,
+} from "@/lib/services/timeline-service";
 
 export type ProjectSummary = {
   project: Project;
@@ -54,6 +59,7 @@ export type ProjectSummary = {
   latestCompileLabel: string;
   latestCompileAt: string | null;
   latestCompileSummary: string;
+  timelineEventCount: number;
   health: ProjectLintHealthSummary;
 };
 
@@ -76,6 +82,7 @@ export type ProjectDetailData = {
   wikiPages: WikiPageSummary[];
   artifacts: ArtifactSummaryRecord[];
   artifactTypeMix: Array<{ artifactType: ArtifactType; count: number }>;
+  timelineEvents: TimelineReferenceRecord[];
   latestCompile: CompileJob | null;
 };
 
@@ -159,6 +166,18 @@ export type ArtifactsPageData = {
 export type ArtifactDetailPageData = {
   summary: ProjectSummary;
   artifact: ArtifactDetailRecord;
+};
+
+export type TimelinePageData = {
+  summary: ProjectSummary;
+  events: TimelineReferenceRecord[];
+  compileState: {
+    projectId: string;
+    lastCompiledAt: string | null;
+    eventCount: number;
+    summary: string;
+  };
+  metrics: Array<{ label: string; value: string; note: string }>;
 };
 
 export type WikiPageDetailData = {
@@ -457,6 +476,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     latestCompile,
     claims,
     evidenceLinks,
+    timelineEvents,
     lintSnapshot,
   ] =
     await Promise.all([
@@ -466,6 +486,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       compileJobsRepository.getLatestByProjectId(project.id),
       claimsRepository.listByProjectId(project.id),
       evidenceLinksRepository.listByProjectId(project.id),
+      listProjectTimelineEvents(project.id),
       getProjectLintSnapshot(project.id),
     ]);
   const generatedPageCount = pages.filter(
@@ -496,6 +517,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     latestCompileAt: latestCompile?.completedAt ?? null,
     latestCompileSummary:
       latestCompile?.summary ?? "No compile job has been run against this project yet.",
+    timelineEventCount: timelineEvents.length,
     health: lintSnapshot.health,
   };
 });
@@ -635,10 +657,11 @@ export async function getProjectDetailData(
     return null;
   }
 
-  const [sources, wikiPages, artifacts] = await Promise.all([
+  const [sources, wikiPages, artifacts, timelineEvents] = await Promise.all([
     sourcesRepository.listByProjectId(projectId),
     buildWikiPageSummaries(projectId),
     listProjectArtifacts({ projectId }),
+    listProjectTimelineEvents(projectId),
   ]);
   const latestCompile = await compileJobsRepository.getLatestByProjectId(projectId);
 
@@ -648,6 +671,7 @@ export async function getProjectDetailData(
     wikiPages: sortWikiPageSummariesByUpdatedAtDesc(wikiPages),
     artifacts,
     artifactTypeMix: buildArtifactTypeMix(artifacts),
+    timelineEvents,
     latestCompile,
   };
 }
@@ -952,6 +976,25 @@ export async function getArtifactDetailPageData(
   return {
     summary,
     artifact,
+  };
+}
+
+export async function getTimelinePageData(
+  projectId: string,
+): Promise<TimelinePageData | null> {
+  const summary = await getProjectSummary(projectId);
+
+  if (!summary) {
+    return null;
+  }
+
+  const timelineData = await getProjectTimelinePageData(projectId);
+
+  return {
+    summary,
+    events: timelineData.events,
+    compileState: timelineData.compileState,
+    metrics: timelineData.metrics,
   };
 }
 

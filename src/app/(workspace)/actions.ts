@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { AskAnswerMode, ArtifactType, WikiPageType } from "@/lib/domain/types";
 import { runAskSession, saveAskSessionAsArtifact } from "@/lib/services/ask-service";
 import { setArtifactWikiFilingEligibility } from "@/lib/services/artifact-service";
+import { compileProjectTimeline } from "@/lib/services/timeline-service";
 import { getActiveProjectId } from "@/lib/services/workspace-service";
 import { compileProject } from "@/lib/services/compiler-service";
 import {
@@ -23,6 +24,7 @@ function refreshWorkspacePaths(projectId: string) {
   revalidatePath("/artifacts");
   revalidatePath("/artifacts/[artifactId]", "page");
   revalidatePath("/ask");
+  revalidatePath("/timeline");
   revalidatePath("/settings");
 }
 
@@ -42,7 +44,7 @@ export async function compileActiveProjectWikiAction() {
 
 export async function recompileProjectFromLintAction(formData: FormData) {
   const projectId = String(formData.get("projectId") ?? "");
-const redirectTo = String(formData.get("redirectTo") ?? "/lint");
+  const redirectTo = String(formData.get("redirectTo") ?? "/lint");
 
   if (!projectId) {
     throw new Error("Project id is required to recompile from lint.");
@@ -142,4 +144,11 @@ export async function setArtifactWikiFilingEligibilityAction(formData: FormData)
   });
   refreshWorkspacePaths(projectId);
   redirect(redirectTo);
+}
+
+export async function compileActiveProjectTimelineAction() {
+  const projectId = await getActiveProjectId();
+  await compileProjectTimeline(projectId);
+  refreshWorkspacePaths(projectId);
+  redirect("/timeline");
 }
