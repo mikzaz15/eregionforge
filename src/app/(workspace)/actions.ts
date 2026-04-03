@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { WikiPageType } from "@/lib/domain/types";
+import type { AskAnswerMode, ArtifactType, WikiPageType } from "@/lib/domain/types";
+import { runAskSession, saveAskSessionAsArtifact } from "@/lib/services/ask-service";
 import { getActiveProjectId } from "@/lib/services/workspace-service";
 import { compileProject } from "@/lib/services/compiler-service";
 import {
@@ -85,4 +86,40 @@ export async function createMissingExpectedPagePlaceholderAction(
   });
   refreshWorkspacePaths(projectId);
   redirect(redirectTo);
+}
+
+export async function runAskSessionAction(formData: FormData) {
+  const projectId = await getActiveProjectId();
+  const prompt = String(formData.get("prompt") ?? "").trim();
+  const answerMode = String(formData.get("answerMode") ?? "concise-answer");
+
+  if (!prompt) {
+    throw new Error("Ask mode requires a prompt.");
+  }
+
+  const session = await runAskSession({
+    projectId,
+    prompt,
+    answerMode: answerMode as AskAnswerMode,
+  });
+  refreshWorkspacePaths(projectId);
+  redirect(`/ask?sessionId=${session.id}`);
+}
+
+export async function saveAskSessionAsArtifactAction(formData: FormData) {
+  const projectId = await getActiveProjectId();
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const artifactType = String(formData.get("artifactType") ?? "memo");
+
+  if (!sessionId) {
+    throw new Error("Ask session id is required to save an artifact.");
+  }
+
+  const artifact = await saveAskSessionAsArtifact({
+    projectId,
+    sessionId,
+    artifactType: artifactType as ArtifactType,
+  });
+  refreshWorkspacePaths(projectId);
+  redirect(`/ask?sessionId=${sessionId}&savedArtifactId=${artifact.id}`);
 }

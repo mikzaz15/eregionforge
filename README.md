@@ -21,3 +21,19 @@ raw sources -> extracted knowledge -> canonical wiki -> persistent artifacts -> 
 
 ## First move
 Open `workspace/prompts/codex-master-kickoff.md` and use it with Codex in a fresh repo named `eregionforge`.
+
+## Local development
+
+Use:
+
+```bash
+npm run dev
+```
+
+This repo now pins local development to `next dev --webpack` instead of the default dev bundler. On this machine, Webpack is the safer choice for iterative local work, while `npm run build` and `npm run start` remain production-oriented.
+
+If you explicitly want to test the newer dev bundler, use:
+
+```bash
+npm run dev:turbopack
+```

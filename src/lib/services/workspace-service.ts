@@ -1,8 +1,11 @@
+import { cache } from "react";
 import {
   activeProjectId,
 } from "@/lib/domain/seed-data";
 import type {
   Artifact,
+  AskAnswerMode,
+  AskSession,
   Claim,
   ClaimSupportStatus,
   CompileJob,
@@ -16,6 +19,7 @@ import type {
   WikiPageRevision,
 } from "@/lib/domain/types";
 import { artifactsRepository } from "@/lib/repositories/artifacts-repository";
+import { askSessionsRepository } from "@/lib/repositories/ask-sessions-repository";
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { compileJobsRepository } from "@/lib/repositories/compile-jobs-repository";
 import { evidenceLinksRepository } from "@/lib/repositories/evidence-links-repository";
@@ -99,6 +103,41 @@ export type PageClaimDetail = {
   linkedFragments: SourceFragment[];
 };
 
+export type AskModeOption = {
+  value: AskAnswerMode;
+  label: string;
+  description: string;
+};
+
+export type AskSessionSummary = {
+  session: AskSession;
+  consultedWikiPageCount: number;
+  consultedClaimCount: number;
+  consultedSourceCount: number;
+};
+
+export type AskConsultedClaim = {
+  claim: Claim;
+  page: WikiPage | null;
+};
+
+export type AskSessionDetail = {
+  session: AskSession;
+  consultedPages: WikiPageSummary[];
+  consultedClaims: AskConsultedClaim[];
+  consultedSources: LinkedSourceDetail[];
+};
+
+export type AskPageData = {
+  summary: ProjectSummary;
+  metrics: Array<{ label: string; value: string; note: string }>;
+  currentSession: AskSessionDetail | null;
+  recentSessions: AskSessionSummary[];
+  answerModes: AskModeOption[];
+  artifacts: Artifact[];
+  savedArtifact: Artifact | null;
+};
+
 export type WikiPageDetailData = {
   summary: ProjectSummary;
   page: WikiPage;
@@ -160,6 +199,34 @@ export const retrievalPolicy = [
     title: "Promote strong answers into durable outputs",
     detail:
       "Useful answers should become artifacts that remain attached to the project.",
+  },
+] as const;
+
+export const askAnswerModes: AskModeOption[] = [
+  {
+    value: "concise-answer",
+    label: "Concise Answer",
+    description: "Direct answer with canonical basis and current evidence posture.",
+  },
+  {
+    value: "research-memo",
+    label: "Research Memo",
+    description: "Longer structured synthesis for decision support and handoff.",
+  },
+  {
+    value: "compare-viewpoints",
+    label: "Compare Viewpoints",
+    description: "Contrast relevant canonical objects and source perspectives.",
+  },
+  {
+    value: "identify-contradictions",
+    label: "Identify Contradictions",
+    description: "Surface tension signals across canon, claims, and source state.",
+  },
+  {
+    value: "follow-up-questions",
+    label: "Follow-Up Questions",
+    description: "Generate the next research questions from current gaps and weak support.",
   },
 ] as const;
 
@@ -307,6 +374,26 @@ async function buildSourceRecordSummary(source: Source): Promise<SourceRecordSum
   };
 }
 
+async function buildLinkedSourceDetail(sourceId: string): Promise<LinkedSourceDetail | null> {
+  const source = await sourcesRepository.getById(sourceId);
+
+  if (!source) {
+    return null;
+  }
+
+  const fragments = await sourceFragmentsRepository.listBySourceId(sourceId);
+
+  return {
+    source,
+    fragments,
+    fragmentCount: fragments.length,
+    excerpt:
+      previewText(
+        fragments.find((fragment) => fragment.fragmentType !== "heading")?.text ?? null,
+      ) ?? previewText(source.body),
+  };
+}
+
 function countByStatus<T extends string>(
   statuses: T[],
   target: T,
@@ -314,7 +401,15 @@ function countByStatus<T extends string>(
   return statuses.filter((status) => status === target).length;
 }
 
-async function buildProjectSummary(project: Project): Promise<ProjectSummary> {
+const buildProjectSummary = cache(async function buildProjectSummary(
+  projectId: string,
+): Promise<ProjectSummary | null> {
+  const project = await projectsRepository.getById(projectId);
+
+  if (!project) {
+    return null;
+  }
+
   const [
     sources,
     pages,
@@ -363,9 +458,11 @@ async function buildProjectSummary(project: Project): Promise<ProjectSummary> {
       latestCompile?.summary ?? "No compile job has been run against this project yet.",
     health: lintSnapshot.health,
   };
-}
+});
 
-async function buildWikiPageSummaries(projectId: string): Promise<WikiPageSummary[]> {
+const buildWikiPageSummaries = cache(async function buildWikiPageSummaries(
+  projectId: string,
+): Promise<WikiPageSummary[]> {
   const pages = await wikiRepository.listPagesByProjectId(projectId);
 
   return Promise.all(
@@ -397,26 +494,32 @@ async function buildWikiPageSummaries(projectId: string): Promise<WikiPageSummar
       };
     }),
   );
-}
+});
 
 export async function getActiveProjectId(): Promise<string> {
   const repositoryValue = await projectsRepository.getActiveProjectId();
   return repositoryValue || activeProjectId;
 }
 
-export async function listProjectSummaries(): Promise<ProjectSummary[]> {
+export const listProjectSummaries = cache(async function listProjectSummaries(): Promise<
+  ProjectSummary[]
+> {
   const projects = await projectsRepository.list();
-  return Promise.all(projects.map((project) => buildProjectSummary(project)));
-}
+  const summaries = await Promise.all(
+    projects.map((project) => buildProjectSummary(project.id)),
+  );
+  return summaries.filter((summary): summary is ProjectSummary => Boolean(summary));
+});
 
-export async function getProjectSummary(
+export const getProjectSummary = cache(async function getProjectSummary(
   projectId: string,
 ): Promise<ProjectSummary | null> {
-  const project = await projectsRepository.getById(projectId);
-  return project ? buildProjectSummary(project) : null;
-}
+  return buildProjectSummary(projectId);
+});
 
-export async function getActiveProjectSummary(): Promise<ProjectSummary> {
+export const getActiveProjectSummary = cache(async function getActiveProjectSummary(): Promise<
+  ProjectSummary
+> {
   const projectId = await getActiveProjectId();
   const summary = await getProjectSummary(projectId);
 
@@ -425,13 +528,19 @@ export async function getActiveProjectSummary(): Promise<ProjectSummary> {
   }
 
   return summary;
-}
+});
 
-export async function getShellData() {
-  const [activeSummary, projectSummaries] = await Promise.all([
-    getActiveProjectSummary(),
+export const getShellData = cache(async function getShellData() {
+  const [projectSummaries, activeProjectId] = await Promise.all([
     listProjectSummaries(),
+    getActiveProjectId(),
   ]);
+  const activeSummary =
+    projectSummaries.find((summary) => summary.project.id === activeProjectId) ?? null;
+
+  if (!activeSummary) {
+    throw new Error("Active project is missing from the repository.");
+  }
 
   return {
     activeSummary,
@@ -439,7 +548,7 @@ export async function getShellData() {
     statusNote:
       "The workspace shell now runs through project-scoped repositories, with deterministic claims and fragment-level evidence links ready for later Supabase-backed persistence.",
   };
-}
+});
 
 export async function getProjectsPageData() {
   const summaries = await listProjectSummaries();
@@ -649,10 +758,11 @@ export async function getArtifactsPageData(projectId: string) {
 }
 
 export async function getAskPageData(projectId: string) {
-  const [summary, wikiData, artifactsData] = await Promise.all([
+  const [summary, wikiData, artifactsData, askSessions] = await Promise.all([
     getProjectSummary(projectId),
     getWikiPageData(projectId),
     getArtifactsPageData(projectId),
+    askSessionsRepository.listByProjectId(projectId),
   ]);
 
   if (!summary || !wikiData || !artifactsData) {
@@ -661,8 +771,16 @@ export async function getAskPageData(projectId: string) {
 
   return {
     summary,
-    wikiPages: wikiData.pages.slice(0, 4),
-    artifacts: artifactsData.artifacts.slice(0, 3),
+    currentSession: null,
+    recentSessions: askSessions.slice(0, 4).map((session) => ({
+      session,
+      consultedWikiPageCount: session.consultedWikiPageIds.length,
+      consultedClaimCount: session.consultedClaimIds.length,
+      consultedSourceCount: session.consultedSourceIds.length,
+    })),
+    answerModes: [...askAnswerModes],
+    artifacts: artifactsData.artifacts.slice(0, 4),
+    savedArtifact: null,
     metrics: [
       {
         label: "Ask Mode",
@@ -679,7 +797,82 @@ export async function getAskPageData(projectId: string) {
         value: String(artifactsData.artifacts.length),
         note: "Strong answers should become durable outputs inside the same project workspace.",
       },
+      {
+        label: "Ask Sessions",
+        value: String(askSessions.length),
+        note: "Ask sessions become project memory only after the query is resolved against canonical knowledge.",
+      },
     ],
+  };
+}
+
+export async function getAskPageDataWithSession(
+  projectId: string,
+  sessionId?: string | null,
+  savedArtifactId?: string | null,
+): Promise<AskPageData | null> {
+  const baseData = await getAskPageData(projectId);
+
+  if (!baseData) {
+    return null;
+  }
+
+  const [wikiPages, claims, savedArtifact] = await Promise.all([
+    buildWikiPageSummaries(projectId),
+    claimsRepository.listByProjectId(projectId),
+    savedArtifactId ? artifactsRepository.getById(savedArtifactId) : Promise.resolve(null),
+  ]);
+
+  const pagesById = new Map(wikiPages.map((page) => [page.page.id, page] as const));
+  const rawPagesById = new Map(wikiPages.map((page) => [page.page.id, page.page] as const));
+  const claimsById = new Map(claims.map((claim) => [claim.id, claim] as const));
+  const sessions = await askSessionsRepository.listByProjectId(projectId);
+  const currentSessionRecord = sessionId
+    ? sessions.find((session) => session.id === sessionId) ?? null
+    : sessions[0] ?? null;
+
+  let currentSession: AskSessionDetail | null = null;
+
+  if (currentSessionRecord) {
+    const consultedSources = (
+      await Promise.all(
+        currentSessionRecord.consultedSourceIds.map((sourceId) =>
+          buildLinkedSourceDetail(sourceId),
+        ),
+      )
+    ).filter((source): source is LinkedSourceDetail => Boolean(source));
+
+    currentSession = {
+      session: currentSessionRecord,
+      consultedPages: currentSessionRecord.consultedWikiPageIds
+        .map((pageId) => pagesById.get(pageId) ?? null)
+        .filter((page): page is WikiPageSummary => Boolean(page)),
+      consultedClaims: currentSessionRecord.consultedClaimIds
+        .map((claimId) => {
+          const claim = claimsById.get(claimId);
+          return claim
+            ? {
+                claim,
+                page: rawPagesById.get(claim.wikiPageId) ?? null,
+              }
+            : null;
+        })
+        .filter((claim): claim is AskConsultedClaim => Boolean(claim)),
+      consultedSources,
+    };
+  }
+
+  return {
+    ...baseData,
+    currentSession,
+    recentSessions: sessions.slice(0, 6).map((session) => ({
+      session,
+      consultedWikiPageCount: session.consultedWikiPageIds.length,
+      consultedClaimCount: session.consultedClaimIds.length,
+      consultedSourceCount: session.consultedSourceIds.length,
+    })),
+    savedArtifact:
+      savedArtifact && savedArtifact.projectId === projectId ? savedArtifact : null,
   };
 }
 

@@ -49,6 +49,12 @@ export type ArtifactType =
   | "investment-note";
 export type RevisionConfidence = "low" | "medium" | "high";
 export type CompileJobStatus = "pending" | "running" | "completed" | "failed";
+export type AskAnswerMode =
+  | "concise-answer"
+  | "research-memo"
+  | "compare-viewpoints"
+  | "identify-contradictions"
+  | "follow-up-questions";
 export type LintIssueType =
   | "unsupported_claims"
   | "weakly_supported_page"
@@ -203,6 +209,23 @@ export interface WikiPageSourceLink {
   pageId: string;
   sourceId: string;
 }
+
+export interface AskSession {
+  id: string;
+  projectId: string;
+  prompt: string;
+  answer: string;
+  answerMode: AskAnswerMode;
+  confidence: RevisionConfidence;
+  consultedWikiPageIds: string[];
+  consultedClaimIds: string[];
+  consultedSourceIds: string[];
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  metadata?: StringMetadata;
+}
+
+export type AskSessionPayload = Omit<AskSession, "id" | "createdAt" | "updatedAt">;
 
 export interface LintIssue {
   id: string;

@@ -83,6 +83,11 @@ export default async function ArtifactsPage() {
                 <p className="mt-2 text-sm font-medium text-foreground">
                   {artifact.metadata.derivedFrom}
                 </p>
+                {artifact.metadata.originatingPrompt ? (
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    Prompt: {artifact.metadata.originatingPrompt}
+                  </p>
+                ) : null}
               </div>
             </div>
           ))}

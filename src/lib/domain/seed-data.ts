@@ -1,5 +1,6 @@
 import type {
   Artifact,
+  AskSession,
   Claim,
   CompileJob,
   EvidenceLink,
@@ -544,6 +545,8 @@ export const seedArtifacts: Artifact[] = [
     updatedAt: "2026-04-02T23:30:00Z",
   },
 ];
+
+export const seedAskSessions: AskSession[] = [];
 
 export const seedCompileJobs: CompileJob[] = [
   {
