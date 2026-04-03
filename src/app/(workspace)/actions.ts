@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { AskAnswerMode, ArtifactType, WikiPageType } from "@/lib/domain/types";
 import { runAskSession, saveAskSessionAsArtifact } from "@/lib/services/ask-service";
+import { setArtifactWikiFilingEligibility } from "@/lib/services/artifact-service";
 import { getActiveProjectId } from "@/lib/services/workspace-service";
 import { compileProject } from "@/lib/services/compiler-service";
 import {
@@ -20,6 +21,7 @@ function refreshWorkspacePaths(projectId: string) {
   revalidatePath("/wiki/[pageId]", "page");
   revalidatePath("/lint");
   revalidatePath("/artifacts");
+  revalidatePath("/artifacts/[artifactId]", "page");
   revalidatePath("/ask");
   revalidatePath("/settings");
 }
@@ -122,4 +124,22 @@ export async function saveAskSessionAsArtifactAction(formData: FormData) {
   });
   refreshWorkspacePaths(projectId);
   redirect(`/ask?sessionId=${sessionId}&savedArtifactId=${artifact.id}`);
+}
+
+export async function setArtifactWikiFilingEligibilityAction(formData: FormData) {
+  const projectId = await getActiveProjectId();
+  const artifactId = String(formData.get("artifactId") ?? "");
+  const eligible = String(formData.get("eligibleForWikiFiling") ?? "false") === "true";
+  const redirectTo = String(formData.get("redirectTo") ?? "/artifacts");
+
+  if (!artifactId) {
+    throw new Error("Artifact id is required to update wiki filing eligibility.");
+  }
+
+  await setArtifactWikiFilingEligibility({
+    artifactId,
+    eligibleForWikiFiling: eligible,
+  });
+  refreshWorkspacePaths(projectId);
+  redirect(redirectTo);
 }

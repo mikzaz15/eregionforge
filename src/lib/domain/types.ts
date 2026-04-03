@@ -44,9 +44,14 @@ export type ArtifactStatus = "draft" | "active" | "archived";
 export type ArtifactType =
   | "memo"
   | "briefing"
-  | "comparison-report"
-  | "decision-record"
-  | "investment-note";
+  | "comparison_report"
+  | "slide_outline"
+  | "saved_answer";
+export type ArtifactProvenance =
+  | "ask-mode"
+  | "manual"
+  | "wiki-derived"
+  | "research-synthesis";
 export type RevisionConfidence = "low" | "medium" | "high";
 export type CompileJobStatus = "pending" | "running" | "completed" | "failed";
 export type AskAnswerMode =
@@ -185,6 +190,14 @@ export interface Artifact {
   artifactType: ArtifactType;
   title: string;
   markdownContent: string;
+  previewText: string;
+  provenance: ArtifactProvenance;
+  originatingPrompt?: string | null;
+  derivedFromAskSessionId?: string | null;
+  referencedWikiPageIds: string[];
+  referencedSourceIds: string[];
+  referencedClaimIds: string[];
+  eligibleForWikiFiling: boolean;
   status: ArtifactStatus;
   metadata: StringMetadata;
   createdAt: Timestamp;

@@ -17,6 +17,10 @@ import {
   getAskPageDataWithSession,
   retrievalPolicy,
 } from "@/lib/services/workspace-service";
+import {
+  artifactProvenanceLabel,
+  artifactTypeLabel,
+} from "@/lib/services/artifact-service";
 
 function confidenceTone(confidence: string): StatusTone {
   if (confidence === "high") {
@@ -272,14 +276,14 @@ export default async function AskPage({
                     <select
                       id="artifact-type"
                       name="artifactType"
-                      defaultValue="memo"
+                      defaultValue="saved_answer"
                       className="mt-3 w-full rounded-[1.1rem] border border-border bg-surface px-4 py-3 text-sm text-foreground outline-none transition focus:border-border-strong"
                     >
-                      <option value="memo">Memo</option>
-                      <option value="briefing">Briefing</option>
-                      <option value="comparison-report">Comparison Report</option>
-                      <option value="decision-record">Decision Record</option>
-                      <option value="investment-note">Investment Note</option>
+                      {data.artifactTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="flex flex-wrap gap-3">
@@ -287,10 +291,14 @@ export default async function AskPage({
                       Save As Artifact
                     </button>
                     <Link
-                      href="/artifacts"
+                      href={
+                        data.savedArtifact
+                          ? `/artifacts/${data.savedArtifact.id}`
+                          : "/artifacts"
+                      }
                       className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
                     >
-                      Open Artifacts
+                      {data.savedArtifact ? "Open Saved Artifact" : "Open Artifacts"}
                     </Link>
                   </div>
                 </div>
@@ -434,23 +442,27 @@ export default async function AskPage({
             description="Ask responses should graduate into artifacts when they are worth preserving."
           >
             <div className="space-y-3">
-              {data.artifacts.map((artifact) => (
-                <div
-                  key={artifact.id}
-                  className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4"
+              {data.artifacts.map((entry) => (
+                <Link
+                  key={entry.artifact.id}
+                  href={`/artifacts/${entry.artifact.id}`}
+                  className="block rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 transition hover:bg-background"
                 >
                   <div className="flex items-center gap-2">
                     <p className="font-semibold tracking-tight text-foreground">
-                      {artifact.title}
+                      {entry.artifact.title}
                     </p>
-                    <StatusPill tone={artifactTone(artifact.status)}>
-                      {artifact.status}
+                    <StatusPill tone={artifactTone(entry.artifact.status)}>
+                      {entry.artifact.status}
                     </StatusPill>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-muted">
-                    {artifact.metadata.derivedFrom}
+                    {entry.artifact.previewText}
                   </p>
-                </div>
+                  <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                    {artifactTypeLabel(entry.artifact.artifactType)} · {artifactProvenanceLabel(entry.artifact.provenance)}
+                  </p>
+                </Link>
               ))}
             </div>
           </SectionCard>

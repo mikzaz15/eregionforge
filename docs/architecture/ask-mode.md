@@ -109,7 +109,7 @@ An Ask session can be promoted into an artifact.
 Current artifact provenance includes:
 
 - `derivedFrom = Ask mode`
-- `provenance = ask-session`
+- `provenance = ask-mode`
 - originating prompt
 - answer mode
 - ask session id

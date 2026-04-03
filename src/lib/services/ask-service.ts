@@ -11,12 +11,15 @@ import type {
   WikiPageRevision,
   WikiPageType,
 } from "@/lib/domain/types";
-import { artifactsRepository } from "@/lib/repositories/artifacts-repository";
 import { askSessionsRepository } from "@/lib/repositories/ask-sessions-repository";
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { evidenceLinksRepository } from "@/lib/repositories/evidence-links-repository";
 import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
+import {
+  artifactTitleFromAskSession,
+  createArtifact,
+} from "@/lib/services/artifact-service";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
 
 type PageCandidate = {
@@ -611,16 +614,24 @@ export async function saveAskSessionAsArtifact(input: {
     throw new Error("Ask session is missing for artifact creation.");
   }
 
-  return artifactsRepository.create({
+  return createArtifact({
     projectId: input.projectId,
     artifactType: input.artifactType,
-    title: titleFromPrompt(session.prompt, session.answerMode),
+    title:
+      input.artifactType === "saved_answer"
+        ? artifactTitleFromAskSession(session)
+        : titleFromPrompt(session.prompt, session.answerMode),
     markdownContent: session.answer,
+    provenance: "ask-mode",
     status: "draft",
+    originatingPrompt: session.prompt,
+    derivedFromAskSessionId: session.id,
+    referencedWikiPageIds: session.consultedWikiPageIds,
+    referencedSourceIds: session.consultedSourceIds,
+    referencedClaimIds: session.consultedClaimIds,
+    eligibleForWikiFiling: false,
     metadata: {
       derivedFrom: "Ask mode",
-      provenance: "ask-session",
-      originatingPrompt: session.prompt,
       answerMode: session.answerMode,
       askSessionId: session.id,
       confidence: session.confidence,

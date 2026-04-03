@@ -7,6 +7,7 @@ import {
   StatusPill,
   type StatusTone,
 } from "@/components/workspace/primitives";
+import { artifactTypeLabel } from "@/lib/services/artifact-service";
 import { getActiveProjectId, getProjectDetailData } from "@/lib/services/workspace-service";
 
 function compileTone(status: string): StatusTone {
@@ -195,16 +196,23 @@ export default async function ProjectDetailPage({
             </div>
             <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
               <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-                Last compile
+                Asset mix
               </p>
-              <p className="mt-2 text-sm leading-6 text-foreground">
-                Latest compile status is <span className="font-semibold capitalize">{projectData.summary.latestCompileStatus}</span>, with the last completed checkpoint on {projectData.summary.latestCompileLabel}.
-              </p>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                {projectData.latestCompile?.summary ?? "No compile job summary is available for this project yet."}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                Generated pages: {projectData.summary.generatedPageCount}. Source-summary pages: {projectData.summary.sourceSummaryPageCount}. Supported claims: {projectData.summary.supportedClaimsCount}. Unresolved claims: {projectData.summary.unresolvedClaimsCount}. Evidence-linked pages: {projectData.summary.evidenceLinkedPageCount}.
+              {projectData.artifactTypeMix.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {projectData.artifactTypeMix.map((entry) => (
+                    <StatusPill key={entry.artifactType} tone="neutral">
+                      {artifactTypeLabel(entry.artifactType)} {entry.count}
+                    </StatusPill>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  No artifacts have been created for this project yet.
+                </p>
+              )}
+              <p className="mt-3 text-sm leading-6 text-muted">
+                Recent artifacts: {projectData.artifacts.slice(0, 3).map((entry) => entry.artifact.title).join(", ") || "none yet"}.
               </p>
             </div>
           </div>
@@ -292,23 +300,27 @@ export default async function ProjectDetailPage({
           description="Artifacts stay attached to the same project instead of becoming disposable text."
         >
           <div className="space-y-3">
-            {projectData.artifacts.slice(0, 4).map((artifact) => (
-              <div
-                key={artifact.id}
-                className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4"
+            {projectData.artifacts.slice(0, 4).map((entry) => (
+              <Link
+                key={entry.artifact.id}
+                href={`/artifacts/${entry.artifact.id}`}
+                className="block rounded-2xl border border-border bg-surface-strong/75 px-4 py-4"
               >
                 <div className="flex items-center gap-2">
                   <p className="font-semibold tracking-tight text-foreground">
-                    {artifact.title}
+                    {entry.artifact.title}
                   </p>
-                  <StatusPill tone={artifactTone(artifact.status)}>
-                    {artifact.status}
+                  <StatusPill tone={artifactTone(entry.artifact.status)}>
+                    {entry.artifact.status}
                   </StatusPill>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-muted">
-                  {artifact.metadata.derivedFrom}
+                  {entry.artifact.previewText}
                 </p>
-              </div>
+                <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  {artifactTypeLabel(entry.artifact.artifactType)} · Pages {entry.wikiPageCount} · Claims {entry.claimCount} · Sources {entry.sourceCount}
+                </p>
+              </Link>
             ))}
           </div>
         </SectionCard>

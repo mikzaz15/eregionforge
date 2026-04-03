@@ -4,6 +4,7 @@ import {
 } from "@/lib/domain/seed-data";
 import type {
   Artifact,
+  ArtifactType,
   AskAnswerMode,
   AskSession,
   Claim,
@@ -18,7 +19,6 @@ import type {
   WikiPage,
   WikiPageRevision,
 } from "@/lib/domain/types";
-import { artifactsRepository } from "@/lib/repositories/artifacts-repository";
 import { askSessionsRepository } from "@/lib/repositories/ask-sessions-repository";
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { compileJobsRepository } from "@/lib/repositories/compile-jobs-repository";
@@ -27,6 +27,14 @@ import { projectsRepository } from "@/lib/repositories/projects-repository";
 import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import {
+  artifactTypeOptions,
+  getArtifactDetail,
+  listProjectArtifacts,
+  type ArtifactDetailRecord,
+  type ArtifactSummaryRecord,
+  type ArtifactTypeOption,
+} from "@/lib/services/artifact-service";
 import {
   getProjectLintSnapshot,
   type ProjectLintHealthSummary,
@@ -66,7 +74,8 @@ export type ProjectDetailData = {
   summary: ProjectSummary;
   sources: Source[];
   wikiPages: WikiPageSummary[];
-  artifacts: Artifact[];
+  artifacts: ArtifactSummaryRecord[];
+  artifactTypeMix: Array<{ artifactType: ArtifactType; count: number }>;
   latestCompile: CompileJob | null;
 };
 
@@ -134,8 +143,22 @@ export type AskPageData = {
   currentSession: AskSessionDetail | null;
   recentSessions: AskSessionSummary[];
   answerModes: AskModeOption[];
-  artifacts: Artifact[];
+  artifactTypes: ArtifactTypeOption[];
+  artifacts: ArtifactSummaryRecord[];
   savedArtifact: Artifact | null;
+};
+
+export type ArtifactsPageData = {
+  summary: ProjectSummary;
+  artifacts: ArtifactSummaryRecord[];
+  metrics: Array<{ label: string; value: string; note: string }>;
+  artifactTypes: ArtifactTypeOption[];
+  activeFilter: ArtifactType | "all";
+};
+
+export type ArtifactDetailPageData = {
+  summary: ProjectSummary;
+  artifact: ArtifactDetailRecord;
 };
 
 export type WikiPageDetailData = {
@@ -401,6 +424,23 @@ function countByStatus<T extends string>(
   return statuses.filter((status) => status === target).length;
 }
 
+function buildArtifactTypeMix(
+  artifacts: ArtifactSummaryRecord[],
+): Array<{ artifactType: ArtifactType; count: number }> {
+  const counts = new Map<ArtifactType, number>();
+
+  for (const entry of artifacts) {
+    counts.set(
+      entry.artifact.artifactType,
+      (counts.get(entry.artifact.artifactType) ?? 0) + 1,
+    );
+  }
+
+  return Array.from(counts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([artifactType, count]) => ({ artifactType, count }));
+}
+
 const buildProjectSummary = cache(async function buildProjectSummary(
   projectId: string,
 ): Promise<ProjectSummary | null> {
@@ -422,7 +462,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     await Promise.all([
       sourcesRepository.listByProjectId(project.id),
       wikiRepository.listPagesByProjectId(project.id),
-      artifactsRepository.listByProjectId(project.id),
+      listProjectArtifacts({ projectId: project.id }),
       compileJobsRepository.getLatestByProjectId(project.id),
       claimsRepository.listByProjectId(project.id),
       evidenceLinksRepository.listByProjectId(project.id),
@@ -598,7 +638,7 @@ export async function getProjectDetailData(
   const [sources, wikiPages, artifacts] = await Promise.all([
     sourcesRepository.listByProjectId(projectId),
     buildWikiPageSummaries(projectId),
-    artifactsRepository.listByProjectId(projectId),
+    listProjectArtifacts({ projectId }),
   ]);
   const latestCompile = await compileJobsRepository.getLatestByProjectId(projectId);
 
@@ -606,7 +646,8 @@ export async function getProjectDetailData(
     summary,
     sources: sortByCreatedAtDesc(sources),
     wikiPages: sortWikiPageSummariesByUpdatedAtDesc(wikiPages),
-    artifacts: sortByCreatedAtDesc(artifacts),
+    artifacts,
+    artifactTypeMix: buildArtifactTypeMix(artifacts),
     latestCompile,
   };
 }
@@ -722,21 +763,30 @@ export async function getWikiPageData(projectId: string) {
   };
 }
 
-export async function getArtifactsPageData(projectId: string) {
+export async function getArtifactsPageData(
+  projectId: string,
+  artifactType?: ArtifactType | "all",
+): Promise<ArtifactsPageData | null> {
+  const activeFilter = artifactType && artifactType !== "all" ? artifactType : "all";
   const [summary, artifacts] = await Promise.all([
     getProjectSummary(projectId),
-    artifactsRepository.listByProjectId(projectId),
+    listProjectArtifacts({
+      projectId,
+      artifactType: activeFilter === "all" ? null : activeFilter,
+    }),
   ]);
 
   if (!summary) {
     return null;
   }
 
-  const artifactStatuses = artifacts.map((artifact) => artifact.status);
+  const artifactStatuses = artifacts.map((entry) => entry.artifact.status);
 
   return {
     summary,
-    artifacts: sortByCreatedAtDesc(artifacts),
+    artifacts,
+    artifactTypes: [...artifactTypeOptions],
+    activeFilter,
     metrics: [
       {
         label: "Artifacts",
@@ -752,6 +802,13 @@ export async function getArtifactsPageData(projectId: string) {
         label: "Drafts",
         value: String(countByStatus(artifactStatuses, "draft")),
         note: "Draft outputs are still attached to the project and ready for further compilation or review.",
+      },
+      {
+        label: "Wiki Filing",
+        value: String(
+          artifacts.filter((entry) => entry.artifact.eligibleForWikiFiling).length,
+        ),
+        note: "This is only groundwork for future filing into wiki pages or source inputs.",
       },
     ],
   };
@@ -779,6 +836,7 @@ export async function getAskPageData(projectId: string) {
       consultedSourceCount: session.consultedSourceIds.length,
     })),
     answerModes: [...askAnswerModes],
+    artifactTypes: [...artifactTypeOptions],
     artifacts: artifactsData.artifacts.slice(0, 4),
     savedArtifact: null,
     metrics: [
@@ -817,10 +875,10 @@ export async function getAskPageDataWithSession(
     return null;
   }
 
-  const [wikiPages, claims, savedArtifact] = await Promise.all([
+  const [wikiPages, claims, savedArtifactDetail] = await Promise.all([
     buildWikiPageSummaries(projectId),
     claimsRepository.listByProjectId(projectId),
-    savedArtifactId ? artifactsRepository.getById(savedArtifactId) : Promise.resolve(null),
+    savedArtifactId ? getArtifactDetail(savedArtifactId) : Promise.resolve(null),
   ]);
 
   const pagesById = new Map(wikiPages.map((page) => [page.page.id, page] as const));
@@ -872,7 +930,28 @@ export async function getAskPageDataWithSession(
       consultedSourceCount: session.consultedSourceIds.length,
     })),
     savedArtifact:
-      savedArtifact && savedArtifact.projectId === projectId ? savedArtifact : null,
+      savedArtifactDetail?.artifact.projectId === projectId
+        ? savedArtifactDetail.artifact
+        : null,
+  };
+}
+
+export async function getArtifactDetailPageData(
+  projectId: string,
+  artifactId: string,
+): Promise<ArtifactDetailPageData | null> {
+  const [summary, artifact] = await Promise.all([
+    getProjectSummary(projectId),
+    getArtifactDetail(artifactId),
+  ]);
+
+  if (!summary || !artifact || artifact.artifact.projectId !== projectId) {
+    return null;
+  }
+
+  return {
+    summary,
+    artifact,
   };
 }
 
