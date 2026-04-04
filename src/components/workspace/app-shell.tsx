@@ -20,12 +20,37 @@ function compileTone(status: string) {
   return "text-muted";
 }
 
+function nextAction(summary: Awaited<ReturnType<typeof getShellData>>["activeSummary"]) {
+  if (summary.freshnessAlertCount > 0 || summary.thesisPotentiallyStale) {
+    return {
+      href: "/monitoring",
+      label: "Review freshness alerts",
+      detail: "New source or analysis changes may have outpaced the current thesis stack.",
+    };
+  }
+
+  if (!summary.dossierCompanyName) {
+    return {
+      href: "/dossier",
+      label: "Compile the dossier",
+      detail: "Turn the current canon into a structured company view.",
+    };
+  }
+
+  return {
+    href: "/thesis",
+    label: "Open the thesis",
+    detail: "Start the demo from the current underwriting view and follow the references outward.",
+  };
+}
+
 export async function AppShell({
   children,
 }: Readonly<{
   children: ReactNode;
 }>) {
   const { activeSummary, projectSummaries, statusNote } = await getShellData();
+  const recommendedAction = nextAction(activeSummary);
 
   return (
     <div className="min-h-screen px-4 py-4 lg:px-6">
@@ -52,7 +77,7 @@ export async function AppShell({
 
               <div className="rounded-[1.75rem] border border-border bg-background/70 p-4">
                 <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-                  Active project
+                  Loaded project
                 </p>
                 <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground">
                   {activeSummary.project.name}
@@ -79,12 +104,53 @@ export async function AppShell({
                       {activeSummary.latestCompileStatus}
                     </p>
                   </div>
+                  <div>
+                    <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                      Thesis
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-foreground">
+                      {activeSummary.thesisStance ?? "Not compiled"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                      Dossier
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-foreground">
+                      {activeSummary.dossierCompanyName ? "Ready" : "Missing"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                      Alerts
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-foreground">
+                      {activeSummary.freshnessAlertCount}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
+                  <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                    Next best action
+                  </p>
+                  <p className="mt-3 text-sm font-semibold tracking-tight text-foreground">
+                    {recommendedAction.label}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    {recommendedAction.detail}
+                  </p>
+                  <Link
+                    href={recommendedAction.href}
+                    className="mt-4 inline-flex rounded-full border border-border px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                  >
+                    Open
+                  </Link>
                 </div>
                 <Link
                   href={`/projects/${activeSummary.project.id}`}
                   className="mt-4 inline-flex rounded-full border border-border px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
                 >
-                  Open Project Detail
+                  Open Command View
                 </Link>
               </div>
             </div>
@@ -167,7 +233,7 @@ export async function AppShell({
                   </span>
                 </div>
                 <p className="text-sm leading-6 text-muted">
-                  {statusNote}
+                  {activeSummary.project.name} is loaded as the active research workspace. Thesis, dossier, catalysts, contradictions, monitoring, ask, and artifacts all resolve against this project.
                 </p>
               </div>
 
@@ -190,26 +256,26 @@ export async function AppShell({
                 </div>
                 <div className="rounded-2xl border border-border bg-background/70 px-4 py-3">
                   <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-                    Supported
+                    Thesis
                   </p>
                   <p className="mt-2 text-lg font-semibold text-foreground">
-                    {activeSummary.supportedClaimsCount}
+                    {activeSummary.thesisStance ?? "None"}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-border bg-background/70 px-4 py-3">
                   <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-                    Artifacts
+                    Catalysts
                   </p>
                   <p className="mt-2 text-lg font-semibold text-foreground">
-                    {activeSummary.artifactCount}
+                    {activeSummary.catalystCount}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-border bg-background/70 px-4 py-3">
                   <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-                    Last compile
+                    Alerts
                   </p>
                   <p className="mt-2 text-lg font-semibold text-foreground">
-                    {activeSummary.latestCompileLabel}
+                    {activeSummary.freshnessAlertCount}
                   </p>
                 </div>
               </div>

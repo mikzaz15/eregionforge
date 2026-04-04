@@ -1,4 +1,7 @@
-import { seedContradictions } from "@/lib/domain/seed-data";
+import {
+  seedContradictionAnalysisStates,
+  seedContradictions,
+} from "@/lib/domain/seed-data";
 import type {
   Contradiction,
   ContradictionAnalysisState,
@@ -7,7 +10,9 @@ import type {
 } from "@/lib/domain/types";
 
 const contradictionsStore: Contradiction[] = structuredClone(seedContradictions);
-const contradictionAnalysisStateStore = new Map<string, ContradictionAnalysisState>();
+const contradictionAnalysisStateStore = new Map(
+  structuredClone(seedContradictionAnalysisStates).map((state) => [state.projectId, state] as const),
+);
 
 function contradictionId(projectId: string, stableKey: string): string {
   return `contradiction-${projectId}-${stableKey}`;

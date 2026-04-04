@@ -22,20 +22,26 @@ export default async function CatalystsPage() {
         <div className="flex flex-wrap gap-3">
           <form action={compileActiveProjectCatalystsAction}>
             <button className="rounded-full border border-border-strong bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:bg-[#2b3135]">
-              Compile Catalysts
+              Refresh Catalysts
             </button>
           </form>
           <Link
             href={`/projects/${data.summary.project.id}`}
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
           >
-            Project Detail
+            Open Command View
           </Link>
           <Link
             href="/thesis"
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
           >
             Open Thesis
+          </Link>
+          <Link
+            href="/monitoring"
+            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+          >
+            Open Monitoring
           </Link>
         </div>
       }

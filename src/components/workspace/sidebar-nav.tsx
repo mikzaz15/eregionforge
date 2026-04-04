@@ -14,7 +14,7 @@ export function SidebarNav({
   return (
     <nav className="space-y-2">
       <p className="mono-label mb-3 text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-        Workspace
+        Research Surfaces
       </p>
       {items.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);

@@ -285,6 +285,83 @@ export default async function ProjectDetailPage({
         />
       </div>
 
+      <SectionCard
+        eyebrow="Central Command"
+        title="Compiled research stack"
+        description="This page is the command surface for the project. It shows the current underwriting posture, where the thesis may be stale, and which compiled views should be opened next."
+      >
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill tone={projectData.summary.thesisPotentiallyStale ? "danger" : "success"}>
+                {projectData.summary.thesisPotentiallyStale ? "thesis needs review" : "thesis current"}
+              </StatusPill>
+              <StatusPill tone={projectData.summary.dossierReady ? "success" : "accent"}>
+                {projectData.summary.dossierReady ? "dossier ready" : "dossier in progress"}
+              </StatusPill>
+              <StatusPill tone={projectData.summary.freshnessAlertCount > 0 ? "danger" : "neutral"}>
+                {projectData.summary.freshnessAlertCount} monitoring alerts
+              </StatusPill>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-foreground">
+              Stance: {labelize(projectData.summary.thesisStance)}. Confidence: {projectData.summary.thesisConfidence ?? "Not set"}. Catalysts: {projectData.summary.catalystCount}. Contradictions: {projectData.summary.unresolvedContradictionCount} unresolved. Timeline: {projectData.summary.timelineEventCount} events.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              {projectData.summary.thesisFreshnessReason}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href={`/projects/${projectId}/thesis`}
+                className="rounded-full border border-border-strong bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:bg-[#2b3135]"
+              >
+                Open Thesis
+              </Link>
+              <Link
+                href={`/projects/${projectId}/dossier`}
+                className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+              >
+                Open Dossier
+              </Link>
+              <Link
+                href={`/projects/${projectId}/catalysts`}
+                className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+              >
+                Open Catalysts
+              </Link>
+              {isActiveWorkspace ? (
+                <Link
+                  href="/monitoring"
+                  className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                >
+                  Open Monitoring
+                </Link>
+              ) : null}
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              { href: `/projects/${projectId}/thesis`, title: "Thesis", detail: `Revision ${projectData.summary.thesisRevisionNumber || 0} · ${labelize(projectData.summary.thesisStance)}` },
+              { href: `/projects/${projectId}/dossier`, title: "Dossier", detail: projectData.summary.dossierSectionCoverageLabel },
+              { href: `/projects/${projectId}/catalysts`, title: "Catalysts", detail: `${projectData.summary.upcomingCatalystCount} upcoming / ${projectData.summary.highImportanceCatalystCount} high importance` },
+              { href: "/timeline", title: "Timeline", detail: `${projectData.summary.timelineEventCount} chronology events` },
+              { href: "/contradictions", title: "Contradictions", detail: `${projectData.summary.unresolvedContradictionCount} unresolved` },
+              { href: isActiveWorkspace ? "/monitoring" : `/projects/${projectId}`, title: "Monitoring", detail: `${projectData.summary.freshnessAlertCount} active stale alerts` },
+              { href: "/artifacts", title: "Artifacts", detail: `${projectData.summary.artifactCount} durable outputs` },
+              { href: "/ask", title: "Ask", detail: "Canon-first research query flow" },
+            ].map((item) => (
+              <Link
+                key={`${item.title}-${item.href}`}
+                href={item.href}
+                className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 transition hover:bg-background"
+              >
+                <p className="font-semibold tracking-tight text-foreground">{item.title}</p>
+                <p className="mt-2 text-sm leading-6 text-muted">{item.detail}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </SectionCard>
+
       <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
         <SectionCard
           eyebrow="Knowledge Health"

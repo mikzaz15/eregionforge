@@ -765,7 +765,7 @@ export const getShellData = cache(async function getShellData() {
     activeSummary,
     projectSummaries,
     statusNote:
-      "The workspace shell now runs through project-scoped repositories, with deterministic claims and fragment-level evidence links ready for later Supabase-backed persistence.",
+      "EregionForge operates as a research OS: sources compile into canon, canon drives the investment view, and strong outputs remain durable project assets.",
   };
 });
 
@@ -778,28 +778,28 @@ export async function getProjectsPageData() {
       {
         label: "Projects",
         value: String(summaries.length),
-        note: "Each project is a durable boundary for sources, wiki pages, compile state, and artifacts.",
+        note: "Each project is its own compiled research program with sources, canon, outputs, and freshness state.",
       },
       {
-        label: "Generated Pages",
+        label: "Canon Pages",
         value: String(
           summaries.reduce((sum, project) => sum + project.generatedPageCount, 0),
         ),
-        note: "Canonical pages are now measurable generated objects rather than seeded display rows.",
+        note: "These pages are the canonical layer that thesis, ask, contradictions, and artifacts build on top of.",
       },
       {
         label: "Supported Claims",
         value: String(
           summaries.reduce((sum, project) => sum + project.supportedClaimsCount, 0),
         ),
-        note: "Trust metrics now begin at the project level through deterministic claims linked back to source fragments.",
+        note: "Claims make the research stack auditable by tying key statements back to source-grounded evidence.",
       },
       {
-        label: "Open Lint Issues",
+        label: "Integrity Alerts",
         value: String(
           summaries.reduce((sum, project) => sum + project.health.totalIssues, 0),
         ),
-        note: "Knowledge linting now surfaces weak trust zones across compiled canon instead of leaving them implicit.",
+        note: "Lint and monitoring make weak trust zones visible before they leak into the investment view.",
       },
     ],
   };

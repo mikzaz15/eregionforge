@@ -9,7 +9,7 @@ export const workspaceNavigation: NavigationItem[] = [
   {
     href: "/projects",
     label: "Projects",
-    description: "Project boundaries, execution order, and portfolio state.",
+    description: "Research command, loaded project, and portfolio state.",
     shortLabel: "PJ",
   },
   {

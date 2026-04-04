@@ -1,4 +1,4 @@
-import { seedTimelineEvents } from "@/lib/domain/seed-data";
+import { seedTimelineCompileStates, seedTimelineEvents } from "@/lib/domain/seed-data";
 import type {
   TimelineCompileState,
   TimelineEvent,
@@ -6,7 +6,9 @@ import type {
 } from "@/lib/domain/types";
 
 const timelineEventsStore: TimelineEvent[] = structuredClone(seedTimelineEvents);
-const timelineCompileStateStore = new Map<string, TimelineCompileState>();
+const timelineCompileStateStore = new Map(
+  structuredClone(seedTimelineCompileStates).map((state) => [state.projectId, state] as const),
+);
 
 function timelineEventId(projectId: string, stableKey: string): string {
   return `timeline-${projectId}-${stableKey}`;

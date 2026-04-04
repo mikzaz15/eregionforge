@@ -1,4 +1,4 @@
-import { seedCatalysts } from "@/lib/domain/seed-data";
+import { seedCatalystCompileStates, seedCatalysts } from "@/lib/domain/seed-data";
 import type {
   Catalyst,
   CatalystCompileState,
@@ -6,7 +6,9 @@ import type {
 } from "@/lib/domain/types";
 
 const catalystsStore: Catalyst[] = structuredClone(seedCatalysts);
-const catalystCompileStateStore = new Map<string, CatalystCompileState>();
+const catalystCompileStateStore = new Map(
+  structuredClone(seedCatalystCompileStates).map((state) => [state.projectId, state] as const),
+);
 
 function catalystId(projectId: string, stableKey: string): string {
   return `catalyst-${projectId}-${stableKey}`;

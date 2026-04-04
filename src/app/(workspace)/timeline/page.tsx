@@ -69,20 +69,26 @@ export default async function TimelinePage() {
         <div className="flex flex-wrap gap-3">
           <form action={compileActiveProjectTimelineAction}>
             <button className="rounded-full border border-border-strong bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:bg-[#2b3135]">
-              Compile Timeline
+              Refresh Timeline
             </button>
           </form>
           <Link
             href={`/projects/${data.summary.project.id}`}
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
           >
-            Project Detail
+            Open Command View
           </Link>
           <Link
-            href="/wiki"
+            href="/thesis"
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
           >
-            Open Wiki
+            Open Thesis
+          </Link>
+          <Link
+            href="/catalysts"
+            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+          >
+            Open Catalysts
           </Link>
         </div>
       }

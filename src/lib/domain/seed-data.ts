@@ -2,10 +2,12 @@ import type {
   Artifact,
   AskSession,
   Catalyst,
+  CatalystCompileState,
   Claim,
   CompanyDossier,
   CompileJob,
   Contradiction,
+  ContradictionAnalysisState,
   EvidenceLink,
   MonitoringAnalysisState,
   Project,
@@ -15,6 +17,7 @@ import type {
   SourceFragment,
   Thesis,
   ThesisRevision,
+  TimelineCompileState,
   TimelineEvent,
   WikiPage,
   WikiPageRevision,
@@ -22,7 +25,7 @@ import type {
 } from "@/lib/domain/types";
 import { parseSourceFragments } from "@/lib/domain/source-fragment-parser";
 
-export const activeProjectId = "project-eregionforge";
+export const activeProjectId = "project-northstar-semiconductor";
 
 export const seedProjects: Project[] = [
   {
@@ -43,11 +46,11 @@ export const seedProjects: Project[] = [
     slug: "northstar-semiconductor-diligence",
     name: "Northstar Semiconductor Diligence",
     description:
-      "Internal diligence workspace assessing a power semiconductor supplier across market structure, unit economics, and execution risk.",
+      "Demo diligence workspace assessing a power-module supplier across margin expansion, pricing durability, catalyst timing, and execution risk.",
     domain: "Investment research",
     status: "active",
     createdAt: "2026-04-02T18:20:00Z",
-    updatedAt: "2026-04-03T00:00:00Z",
+    updatedAt: "2026-04-03T09:35:00Z",
   },
 ];
 
@@ -172,70 +175,70 @@ export const seedSources: Source[] = [
     projectId: "project-northstar-semiconductor",
     sourceType: "pdf",
     title: "FY2025 Investor Day Deck",
-    body: "Management frames gross margin expansion around power module mix and automotive design wins.",
+    body: "Management frames a path to gross margin above 34% in FY2026 through a richer mix of automotive power modules, Gen-4 platform ramps, and tighter operating discipline across industrial programs.",
     url: "https://example.com/northstar-investor-day.pdf",
     filePath: null,
-    status: "parsed",
+    status: "compiled",
     provenance: { label: "Investor relations", kind: "url" },
     metadata: { issuer: "Northstar Semi", period: "FY2025" },
     createdAt: "2026-04-02T18:20:00Z",
-    updatedAt: "2026-04-02T18:20:00Z",
+    updatedAt: "2026-04-03T08:42:00Z",
   },
   {
     id: "source-ns-earnings-call",
     projectId: "project-northstar-semiconductor",
     sourceType: "text",
     title: "Q4 2025 Earnings Call Transcript",
-    body: "Management comments on utilization, pricing discipline, and backlog normalization.",
+    body: "Management comments on utilization, pricing discipline, and backlog normalization, arguing that discounting has not broadened in automotive while industrial sockets remain more promotional.",
     url: "https://example.com/northstar-q4-transcript",
     filePath: null,
     status: "compiled",
     provenance: { label: "Transcript provider", kind: "url" },
     metadata: { issuer: "Northstar Semi", period: "Q4 2025" },
     createdAt: "2026-04-02T19:10:00Z",
-    updatedAt: "2026-04-02T19:10:00Z",
+    updatedAt: "2026-04-03T08:55:00Z",
   },
   {
     id: "source-ns-channel-checks",
     projectId: "project-northstar-semiconductor",
     sourceType: "markdown",
     title: "Channel Check Notes: EV Power Modules",
-    body: "Distributor conversations suggest lead times have normalized but automotive qualification remains sticky.",
+    body: "Distributor conversations suggest lead times have normalized but automotive qualification remains sticky, with premium pricing holding better in EV programs than in industrial sockets.",
     url: null,
     filePath: "research/channel-checks/ev-power-modules.md",
     status: "compiled",
     provenance: { label: "Internal research note", kind: "workspace-note" },
     metadata: { sourceClass: "field-research", region: "North America" },
     createdAt: "2026-04-02T20:45:00Z",
-    updatedAt: "2026-04-02T20:45:00Z",
+    updatedAt: "2026-04-03T09:05:00Z",
   },
   {
     id: "source-ns-pricing-table",
     projectId: "project-northstar-semiconductor",
     sourceType: "markdown",
     title: "Competitor Pricing Table",
-    body: "Side-by-side pricing and package comparison across four power module vendors.",
+    body: "Side-by-side pricing and package comparison across four power module vendors shows Northstar retaining premium pricing in automotive modules while industrial sockets screen closer to peers.",
     url: null,
     filePath: "research/pricing/competitor-table.md",
-    status: "extracted",
+    status: "compiled",
     provenance: { label: "Internal comp sheet", kind: "workspace-note" },
     metadata: { coverage: "pricing", comparatorSet: "power modules" },
     createdAt: "2026-04-02T21:00:00Z",
-    updatedAt: "2026-04-02T21:00:00Z",
+    updatedAt: "2026-04-03T09:12:00Z",
   },
   {
     id: "source-ns-industry-note",
     projectId: "project-northstar-semiconductor",
     sourceType: "markdown",
     title: "Wide-Bandgap Adoption Note",
-    body: "Industry note on silicon carbide adoption pacing, capacity additions, and expected ASP compression.",
+    body: "Industry note on silicon carbide adoption pacing, capacity additions, and expected ASP compression argues that new capacity could pressure module ASPs through late 2026 even if automotive qualifications remain sticky.",
     url: null,
     filePath: "research/industry/wide-bandgap-adoption.md",
-    status: "failed",
+    status: "compiled",
     provenance: { label: "Internal industry note", kind: "workspace-note" },
     metadata: { theme: "SiC adoption", region: "Global" },
     createdAt: "2026-04-02T22:15:00Z",
-    updatedAt: "2026-04-02T22:15:00Z",
+    updatedAt: "2026-04-03T09:28:00Z",
   },
 ];
 
@@ -248,9 +251,187 @@ export const seedSourceFragments: SourceFragment[] = seedSources.flatMap((source
   })),
 );
 
-export const seedClaims: Claim[] = [];
+export const seedClaims: Claim[] = [
+  {
+    id: "claim-ns-margin-target",
+    projectId: "project-northstar-semiconductor",
+    wikiPageId: "page-ns-thesis",
+    sourceId: "source-ns-investor-day",
+    text: "Management targets FY2026 gross margin above 34% as automotive power modules become a larger share of mix.",
+    claimType: "key-signal",
+    supportStatus: "supported",
+    confidence: "high",
+    metadata: { subject: "gross margin", direction: "positive" },
+    createdAt: "2026-04-03T08:32:00Z",
+    updatedAt: "2026-04-03T08:32:00Z",
+  },
+  {
+    id: "claim-ns-qualification-stickiness",
+    projectId: "project-northstar-semiconductor",
+    wikiPageId: "page-ns-thesis",
+    sourceId: "source-ns-channel-checks",
+    text: "Channel checks suggest automotive qualification stickiness is preserving premium pricing in EV module programs.",
+    claimType: "key-signal",
+    supportStatus: "supported",
+    confidence: "medium",
+    metadata: { subject: "pricing", direction: "positive" },
+    createdAt: "2026-04-03T08:34:00Z",
+    updatedAt: "2026-04-03T08:34:00Z",
+  },
+  {
+    id: "claim-ns-pricing-discipline",
+    projectId: "project-northstar-semiconductor",
+    wikiPageId: "page-ns-thesis",
+    sourceId: "source-ns-earnings-call",
+    text: "Management argues backlog normalization has not forced broad discounting in automotive programs.",
+    claimType: "summary",
+    supportStatus: "supported",
+    confidence: "medium",
+    metadata: { subject: "pricing", direction: "positive" },
+    createdAt: "2026-04-03T08:35:00Z",
+    updatedAt: "2026-04-03T08:35:00Z",
+  },
+  {
+    id: "claim-ns-asp-pressure",
+    projectId: "project-northstar-semiconductor",
+    wikiPageId: "page-ns-market",
+    sourceId: "source-ns-industry-note",
+    text: "Industry capacity additions are likely to pressure power-module ASPs through late 2026.",
+    claimType: "key-signal",
+    supportStatus: "supported",
+    confidence: "high",
+    metadata: { subject: "pricing", direction: "negative" },
+    createdAt: "2026-04-03T09:24:00Z",
+    updatedAt: "2026-04-03T09:24:00Z",
+  },
+  {
+    id: "claim-ns-industrial-socket-pressure",
+    projectId: "project-northstar-semiconductor",
+    wikiPageId: "page-ns-market",
+    sourceId: "source-ns-pricing-table",
+    text: "Northstar retains premium pricing in automotive modules but industrial sockets already price closer to peers.",
+    claimType: "summary",
+    supportStatus: "supported",
+    confidence: "high",
+    metadata: { subject: "pricing mix", direction: "mixed" },
+    createdAt: "2026-04-03T09:14:00Z",
+    updatedAt: "2026-04-03T09:14:00Z",
+  },
+  {
+    id: "claim-ns-gen4-ramp",
+    projectId: "project-northstar-semiconductor",
+    wikiPageId: "page-ns-thesis",
+    sourceId: "source-ns-investor-day",
+    text: "A mid-2026 Gen-4 automotive module ramp is a major catalyst for mix improvement.",
+    claimType: "key-signal",
+    supportStatus: "supported",
+    confidence: "medium",
+    metadata: { subject: "catalyst", direction: "positive" },
+    createdAt: "2026-04-03T08:36:00Z",
+    updatedAt: "2026-04-03T08:36:00Z",
+  },
+  {
+    id: "claim-ns-margin-delay",
+    projectId: "project-northstar-semiconductor",
+    wikiPageId: "page-ns-risks",
+    sourceId: "source-ns-earnings-call",
+    text: "Industrial demand normalization could delay visible margin upside until late 2026 even if automotive wins remain intact.",
+    claimType: "open-question",
+    supportStatus: "weak-support",
+    confidence: "medium",
+    metadata: { subject: "timing", direction: "negative" },
+    createdAt: "2026-04-03T08:37:00Z",
+    updatedAt: "2026-04-03T08:37:00Z",
+  },
+  {
+    id: "claim-ns-price-durability-open",
+    projectId: "project-northstar-semiconductor",
+    wikiPageId: "page-ns-open-questions",
+    sourceId: "source-ns-industry-note",
+    text: "It remains unresolved whether Northstar's automotive pricing can hold once wide-bandgap capacity additions arrive.",
+    claimType: "open-question",
+    supportStatus: "unresolved",
+    confidence: "low",
+    metadata: { subject: "pricing durability", direction: "unknown" },
+    createdAt: "2026-04-03T09:29:00Z",
+    updatedAt: "2026-04-03T09:29:00Z",
+  },
+];
 
-export const seedEvidenceLinks: EvidenceLink[] = [];
+export const seedEvidenceLinks: EvidenceLink[] = [
+  {
+    id: "evidence-ns-margin-target",
+    projectId: "project-northstar-semiconductor",
+    claimId: "claim-ns-margin-target",
+    sourceId: "source-ns-investor-day",
+    sourceFragmentId: "source-ns-investor-day-fragment-01",
+    relationType: "supports",
+    createdAt: "2026-04-03T08:32:00Z",
+  },
+  {
+    id: "evidence-ns-qualification-stickiness",
+    projectId: "project-northstar-semiconductor",
+    claimId: "claim-ns-qualification-stickiness",
+    sourceId: "source-ns-channel-checks",
+    sourceFragmentId: "source-ns-channel-checks-fragment-01",
+    relationType: "supports",
+    createdAt: "2026-04-03T08:34:00Z",
+  },
+  {
+    id: "evidence-ns-pricing-discipline",
+    projectId: "project-northstar-semiconductor",
+    claimId: "claim-ns-pricing-discipline",
+    sourceId: "source-ns-earnings-call",
+    sourceFragmentId: "source-ns-earnings-call-fragment-01",
+    relationType: "supports",
+    createdAt: "2026-04-03T08:35:00Z",
+  },
+  {
+    id: "evidence-ns-asp-pressure",
+    projectId: "project-northstar-semiconductor",
+    claimId: "claim-ns-asp-pressure",
+    sourceId: "source-ns-industry-note",
+    sourceFragmentId: "source-ns-industry-note-fragment-01",
+    relationType: "supports",
+    createdAt: "2026-04-03T09:24:00Z",
+  },
+  {
+    id: "evidence-ns-industrial-socket-pressure",
+    projectId: "project-northstar-semiconductor",
+    claimId: "claim-ns-industrial-socket-pressure",
+    sourceId: "source-ns-pricing-table",
+    sourceFragmentId: "source-ns-pricing-table-fragment-01",
+    relationType: "supports",
+    createdAt: "2026-04-03T09:14:00Z",
+  },
+  {
+    id: "evidence-ns-gen4-ramp",
+    projectId: "project-northstar-semiconductor",
+    claimId: "claim-ns-gen4-ramp",
+    sourceId: "source-ns-investor-day",
+    sourceFragmentId: "source-ns-investor-day-fragment-01",
+    relationType: "supports",
+    createdAt: "2026-04-03T08:36:00Z",
+  },
+  {
+    id: "evidence-ns-margin-delay",
+    projectId: "project-northstar-semiconductor",
+    claimId: "claim-ns-margin-delay",
+    sourceId: "source-ns-earnings-call",
+    sourceFragmentId: "source-ns-earnings-call-fragment-01",
+    relationType: "raises-question",
+    createdAt: "2026-04-03T08:37:00Z",
+  },
+  {
+    id: "evidence-ns-price-durability-open",
+    projectId: "project-northstar-semiconductor",
+    claimId: "claim-ns-price-durability-open",
+    sourceId: "source-ns-industry-note",
+    sourceFragmentId: "source-ns-industry-note-fragment-01",
+    relationType: "raises-question",
+    createdAt: "2026-04-03T09:29:00Z",
+  },
+];
 
 export const seedWikiPages: WikiPage[] = [
   {
@@ -327,8 +508,9 @@ export const seedWikiPages: WikiPage[] = [
     pageType: "dossier",
     currentRevisionId: "revision-ns-dossier-r1",
     status: "active",
+    generationMetadata: { generatedBy: "deterministic-compiler" },
     createdAt: "2026-04-02T18:20:00Z",
-    updatedAt: "2026-04-02T18:20:00Z",
+    updatedAt: "2026-04-03T08:48:00Z",
   },
   {
     id: "page-ns-thesis",
@@ -338,8 +520,9 @@ export const seedWikiPages: WikiPage[] = [
     pageType: "investment-thesis",
     currentRevisionId: "revision-ns-thesis-r1",
     status: "active",
+    generationMetadata: { generatedBy: "deterministic-compiler" },
     createdAt: "2026-04-02T18:20:00Z",
-    updatedAt: "2026-04-02T18:20:00Z",
+    updatedAt: "2026-04-03T09:02:00Z",
   },
   {
     id: "page-ns-market",
@@ -349,8 +532,9 @@ export const seedWikiPages: WikiPage[] = [
     pageType: "market-map",
     currentRevisionId: "revision-ns-market-r1",
     status: "active",
+    generationMetadata: { generatedBy: "deterministic-compiler" },
     createdAt: "2026-04-02T18:20:00Z",
-    updatedAt: "2026-04-02T18:20:00Z",
+    updatedAt: "2026-04-03T09:24:00Z",
   },
   {
     id: "page-ns-risks",
@@ -360,8 +544,9 @@ export const seedWikiPages: WikiPage[] = [
     pageType: "risk-register",
     currentRevisionId: "revision-ns-risks-r1",
     status: "active",
+    generationMetadata: { generatedBy: "deterministic-compiler" },
     createdAt: "2026-04-02T18:20:00Z",
-    updatedAt: "2026-04-02T18:20:00Z",
+    updatedAt: "2026-04-03T08:37:00Z",
   },
   {
     id: "page-ns-open-questions",
@@ -371,8 +556,9 @@ export const seedWikiPages: WikiPage[] = [
     pageType: "open-questions",
     currentRevisionId: "revision-ns-open-questions-r1",
     status: "draft",
+    generationMetadata: { generatedBy: "deterministic-compiler" },
     createdAt: "2026-04-02T18:20:00Z",
-    updatedAt: "2026-04-02T18:20:00Z",
+    updatedAt: "2026-04-03T09:29:00Z",
   },
 ];
 
@@ -566,20 +752,26 @@ export const seedArtifacts: Artifact[] = [
     projectId: "project-northstar-semiconductor",
     artifactType: "saved_answer",
     title: "Initial Diligence Memo",
-    markdownContent: "Northstar screens interesting on mix but still needs deeper work on pricing durability.",
+    markdownContent:
+      "Northstar looks investable if automotive mix lifts margins before industry pricing pressure broadens. The core debate is whether qualification stickiness can hold premium pricing long enough for the Gen-4 ramp to matter.",
     previewText:
-      "Northstar screens interesting on mix but still needs deeper work on pricing durability.",
-    provenance: "research-synthesis",
-    originatingPrompt: null,
-    derivedFromAskSessionId: null,
+      "Northstar looks investable if automotive mix lifts margins before industry pricing pressure broadens.",
+    provenance: "ask-mode",
+    originatingPrompt:
+      "What is the current underwriting case on Northstar, and what could break it over the next two quarters?",
+    derivedFromAskSessionId: "ask-ns-underwriting",
     referencedWikiPageIds: ["page-ns-thesis", "page-ns-risks"],
     referencedSourceIds: ["source-ns-investor-day", "source-ns-earnings-call"],
-    referencedClaimIds: [],
-    eligibleForWikiFiling: false,
+    referencedClaimIds: [
+      "claim-ns-margin-target",
+      "claim-ns-pricing-discipline",
+      "claim-ns-margin-delay",
+    ],
+    eligibleForWikiFiling: true,
     status: "active",
-    metadata: { derivedFrom: "Investment Thesis, Risk Register" },
-    createdAt: "2026-04-02T23:10:00Z",
-    updatedAt: "2026-04-02T23:10:00Z",
+    metadata: { derivedFrom: "Ask mode", provenanceLabel: "Saved from Ask" },
+    createdAt: "2026-04-03T09:18:00Z",
+    updatedAt: "2026-04-03T09:18:00Z",
   },
   {
     id: "artifact-ns-comparison",
@@ -592,47 +784,763 @@ export const seedArtifacts: Artifact[] = [
     provenance: "research-synthesis",
     originatingPrompt: null,
     derivedFromAskSessionId: null,
-    referencedWikiPageIds: ["page-ns-market"],
-    referencedSourceIds: ["source-ns-pricing-table"],
-    referencedClaimIds: [],
+    referencedWikiPageIds: ["page-ns-market", "page-ns-risks"],
+    referencedSourceIds: ["source-ns-pricing-table", "source-ns-industry-note"],
+    referencedClaimIds: ["claim-ns-industrial-socket-pressure", "claim-ns-asp-pressure"],
     eligibleForWikiFiling: true,
-    status: "draft",
+    status: "active",
     metadata: { derivedFrom: "Market Structure" },
-    createdAt: "2026-04-02T23:25:00Z",
-    updatedAt: "2026-04-02T23:25:00Z",
+    createdAt: "2026-04-03T08:58:00Z",
+    updatedAt: "2026-04-03T08:58:00Z",
   },
   {
     id: "artifact-ns-follow-ups",
     projectId: "project-northstar-semiconductor",
     artifactType: "briefing",
     title: "IC Follow-up Agenda",
-    markdownContent: "Further channel checks and model validation needed before sizing conviction.",
+    markdownContent:
+      "1. Validate how much of automotive pricing is contractually sticky versus merely delayed.\n2. Pressure-test whether the Gen-4 ramp can outgrow industrial normalization.\n3. Map which competitors are most likely to weaponize new wide-bandgap capacity first.",
     previewText:
-      "Further channel checks and model validation needed before sizing conviction.",
+      "Three follow-up workstreams remain before the thesis can move from monitor to full conviction.",
     provenance: "research-synthesis",
     originatingPrompt: null,
     derivedFromAskSessionId: null,
     referencedWikiPageIds: ["page-ns-open-questions"],
-    referencedSourceIds: ["source-ns-channel-checks"],
-    referencedClaimIds: [],
+    referencedSourceIds: ["source-ns-channel-checks", "source-ns-industry-note"],
+    referencedClaimIds: ["claim-ns-price-durability-open"],
     eligibleForWikiFiling: false,
-    status: "draft",
+    status: "active",
     metadata: { derivedFrom: "Open Questions" },
-    createdAt: "2026-04-02T23:30:00Z",
-    updatedAt: "2026-04-02T23:30:00Z",
+    createdAt: "2026-04-03T09:20:00Z",
+    updatedAt: "2026-04-03T09:20:00Z",
   },
 ];
 
-export const seedAskSessions: AskSession[] = [];
-export const seedTimelineEvents: TimelineEvent[] = [];
-export const seedContradictions: Contradiction[] = [];
-export const seedCatalysts: Catalyst[] = [];
-export const seedCompanyDossiers: CompanyDossier[] = [];
+export const seedAskSessions: AskSession[] = [
+  {
+    id: "ask-ns-underwriting",
+    projectId: "project-northstar-semiconductor",
+    prompt:
+      "What is the current underwriting case on Northstar, and what could break it over the next two quarters?",
+    answer:
+      "## Underwriting view\nNorthstar still has a credible path to higher gross margin if automotive mix and the Gen-4 ramp land on time.\n\n## What could break it\nThe new industry note raises a real risk that ASP pressure arrives before management's margin bridge is visible. The key tension is not demand collapse, but whether premium pricing remains insulated once added silicon-carbide capacity hits the market.",
+    answerMode: "research-memo",
+    confidence: "medium",
+    consultedWikiPageIds: ["page-ns-thesis", "page-ns-market", "page-ns-risks"],
+    consultedClaimIds: [
+      "claim-ns-margin-target",
+      "claim-ns-pricing-discipline",
+      "claim-ns-asp-pressure",
+      "claim-ns-margin-delay",
+    ],
+    consultedSourceIds: [
+      "source-ns-investor-day",
+      "source-ns-earnings-call",
+      "source-ns-industry-note",
+    ],
+    metadata: { answerModeLabel: "Research Memo" },
+    createdAt: "2026-04-03T09:18:00Z",
+    updatedAt: "2026-04-03T09:18:00Z",
+  },
+  {
+    id: "ask-ns-contradictions",
+    projectId: "project-northstar-semiconductor",
+    prompt:
+      "Where does the current Northstar canon disagree on pricing durability and timing?",
+    answer:
+      "## Main tension\nManagement and channel checks both lean toward pricing resilience in automotive modules, while the industry note argues broader ASP pressure may arrive through late 2026.\n\n## Timing tension\nThe thesis still points to a mid-2026 ramp catalyst, but the risk layer warns that industrial normalization may delay visible margin upside.",
+    answerMode: "identify-contradictions",
+    confidence: "medium",
+    consultedWikiPageIds: ["page-ns-thesis", "page-ns-market", "page-ns-risks"],
+    consultedClaimIds: [
+      "claim-ns-qualification-stickiness",
+      "claim-ns-pricing-discipline",
+      "claim-ns-asp-pressure",
+      "claim-ns-gen4-ramp",
+      "claim-ns-margin-delay",
+    ],
+    consultedSourceIds: [
+      "source-ns-channel-checks",
+      "source-ns-earnings-call",
+      "source-ns-industry-note",
+    ],
+    metadata: { answerModeLabel: "Identify Contradictions" },
+    createdAt: "2026-04-03T09:22:00Z",
+    updatedAt: "2026-04-03T09:22:00Z",
+  },
+];
+
+export const seedTimelineEvents: TimelineEvent[] = [
+  {
+    id: "event-ns-q4-results",
+    projectId: "project-northstar-semiconductor",
+    title: "Q4 2025 results frame normalization but defend automotive pricing",
+    description:
+      "Management described backlog normalization as real, but argued discounting remains contained in automotive programs.",
+    eventDate: "2025-11-14",
+    eventDatePrecision: "exact_day",
+    eventType: "financial",
+    confidence: "high",
+    sourceIds: ["source-ns-earnings-call"],
+    wikiPageIds: ["page-ns-thesis", "page-ns-risks"],
+    claimIds: ["claim-ns-pricing-discipline", "claim-ns-margin-delay"],
+    provenance: "source-extraction",
+    createdAt: "2026-04-03T09:06:00Z",
+    updatedAt: "2026-04-03T09:06:00Z",
+    metadata: { timeframeLabel: "Nov 14, 2025" },
+  },
+  {
+    id: "event-ns-investor-day",
+    projectId: "project-northstar-semiconductor",
+    title: "Investor day sets FY2026 margin bridge above 34%",
+    description:
+      "Investor day materials linked margin expansion to automotive mix and the Gen-4 module ramp.",
+    eventDate: "2026-03-20",
+    eventDatePrecision: "exact_day",
+    eventType: "financial",
+    confidence: "high",
+    sourceIds: ["source-ns-investor-day"],
+    wikiPageIds: ["page-ns-thesis", "page-ns-dossier"],
+    claimIds: ["claim-ns-margin-target", "claim-ns-gen4-ramp"],
+    provenance: "source-extraction",
+    createdAt: "2026-04-03T09:06:00Z",
+    updatedAt: "2026-04-03T09:06:00Z",
+    metadata: { timeframeLabel: "Mar 20, 2026" },
+  },
+  {
+    id: "event-ns-q1-results",
+    projectId: "project-northstar-semiconductor",
+    title: "Q1 FY2026 earnings become the first margin credibility checkpoint",
+    description:
+      "The next earnings print should show whether automotive pricing resilience is surviving normalization.",
+    eventDate: "2026-05-07",
+    eventDatePrecision: "exact_day",
+    eventType: "financial",
+    confidence: "medium",
+    sourceIds: ["source-ns-earnings-call"],
+    wikiPageIds: ["page-ns-thesis", "page-ns-open-questions"],
+    claimIds: ["claim-ns-pricing-discipline", "claim-ns-price-durability-open"],
+    provenance: "claim-extraction",
+    createdAt: "2026-04-03T09:06:00Z",
+    updatedAt: "2026-04-03T09:06:00Z",
+    metadata: { timeframeLabel: "May 7, 2026" },
+  },
+  {
+    id: "event-ns-gen4-ramp",
+    projectId: "project-northstar-semiconductor",
+    title: "Gen-4 automotive module ramp is expected in mid-2026",
+    description:
+      "The thesis depends on the Gen-4 ramp showing up quickly enough to improve mix before broader pricing pressure takes hold.",
+    eventDate: "2026-06-01",
+    eventDatePrecision: "month",
+    eventType: "milestone",
+    confidence: "medium",
+    sourceIds: ["source-ns-investor-day"],
+    wikiPageIds: ["page-ns-thesis"],
+    claimIds: ["claim-ns-gen4-ramp"],
+    provenance: "claim-extraction",
+    createdAt: "2026-04-03T09:06:00Z",
+    updatedAt: "2026-04-03T09:06:00Z",
+    metadata: { timeframeLabel: "Jun 2026" },
+  },
+  {
+    id: "event-ns-asp-pressure",
+    projectId: "project-northstar-semiconductor",
+    title: "New wide-bandgap capacity could pressure ASPs in late 2026",
+    description:
+      "Industry work suggests additional silicon-carbide capacity may force pricing pressure through the second half of 2026.",
+    eventDate: "2026-09-01",
+    eventDatePrecision: "month",
+    eventType: "research",
+    confidence: "high",
+    sourceIds: ["source-ns-industry-note"],
+    wikiPageIds: ["page-ns-market", "page-ns-risks"],
+    claimIds: ["claim-ns-asp-pressure", "claim-ns-price-durability-open"],
+    provenance: "source-extraction",
+    createdAt: "2026-04-03T09:06:00Z",
+    updatedAt: "2026-04-03T09:28:00Z",
+    metadata: { timeframeLabel: "Sep 2026" },
+  },
+];
+
+export const seedContradictions: Contradiction[] = [
+  {
+    id: "contradiction-ns-pricing",
+    projectId: "project-northstar-semiconductor",
+    contradictionType: "source_disagreement",
+    title: "Pricing resilience vs late-2026 ASP pressure",
+    description:
+      "Management and channel checks support premium pricing resilience in automotive programs, while the industry note argues broader capacity additions will pressure ASPs through late 2026.",
+    severity: "high",
+    status: "open",
+    confidence: "high",
+    leftClaimId: "claim-ns-pricing-discipline",
+    rightClaimId: "claim-ns-asp-pressure",
+    relatedPageIds: ["page-ns-thesis", "page-ns-market", "page-ns-risks"],
+    relatedSourceIds: [
+      "source-ns-earnings-call",
+      "source-ns-channel-checks",
+      "source-ns-industry-note",
+    ],
+    relatedTimelineEventIds: ["event-ns-q1-results", "event-ns-asp-pressure"],
+    rationale:
+      "The canon currently supports both pricing resilience and future ASP compression; that tension needs operator judgment rather than silent averaging.",
+    createdAt: "2026-04-03T09:08:00Z",
+    updatedAt: "2026-04-03T09:08:00Z",
+  },
+  {
+    id: "contradiction-ns-timing",
+    projectId: "project-northstar-semiconductor",
+    contradictionType: "timeline_tension",
+    title: "Gen-4 ramp timing vs delayed margin visibility",
+    description:
+      "The thesis treats the Gen-4 ramp as a mid-2026 catalyst, but the risk view still allows margin upside to slip toward late 2026 if industrial normalization lingers.",
+    severity: "medium",
+    status: "open",
+    confidence: "medium",
+    leftClaimId: "claim-ns-gen4-ramp",
+    rightClaimId: "claim-ns-margin-delay",
+    relatedPageIds: ["page-ns-thesis", "page-ns-risks"],
+    relatedSourceIds: ["source-ns-investor-day", "source-ns-earnings-call"],
+    relatedTimelineEventIds: ["event-ns-gen4-ramp", "event-ns-q1-results"],
+    rationale:
+      "The disagreement is mainly about timing, not end-state economics, so it is better modeled as chronology tension than a direct factual contradiction.",
+    createdAt: "2026-04-03T09:09:00Z",
+    updatedAt: "2026-04-03T09:09:00Z",
+  },
+];
+
+export const seedCatalysts: Catalyst[] = [
+  {
+    id: "catalyst-ns-q1-results",
+    projectId: "project-northstar-semiconductor",
+    title: "Q1 FY2026 results test pricing discipline",
+    description:
+      "The next earnings print is the earliest hard checkpoint for whether backlog normalization is contained and pricing discipline is holding where it matters most.",
+    catalystType: "earnings",
+    status: "active",
+    expectedTimeframe: "2026-05-07",
+    timeframePrecision: "exact_day",
+    importance: "high",
+    confidence: "high",
+    linkedThesisId: "thesis-project-northstar-semiconductor",
+    linkedTimelineEventIds: ["event-ns-q1-results"],
+    linkedClaimIds: ["claim-ns-pricing-discipline", "claim-ns-margin-delay"],
+    linkedSourceIds: ["source-ns-earnings-call"],
+    linkedContradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+    createdAt: "2026-04-03T09:10:00Z",
+    updatedAt: "2026-04-03T09:10:00Z",
+    metadata: { timeframeLabel: "May 7, 2026", derivedFrom: "timeline" },
+  },
+  {
+    id: "catalyst-ns-gen4-ramp",
+    projectId: "project-northstar-semiconductor",
+    title: "Gen-4 automotive module ramp",
+    description:
+      "If the Gen-4 program ramps on schedule, Northstar's mix and gross margin story looks more credible. If it slips, the thesis loses its cleanest near-term upside bridge.",
+    catalystType: "product_launch",
+    status: "upcoming",
+    expectedTimeframe: "2026-06-01",
+    timeframePrecision: "month",
+    importance: "high",
+    confidence: "medium",
+    linkedThesisId: "thesis-project-northstar-semiconductor",
+    linkedTimelineEventIds: ["event-ns-gen4-ramp"],
+    linkedClaimIds: ["claim-ns-gen4-ramp"],
+    linkedSourceIds: ["source-ns-investor-day"],
+    linkedContradictionIds: ["contradiction-ns-timing"],
+    createdAt: "2026-04-03T09:11:00Z",
+    updatedAt: "2026-04-03T09:11:00Z",
+    metadata: { timeframeLabel: "Jun 2026", derivedFrom: "timeline" },
+  },
+  {
+    id: "catalyst-ns-asp-watch",
+    projectId: "project-northstar-semiconductor",
+    title: "Second-half ASP compression watch",
+    description:
+      "Fresh industry work suggests new capacity could change pricing dynamics in late 2026. This is the key external catalyst that could invalidate the premium-pricing bridge.",
+    catalystType: "macro_or_industry",
+    status: "upcoming",
+    expectedTimeframe: "2026-09-01",
+    timeframePrecision: "month",
+    importance: "high",
+    confidence: "high",
+    linkedThesisId: "thesis-project-northstar-semiconductor",
+    linkedTimelineEventIds: ["event-ns-asp-pressure"],
+    linkedClaimIds: ["claim-ns-asp-pressure", "claim-ns-price-durability-open"],
+    linkedSourceIds: ["source-ns-industry-note", "source-ns-pricing-table"],
+    linkedContradictionIds: ["contradiction-ns-pricing"],
+    createdAt: "2026-04-03T09:28:00Z",
+    updatedAt: "2026-04-03T09:28:00Z",
+    metadata: { timeframeLabel: "Sep 2026", derivedFrom: "source-summary" },
+  },
+];
+
+export const seedCompanyDossiers: CompanyDossier[] = [
+  {
+    id: "dossier-project-northstar-semiconductor",
+    projectId: "project-northstar-semiconductor",
+    companyName: "Northstar Semiconductor",
+    ticker: "NSEM",
+    sector: "Power semiconductors",
+    geography: "North America with automotive exposure in Europe",
+    status: "active",
+    businessOverviewMarkdown:
+      "Northstar is a focused supplier of automotive and industrial power modules. The current research case centers on whether a richer automotive mix can expand margins before broader industry pricing pressure arrives.",
+    productsAndSegmentsMarkdown:
+      "- Automotive power modules are the premium segment and the main gross-margin bridge.\n- Industrial sockets remain the weaker segment and already price closer to peers.\n- The Gen-4 ramp is the most visible product transition in the current canon.",
+    managementAndOperatorsMarkdown:
+      "- Management is leaning hard on pricing discipline and mix.\n- Channel work suggests execution credibility is better in automotive than in industrial.\n- The key operating question is whether the team can hold pricing while new capacity enters the market.",
+    marketAndCompetitionMarkdown:
+      "- The competitive frame is widening as more wide-bandgap capacity comes online.\n- Northstar still screens stronger in automotive modules than in industrial sockets.\n- The main debate is not share loss today, but how durable premium pricing remains through late 2026.",
+    keyMetricsAndFactsMarkdown:
+      "- FY2026 gross-margin target: above 34%.\n- Major catalyst: Gen-4 automotive module ramp in mid-2026.\n- Main external risk: broad ASP compression from new industry capacity.",
+    sourceCoverageSummaryMarkdown:
+      "Coverage is strong enough for a live demo: management framing, field checks, competitor pricing work, and an updated industry note all point to the same core underwriting debate.",
+    confidence: "medium",
+    supportBySection: {
+      businessOverview: {
+        wikiPageIds: ["page-ns-dossier", "page-ns-thesis"],
+        claimIds: ["claim-ns-margin-target", "claim-ns-qualification-stickiness"],
+        sourceIds: ["source-ns-investor-day", "source-ns-channel-checks"],
+        artifactIds: ["artifact-ns-diligence-memo"],
+      },
+      productsAndSegments: {
+        wikiPageIds: ["page-ns-dossier", "page-ns-market"],
+        claimIds: ["claim-ns-gen4-ramp", "claim-ns-industrial-socket-pressure"],
+        sourceIds: ["source-ns-investor-day", "source-ns-pricing-table"],
+        artifactIds: ["artifact-ns-comparison"],
+      },
+      managementAndOperators: {
+        wikiPageIds: ["page-ns-thesis", "page-ns-risks"],
+        claimIds: ["claim-ns-pricing-discipline", "claim-ns-margin-delay"],
+        sourceIds: ["source-ns-earnings-call", "source-ns-channel-checks"],
+        artifactIds: ["artifact-ns-diligence-memo"],
+      },
+      marketAndCompetition: {
+        wikiPageIds: ["page-ns-market", "page-ns-risks"],
+        claimIds: ["claim-ns-asp-pressure", "claim-ns-industrial-socket-pressure"],
+        sourceIds: ["source-ns-industry-note", "source-ns-pricing-table"],
+        artifactIds: ["artifact-ns-comparison"],
+      },
+      keyMetricsAndFacts: {
+        wikiPageIds: ["page-ns-thesis", "page-ns-market"],
+        claimIds: ["claim-ns-margin-target", "claim-ns-gen4-ramp", "claim-ns-asp-pressure"],
+        sourceIds: ["source-ns-investor-day", "source-ns-industry-note"],
+        artifactIds: ["artifact-ns-diligence-memo"],
+      },
+      sourceCoverageSummary: {
+        wikiPageIds: ["page-ns-dossier", "page-ns-open-questions"],
+        claimIds: ["claim-ns-price-durability-open"],
+        sourceIds: [
+          "source-ns-investor-day",
+          "source-ns-earnings-call",
+          "source-ns-channel-checks",
+          "source-ns-pricing-table",
+          "source-ns-industry-note",
+        ],
+        artifactIds: ["artifact-ns-follow-ups"],
+      },
+    },
+    metadata: {
+      coveredSections: "6",
+      totalSections: "6",
+      sectionCoverageLabel: "6/6 sections supported",
+    },
+    createdAt: "2026-04-03T08:48:00Z",
+    updatedAt: "2026-04-03T08:48:00Z",
+  },
+];
 export const seedSourceMonitoringRecords: SourceMonitoringRecord[] = [];
 export const seedStaleAlerts: StaleAlert[] = [];
 export const seedMonitoringAnalysisStates: MonitoringAnalysisState[] = [];
-export const seedTheses: Thesis[] = [];
-export const seedThesisRevisions: ThesisRevision[] = [];
+export const seedTheses: Thesis[] = [
+  {
+    id: "thesis-project-northstar-semiconductor",
+    projectId: "project-northstar-semiconductor",
+    currentRevisionId: "thesis-revision-project-northstar-semiconductor-002",
+    revisionCount: 2,
+    title: "Northstar Semiconductor Investment Thesis",
+    subjectName: "Northstar Semiconductor",
+    ticker: "NSEM",
+    status: "active",
+    overallStance: "mixed",
+    summary:
+      "Northstar has a credible margin-expansion path if the automotive mix shift and Gen-4 ramp arrive before industry pricing pressure broadens. The current stance remains constructive but guarded because the latest industry note meaningfully tightened the timing window.",
+    bullCaseMarkdown:
+      "- Automotive mix can lift gross margin above 34%.\n- Qualification stickiness appears to be protecting premium pricing in EV modules.\n- The Gen-4 ramp gives the story a visible near-term catalyst rather than a distant restructuring promise.",
+    bearCaseMarkdown:
+      "- New wide-bandgap capacity may compress ASPs before the mix bridge is visible.\n- Industrial sockets already show weaker pricing power.\n- If Q1 backlog commentary deteriorates, the current timing bridge becomes much harder to defend.",
+    variantViewMarkdown:
+      "- The company may still be fundamentally right on mix, but a later margin timeline would make the stock feel optically expensive for longer.\n- In that case, the better expression may be 'monitor for confirmation' rather than immediate conviction.",
+    keyRisksMarkdown:
+      "- ASP compression reaches automotive programs faster than management expects.\n- Gen-4 launch timing slips.\n- Industrial normalization continues to mask automotive improvement.",
+    keyUnknownsMarkdown:
+      "- How much of premium automotive pricing is contractual versus merely delayed?\n- Which competitors are most willing to price aggressively as new capacity arrives?\n- Can Q1 results show any leading evidence of mix improvement?",
+    catalystSummaryMarkdown:
+      "- Q1 FY2026 results are the first real credibility checkpoint.\n- The Gen-4 ramp is the key upside catalyst.\n- Second-half ASP pressure is the main external invalidation risk.",
+    confidence: "medium",
+    supportBySection: {
+      summary: {
+        wikiPageIds: ["page-ns-thesis", "page-ns-market", "page-ns-risks"],
+        claimIds: [
+          "claim-ns-margin-target",
+          "claim-ns-pricing-discipline",
+          "claim-ns-asp-pressure",
+        ],
+        sourceIds: [
+          "source-ns-investor-day",
+          "source-ns-earnings-call",
+          "source-ns-industry-note",
+        ],
+        timelineEventIds: ["event-ns-investor-day", "event-ns-q1-results"],
+        contradictionIds: ["contradiction-ns-pricing"],
+      },
+      bullCase: {
+        wikiPageIds: ["page-ns-thesis", "page-ns-dossier"],
+        claimIds: [
+          "claim-ns-margin-target",
+          "claim-ns-qualification-stickiness",
+          "claim-ns-gen4-ramp",
+        ],
+        sourceIds: [
+          "source-ns-investor-day",
+          "source-ns-channel-checks",
+        ],
+        timelineEventIds: ["event-ns-investor-day", "event-ns-gen4-ramp"],
+        contradictionIds: [],
+      },
+      bearCase: {
+        wikiPageIds: ["page-ns-market", "page-ns-risks"],
+        claimIds: [
+          "claim-ns-asp-pressure",
+          "claim-ns-margin-delay",
+          "claim-ns-industrial-socket-pressure",
+        ],
+        sourceIds: [
+          "source-ns-industry-note",
+          "source-ns-earnings-call",
+          "source-ns-pricing-table",
+        ],
+        timelineEventIds: ["event-ns-q1-results", "event-ns-asp-pressure"],
+        contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+      },
+      variantView: {
+        wikiPageIds: ["page-ns-thesis", "page-ns-open-questions"],
+        claimIds: ["claim-ns-margin-delay", "claim-ns-price-durability-open"],
+        sourceIds: ["source-ns-earnings-call", "source-ns-industry-note"],
+        timelineEventIds: ["event-ns-q1-results", "event-ns-asp-pressure"],
+        contradictionIds: ["contradiction-ns-timing"],
+      },
+      keyRisks: {
+        wikiPageIds: ["page-ns-risks", "page-ns-market"],
+        claimIds: [
+          "claim-ns-asp-pressure",
+          "claim-ns-margin-delay",
+          "claim-ns-price-durability-open",
+        ],
+        sourceIds: [
+          "source-ns-industry-note",
+          "source-ns-earnings-call",
+        ],
+        timelineEventIds: ["event-ns-asp-pressure"],
+        contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+      },
+      keyUnknowns: {
+        wikiPageIds: ["page-ns-open-questions"],
+        claimIds: ["claim-ns-price-durability-open"],
+        sourceIds: ["source-ns-industry-note", "source-ns-channel-checks"],
+        timelineEventIds: ["event-ns-q1-results"],
+        contradictionIds: ["contradiction-ns-pricing"],
+      },
+      catalystSummary: {
+        wikiPageIds: ["page-ns-thesis", "page-ns-market"],
+        claimIds: [
+          "claim-ns-gen4-ramp",
+          "claim-ns-pricing-discipline",
+          "claim-ns-asp-pressure",
+        ],
+        sourceIds: [
+          "source-ns-investor-day",
+          "source-ns-earnings-call",
+          "source-ns-industry-note",
+        ],
+        timelineEventIds: [
+          "event-ns-q1-results",
+          "event-ns-gen4-ramp",
+          "event-ns-asp-pressure",
+        ],
+        contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+      },
+    },
+    latestInputSignature: "ns-demo-fingerprint-r2",
+    metadata: {
+      contradictionCount: "2",
+      catalystCount: "3",
+      currentChangeSummary:
+        "Revision 2 pulled the thesis back from a cleaner margin-ramp story after the latest industry note increased concern about second-half ASP pressure.",
+      currentRevisionNumber: "2",
+      latestKnowledgeUpdateAt: "2026-04-03T09:28:00Z",
+    },
+    createdAt: "2026-04-03T08:40:00Z",
+    updatedAt: "2026-04-03T09:02:00Z",
+  },
+];
+export const seedThesisRevisions: ThesisRevision[] = [
+  {
+    id: "thesis-revision-project-northstar-semiconductor-001",
+    thesisId: "thesis-project-northstar-semiconductor",
+    projectId: "project-northstar-semiconductor",
+    revisionNumber: 1,
+    status: "active",
+    stance: "bullish",
+    confidence: "medium",
+    summary:
+      "Revision 1 leaned more directly into the margin-expansion case, assuming pricing discipline and qualification stickiness would carry the bridge with limited external pushback.",
+    bullCaseMarkdown:
+      "- Automotive mix looked sufficient to expand margins.\n- Qualification stickiness appeared strong enough to preserve premium pricing.\n- The Gen-4 ramp gave the thesis a near-term operating bridge.",
+    bearCaseMarkdown:
+      "- Industrial weakness could still blur the story.\n- Timing risk remained, but external pricing pressure looked manageable.",
+    variantViewMarkdown:
+      "- The main alternative was simply a slower margin path, not a broken thesis.",
+    keyRisksMarkdown:
+      "- Industrial normalization lingers.\n- Mix benefits arrive more slowly than planned.",
+    keyUnknownsMarkdown:
+      "- How much proof would the next earnings call offer on pricing durability?",
+    catalystSummaryMarkdown:
+      "- Investor day margin target.\n- Gen-4 module ramp.\n- Next earnings call.",
+    changeSummary:
+      "Initial thesis revision established the margin-expansion case and treated pricing durability as more stable than the later revision does.",
+    supportBySection: {
+      summary: {
+        wikiPageIds: ["page-ns-thesis", "page-ns-dossier"],
+        claimIds: ["claim-ns-margin-target", "claim-ns-qualification-stickiness"],
+        sourceIds: ["source-ns-investor-day", "source-ns-channel-checks"],
+        timelineEventIds: ["event-ns-investor-day"],
+        contradictionIds: [],
+      },
+      bullCase: {
+        wikiPageIds: ["page-ns-thesis"],
+        claimIds: [
+          "claim-ns-margin-target",
+          "claim-ns-qualification-stickiness",
+          "claim-ns-gen4-ramp",
+        ],
+        sourceIds: ["source-ns-investor-day", "source-ns-channel-checks"],
+        timelineEventIds: ["event-ns-investor-day", "event-ns-gen4-ramp"],
+        contradictionIds: [],
+      },
+      bearCase: {
+        wikiPageIds: ["page-ns-risks"],
+        claimIds: ["claim-ns-margin-delay"],
+        sourceIds: ["source-ns-earnings-call"],
+        timelineEventIds: ["event-ns-q4-results"],
+        contradictionIds: [],
+      },
+      variantView: {
+        wikiPageIds: ["page-ns-open-questions"],
+        claimIds: ["claim-ns-price-durability-open"],
+        sourceIds: ["source-ns-channel-checks"],
+        timelineEventIds: ["event-ns-q1-results"],
+        contradictionIds: [],
+      },
+      keyRisks: {
+        wikiPageIds: ["page-ns-risks"],
+        claimIds: ["claim-ns-margin-delay"],
+        sourceIds: ["source-ns-earnings-call"],
+        timelineEventIds: ["event-ns-q4-results"],
+        contradictionIds: [],
+      },
+      keyUnknowns: {
+        wikiPageIds: ["page-ns-open-questions"],
+        claimIds: ["claim-ns-price-durability-open"],
+        sourceIds: ["source-ns-channel-checks"],
+        timelineEventIds: ["event-ns-q1-results"],
+        contradictionIds: [],
+      },
+      catalystSummary: {
+        wikiPageIds: ["page-ns-thesis"],
+        claimIds: ["claim-ns-gen4-ramp", "claim-ns-pricing-discipline"],
+        sourceIds: ["source-ns-investor-day", "source-ns-earnings-call"],
+        timelineEventIds: ["event-ns-q1-results", "event-ns-gen4-ramp"],
+        contradictionIds: [],
+      },
+    },
+    metadata: {
+      changedSections: "[]",
+      confidenceShift: "0",
+      contradictionCountShift: "0",
+      catalystCountShift: "0",
+      likelyDriverSummary: "",
+      driverPageIds: "[]",
+      driverClaimIds: "[]",
+      driverSourceIds: "[]",
+      driverTimelineEventIds: "[]",
+      driverContradictionIds: "[]",
+      driverArtifactIds: "[]",
+    },
+    createdAt: "2026-04-03T08:45:00Z",
+  },
+  {
+    id: "thesis-revision-project-northstar-semiconductor-002",
+    thesisId: "thesis-project-northstar-semiconductor",
+    projectId: "project-northstar-semiconductor",
+    revisionNumber: 2,
+    status: "active",
+    stance: "mixed",
+    confidence: "medium",
+    summary:
+      "Revision 2 kept the upside case alive but made the timing window narrower after adding the industry note and explicit contradiction records around pricing durability and margin timing.",
+    bullCaseMarkdown:
+      "- Automotive mix and the Gen-4 ramp still offer a credible margin bridge.\n- Channel checks still support pricing resilience in EV modules.\n- Q1 results could quickly restore confidence if pricing discipline holds.",
+    bearCaseMarkdown:
+      "- New capacity could compress ASPs before the bridge is visible.\n- Industrial sockets already look less protected.\n- A weak Q1 print would challenge the current underwriting frame.",
+    variantViewMarkdown:
+      "- The thesis may still work, but on a slower timetable that merits a monitor stance rather than fast conviction.\n- In that version, the stock needs evidence more than narrative.",
+    keyRisksMarkdown:
+      "- Pricing pressure broadens from industrial to automotive.\n- The Gen-4 ramp slips.\n- Normalization keeps masking mix improvement for longer.",
+    keyUnknownsMarkdown:
+      "- How much pricing protection is contractual?\n- What would peers do if second-half demand softens?\n- Can Northstar show leading mix evidence by Q1?",
+    catalystSummaryMarkdown:
+      "- Q1 FY2026 results are the first credibility checkpoint.\n- The Gen-4 ramp is the main upside unlock.\n- Second-half ASP pressure is the main invalidation risk.",
+    changeSummary:
+      "Revision 2 made the thesis more balanced after the latest industry note and contradiction analysis increased concern about pricing durability and margin timing.",
+    supportBySection: {
+      summary: {
+        wikiPageIds: ["page-ns-thesis", "page-ns-market", "page-ns-risks"],
+        claimIds: [
+          "claim-ns-margin-target",
+          "claim-ns-pricing-discipline",
+          "claim-ns-asp-pressure",
+        ],
+        sourceIds: [
+          "source-ns-investor-day",
+          "source-ns-earnings-call",
+          "source-ns-industry-note",
+        ],
+        timelineEventIds: ["event-ns-investor-day", "event-ns-q1-results"],
+        contradictionIds: ["contradiction-ns-pricing"],
+      },
+      bullCase: {
+        wikiPageIds: ["page-ns-thesis"],
+        claimIds: [
+          "claim-ns-margin-target",
+          "claim-ns-qualification-stickiness",
+          "claim-ns-gen4-ramp",
+        ],
+        sourceIds: ["source-ns-investor-day", "source-ns-channel-checks"],
+        timelineEventIds: ["event-ns-investor-day", "event-ns-gen4-ramp"],
+        contradictionIds: [],
+      },
+      bearCase: {
+        wikiPageIds: ["page-ns-market", "page-ns-risks"],
+        claimIds: [
+          "claim-ns-asp-pressure",
+          "claim-ns-industrial-socket-pressure",
+          "claim-ns-margin-delay",
+        ],
+        sourceIds: [
+          "source-ns-industry-note",
+          "source-ns-pricing-table",
+          "source-ns-earnings-call",
+        ],
+        timelineEventIds: ["event-ns-q1-results", "event-ns-asp-pressure"],
+        contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+      },
+      variantView: {
+        wikiPageIds: ["page-ns-open-questions"],
+        claimIds: ["claim-ns-margin-delay", "claim-ns-price-durability-open"],
+        sourceIds: ["source-ns-earnings-call", "source-ns-industry-note"],
+        timelineEventIds: ["event-ns-q1-results", "event-ns-asp-pressure"],
+        contradictionIds: ["contradiction-ns-timing"],
+      },
+      keyRisks: {
+        wikiPageIds: ["page-ns-risks"],
+        claimIds: [
+          "claim-ns-margin-delay",
+          "claim-ns-asp-pressure",
+          "claim-ns-price-durability-open",
+        ],
+        sourceIds: ["source-ns-earnings-call", "source-ns-industry-note"],
+        timelineEventIds: ["event-ns-q1-results", "event-ns-asp-pressure"],
+        contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+      },
+      keyUnknowns: {
+        wikiPageIds: ["page-ns-open-questions"],
+        claimIds: ["claim-ns-price-durability-open"],
+        sourceIds: ["source-ns-industry-note", "source-ns-channel-checks"],
+        timelineEventIds: ["event-ns-q1-results"],
+        contradictionIds: ["contradiction-ns-pricing"],
+      },
+      catalystSummary: {
+        wikiPageIds: ["page-ns-thesis", "page-ns-market"],
+        claimIds: [
+          "claim-ns-pricing-discipline",
+          "claim-ns-gen4-ramp",
+          "claim-ns-asp-pressure",
+        ],
+        sourceIds: [
+          "source-ns-earnings-call",
+          "source-ns-investor-day",
+          "source-ns-industry-note",
+        ],
+        timelineEventIds: [
+          "event-ns-q1-results",
+          "event-ns-gen4-ramp",
+          "event-ns-asp-pressure",
+        ],
+        contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+      },
+    },
+    metadata: {
+      changedSections:
+        "[\"summary\",\"bearCase\",\"variantView\",\"keyRisks\",\"keyUnknowns\",\"catalystSummary\"]",
+      confidenceShift: "0",
+      contradictionCountShift: "2",
+      catalystCountShift: "1",
+      likelyDriverSummary:
+        "The latest industry note and contradiction analysis forced the thesis to explicitly model pricing durability and timing tension rather than treating them as background noise.",
+      driverPageIds: "[\"page-ns-market\",\"page-ns-risks\"]",
+      driverClaimIds:
+        "[\"claim-ns-asp-pressure\",\"claim-ns-margin-delay\",\"claim-ns-price-durability-open\"]",
+      driverSourceIds:
+        "[\"source-ns-industry-note\",\"source-ns-earnings-call\",\"source-ns-pricing-table\"]",
+      driverTimelineEventIds:
+        "[\"event-ns-q1-results\",\"event-ns-asp-pressure\"]",
+      driverContradictionIds:
+        "[\"contradiction-ns-pricing\",\"contradiction-ns-timing\"]",
+      driverArtifactIds: "[\"artifact-ns-comparison\",\"artifact-ns-follow-ups\"]",
+    },
+    createdAt: "2026-04-03T09:02:00Z",
+  },
+];
+export const seedTimelineCompileStates: TimelineCompileState[] = [
+  {
+    projectId: "project-northstar-semiconductor",
+    lastCompiledAt: "2026-04-03T09:06:00Z",
+    eventCount: 5,
+    summary:
+      "Compiled five canonical chronology entries covering management framing, the next earnings checkpoint, the Gen-4 ramp, and the late-2026 pricing-pressure window.",
+  },
+];
+export const seedContradictionAnalysisStates: ContradictionAnalysisState[] = [
+  {
+    projectId: "project-northstar-semiconductor",
+    lastAnalyzedAt: "2026-04-03T09:09:00Z",
+    contradictionCount: 2,
+    summary:
+      "Contradiction analysis isolated pricing-durability tension and a separate timing disagreement around when margin upside becomes visible.",
+  },
+];
+export const seedCatalystCompileStates: CatalystCompileState[] = [
+  {
+    projectId: "project-northstar-semiconductor",
+    lastCompiledAt: "2026-04-03T09:11:00Z",
+    catalystCount: 3,
+    summary:
+      "Compiled three thesis-linked catalysts spanning the next earnings checkpoint, the Gen-4 ramp, and the second-half ASP-compression watch.",
+  },
+];
 
 export const seedCompileJobs: CompileJob[] = [
   {
@@ -659,16 +1567,22 @@ export const seedCompileJobs: CompileJob[] = [
   {
     id: "compile-ns-r1",
     projectId: "project-northstar-semiconductor",
-    status: "running",
+    status: "completed",
     triggeredBy: "seed-system",
     summary:
-      "Incremental diligence compile is incorporating a new industry note into the market and risk pages.",
-    affectedPageIds: ["page-ns-market", "page-ns-risks", "page-ns-open-questions"],
+      "Demo diligence compile refreshed thesis-linked pages after incorporating the latest industry note, contradiction analysis, and catalyst updates.",
+    affectedPageIds: [
+      "page-ns-dossier",
+      "page-ns-thesis",
+      "page-ns-market",
+      "page-ns-risks",
+      "page-ns-open-questions",
+    ],
     sourceCount: 5,
-    metadata: { trigger: "new industry note" },
-    startedAt: "2026-04-03T00:10:00Z",
-    completedAt: null,
-    createdAt: "2026-04-03T00:10:00Z",
+    metadata: { trigger: "demo refresh" },
+    startedAt: "2026-04-03T08:20:00Z",
+    completedAt: "2026-04-03T08:41:00Z",
+    createdAt: "2026-04-03T08:20:00Z",
   },
 ];
 

@@ -59,6 +59,12 @@ export default async function MonitoringPage() {
           >
             Review Sources
           </Link>
+          <Link
+            href={`/projects/${data.summary.project.id}`}
+            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+          >
+            Open Command View
+          </Link>
         </div>
       }
     />

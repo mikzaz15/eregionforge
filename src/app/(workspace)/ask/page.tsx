@@ -63,7 +63,7 @@ function artifactTone(status: string): StatusTone {
 }
 
 const defaultPrompt =
-  "Which sprint order best supports a wiki-centered MVP, and what should be built immediately after the shell?";
+  "What is the current underwriting case on Northstar, and what could break it over the next two quarters?";
 
 export default async function AskPage({
   searchParams,
@@ -95,7 +95,13 @@ export default async function AskPage({
             href={`/projects/${data.summary.project.id}`}
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
           >
-            Project Detail
+            Open Command View
+          </Link>
+          <Link
+            href="/thesis"
+            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+          >
+            Open Thesis
           </Link>
           <Link
             href="/artifacts"

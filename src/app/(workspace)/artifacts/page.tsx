@@ -74,7 +74,13 @@ export default async function ArtifactsPage({
             href={`/projects/${data.summary.project.id}`}
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
           >
-            View Project
+            Open Command View
+          </Link>
+          <Link
+            href="/thesis"
+            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+          >
+            Open Thesis
           </Link>
           <Link
             href="/ask"

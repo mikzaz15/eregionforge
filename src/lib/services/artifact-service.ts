@@ -51,7 +51,7 @@ export function artifactTypeLabel(artifactType: ArtifactType): string {
 export function artifactProvenanceLabel(provenance: ArtifactProvenance): string {
   switch (provenance) {
     case "ask-mode":
-      return "Ask Mode";
+      return "Saved from Ask";
     case "manual":
       return "Manual";
     case "wiki-derived":

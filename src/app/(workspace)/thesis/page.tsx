@@ -33,14 +33,14 @@ export default async function ThesisPage({
         <div className="flex flex-wrap gap-3">
           <form action={compileActiveProjectThesisAction}>
             <button className="rounded-full border border-border-strong bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:bg-[#2b3135]">
-              Compile Thesis
+              Refresh Thesis
             </button>
           </form>
           <Link
             href={`/projects/${data.summary.project.id}`}
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
           >
-            Project Detail
+            Open Command View
           </Link>
           <Link
             href="/contradictions"
