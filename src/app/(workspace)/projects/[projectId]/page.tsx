@@ -136,6 +136,18 @@ function formatDateTime(date: string | null): string {
   }).format(new Date(date));
 }
 
+function previewMarkdown(value: string, length = 220): string {
+  const normalized = value
+    .replace(/^#.*$/gm, "")
+    .replace(/^- /gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return normalized.length > length
+    ? `${normalized.slice(0, length).trimEnd()}...`
+    : normalized;
+}
+
 export default async function ProjectDetailPage({
   params,
 }: Readonly<{
@@ -183,6 +195,12 @@ export default async function ProjectDetailPage({
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
           >
             Open Thesis
+          </Link>
+          <Link
+            href={`/projects/${projectId}/dossier`}
+            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+          >
+            Open Dossier
           </Link>
           <StatusPill tone={compileTone(projectData.summary.latestCompileStatus)}>
             {projectData.summary.latestCompileStatus}
@@ -235,6 +253,11 @@ export default async function ProjectDetailPage({
           label="Thesis"
           value={projectData.summary.thesisStance ?? "Not compiled"}
           note="The thesis tracker compiles stance, risk, unknowns, and catalysts from current project knowledge."
+        />
+        <MetricCard
+          label="Dossier"
+          value={projectData.summary.dossierCompanyName ?? "Not compiled"}
+          note="The dossier compiles a structured company research view from the same canonical project knowledge stack."
         />
       </div>
 
@@ -325,7 +348,7 @@ export default async function ProjectDetailPage({
           description="These top-level screens are already structured around project-owned data."
         >
           <div className="space-y-3">
-            {["/sources", "/wiki", "/artifacts", "/timeline", "/contradictions", "/ask"].map((href) => (
+            {["/sources", "/wiki", "/artifacts", "/dossier", "/timeline", "/contradictions", "/ask"].map((href) => (
               <Link
                 key={href}
                 href={href}
@@ -349,6 +372,63 @@ export default async function ProjectDetailPage({
           </div>
         </SectionCard>
       </div>
+
+      <SectionCard
+        eyebrow="Dossier"
+        title="Compiled company view"
+        description="The company dossier consolidates the main operating, product, market, and coverage context into a durable research briefing."
+      >
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
+              <div className="flex flex-wrap gap-2">
+                <StatusPill tone={projectData.dossier ? "success" : "neutral"}>
+                  {projectData.dossier ? "compiled" : "not compiled"}
+                </StatusPill>
+                <StatusPill tone={timelineConfidenceTone(projectData.summary.dossierConfidence ?? "low")}>
+                  {projectData.summary.dossierConfidence ?? "not set"}
+                </StatusPill>
+                <StatusPill tone={projectData.summary.dossierReady ? "success" : "accent"}>
+                  {projectData.summary.dossierReady ? "research-ready" : "in progress"}
+                </StatusPill>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-foreground">
+                Company: {projectData.summary.dossierCompanyName ?? "Not compiled"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-foreground">
+                Coverage: {projectData.summary.dossierSectionCoverageLabel}
+              </p>
+              <Link
+                href={`/projects/${projectId}/dossier`}
+                className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+              >
+                Open Dossier
+              </Link>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+            {projectData.dossier ? (
+              <div className="space-y-4">
+                <p className="font-semibold tracking-tight text-foreground">
+                  {projectData.dossier.dossier.companyName}
+                </p>
+                <p className="text-sm leading-6 text-foreground">
+                  Sector: {projectData.dossier.dossier.sector ?? "Not set"}.
+                  {" "}Geography: {projectData.dossier.dossier.geography ?? "Not set"}.
+                  {" "}Coverage: {projectData.dossier.readiness.sectionCoverageLabel}.
+                </p>
+                <p className="text-sm leading-6 text-foreground">
+                  {previewMarkdown(projectData.dossier.dossier.businessOverviewMarkdown)}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm leading-6 text-muted">
+                No dossier has been compiled for this project yet. Use the dossier view to generate a structured company briefing from current pages, claims, sources, artifacts, and thesis context.
+              </p>
+            )}
+          </div>
+        </div>
+      </SectionCard>
 
       <SectionCard
         eyebrow="Thesis"

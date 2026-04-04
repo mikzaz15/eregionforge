@@ -9,6 +9,7 @@ import type {
   AskSession,
   Claim,
   ClaimSupportStatus,
+  CompanyDossier,
   CompileJob,
   CompileJobStatus,
   EvidenceLink,
@@ -36,6 +37,11 @@ import {
   type ArtifactSummaryRecord,
   type ArtifactTypeOption,
 } from "@/lib/services/artifact-service";
+import {
+  getProjectCompanyDossierDetail,
+  getStoredProjectCompanyDossier,
+  type CompanyDossierDetailRecord,
+} from "@/lib/services/company-dossier-service";
 import {
   getProjectLintSnapshot,
   type ProjectLintHealthSummary,
@@ -84,6 +90,10 @@ export type ProjectSummary = {
   thesisLastRefreshedAt: string | null;
   thesisPotentiallyStale: boolean;
   thesisFreshnessReason: string;
+  dossierCompanyName: string | null;
+  dossierConfidence: CompanyDossier["confidence"] | null;
+  dossierSectionCoverageLabel: string;
+  dossierReady: boolean;
   health: ProjectLintHealthSummary;
 };
 
@@ -109,6 +119,7 @@ export type ProjectDetailData = {
   timelineEvents: TimelineReferenceRecord[];
   contradictions: ContradictionReferenceRecord[];
   thesis: ThesisDetailRecord | null;
+  dossier: CompanyDossierDetailRecord | null;
   latestCompile: CompileJob | null;
 };
 
@@ -223,6 +234,12 @@ export type ThesisPageData = {
   summary: ProjectSummary;
   thesis: ThesisDetailRecord | null;
   selectedRevisionId: string | null;
+  metrics: Array<{ label: string; value: string; note: string }>;
+};
+
+export type DossierPageData = {
+  summary: ProjectSummary;
+  dossier: CompanyDossierDetailRecord | null;
   metrics: Array<{ label: string; value: string; note: string }>;
 };
 
@@ -526,6 +543,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     lintSnapshot,
     contradictionSnapshot,
     thesisSnapshot,
+    dossier,
   ] =
     await Promise.all([
       sourcesRepository.listByProjectId(project.id),
@@ -538,6 +556,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       getProjectLintSnapshot(project.id),
       getProjectContradictionSnapshot(project.id),
       getProjectThesisSnapshot(project.id),
+      getStoredProjectCompanyDossier(project.id),
     ]);
   const generatedPageCount = pages.filter(
     (page) => page.generationMetadata?.generatedBy === "deterministic-compiler",
@@ -587,6 +606,11 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     thesisLastRefreshedAt: thesisSnapshot.freshness.lastRefreshedAt,
     thesisPotentiallyStale: thesisSnapshot.freshness.potentiallyStale,
     thesisFreshnessReason: thesisSnapshot.freshness.reason,
+    dossierCompanyName: dossier?.companyName ?? null,
+    dossierConfidence: dossier?.confidence ?? null,
+    dossierSectionCoverageLabel:
+      dossier?.metadata?.sectionCoverageLabel ?? "0/6 sections supported",
+    dossierReady: Number(dossier?.metadata?.coveredSections ?? "0") >= 4,
     health: lintSnapshot.health,
   };
 });
@@ -726,13 +750,14 @@ export async function getProjectDetailData(
     return null;
   }
 
-  const [sources, wikiPages, artifacts, timelineEvents, contradictions, thesis] = await Promise.all([
+  const [sources, wikiPages, artifacts, timelineEvents, contradictions, thesis, dossier] = await Promise.all([
     sourcesRepository.listByProjectId(projectId),
     buildWikiPageSummaries(projectId),
     listProjectArtifacts({ projectId }),
     listProjectTimelineEvents(projectId),
     listProjectContradictions(projectId),
     getProjectThesisDetail(projectId),
+    getProjectCompanyDossierDetail(projectId),
   ]);
   const latestCompile = await compileJobsRepository.getLatestByProjectId(projectId);
 
@@ -745,6 +770,7 @@ export async function getProjectDetailData(
     timelineEvents,
     contradictions,
     thesis,
+    dossier,
     latestCompile,
   };
 }
@@ -1142,6 +1168,46 @@ export async function getThesisPageData(
         label: "Freshness",
         value: summary.thesisPotentiallyStale ? "Attention" : "Current",
         note: summary.thesisFreshnessReason,
+      },
+    ],
+  };
+}
+
+export async function getDossierPageData(
+  projectId: string,
+): Promise<DossierPageData | null> {
+  const [summary, dossier] = await Promise.all([
+    getProjectSummary(projectId),
+    getProjectCompanyDossierDetail(projectId),
+  ]);
+
+  if (!summary) {
+    return null;
+  }
+
+  return {
+    summary,
+    dossier,
+    metrics: [
+      {
+        label: "Company",
+        value: summary.dossierCompanyName ?? "Not compiled",
+        note: "The dossier compiles company identity and research posture from canon rather than acting like a market data profile.",
+      },
+      {
+        label: "Confidence",
+        value: summary.dossierConfidence ?? "Not set",
+        note: "Confidence reflects the breadth and consistency of current dossier-supporting knowledge objects.",
+      },
+      {
+        label: "Coverage",
+        value: summary.dossierSectionCoverageLabel,
+        note: "Section coverage is a practical readiness signal for how complete the current dossier is.",
+      },
+      {
+        label: "Readiness",
+        value: summary.dossierReady ? "Research-ready" : "In progress",
+        note: "Readiness stays tied to compiled section coverage rather than a generic completeness flag.",
       },
     ],
   };

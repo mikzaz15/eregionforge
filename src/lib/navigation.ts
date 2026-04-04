@@ -43,6 +43,12 @@ export const workspaceNavigation: NavigationItem[] = [
     shortLabel: "TH",
   },
   {
+    href: "/dossier",
+    label: "Dossier",
+    description: "Structured company dossier compiled from canon, claims, sources, and research outputs.",
+    shortLabel: "DS",
+  },
+  {
     href: "/timeline",
     label: "Timeline",
     description: "Compiled chronology of the active project knowledge base.",

@@ -52,6 +52,7 @@ export type ArtifactProvenance =
   | "manual"
   | "wiki-derived"
   | "research-synthesis";
+export type DossierStatus = "draft" | "active" | "stale";
 export type ThesisStatus = "draft" | "active" | "stale";
 export type ThesisStance = "bullish" | "bearish" | "mixed" | "monitor";
 export type ThesisChangedSection =
@@ -238,6 +239,43 @@ export interface Artifact {
   metadata: StringMetadata;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+export interface DossierSectionReferences {
+  wikiPageIds: string[];
+  claimIds: string[];
+  sourceIds: string[];
+  artifactIds: string[];
+}
+
+export interface DossierSectionSupportMap {
+  businessOverview: DossierSectionReferences;
+  productsAndSegments: DossierSectionReferences;
+  managementAndOperators: DossierSectionReferences;
+  marketAndCompetition: DossierSectionReferences;
+  keyMetricsAndFacts: DossierSectionReferences;
+  sourceCoverageSummary: DossierSectionReferences;
+}
+
+export interface CompanyDossier {
+  id: string;
+  projectId: string;
+  companyName: string;
+  ticker: string | null;
+  sector: string | null;
+  geography: string | null;
+  status: DossierStatus;
+  businessOverviewMarkdown: string;
+  productsAndSegmentsMarkdown: string;
+  managementAndOperatorsMarkdown: string;
+  marketAndCompetitionMarkdown: string;
+  keyMetricsAndFactsMarkdown: string;
+  sourceCoverageSummaryMarkdown: string;
+  confidence: RevisionConfidence;
+  supportBySection: DossierSectionSupportMap;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  metadata?: StringMetadata;
 }
 
 export interface ThesisSectionReferences {
