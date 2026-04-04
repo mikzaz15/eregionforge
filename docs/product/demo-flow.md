@@ -1,20 +1,20 @@
 # Demo Flow
 
-## Goal
+## Start Here
 
-Show EregionForge as a serious investment-research intelligence product, not a collection of feature pages.
+Start on:
 
-The best live path is the Northstar Semiconductor demo workspace because it already demonstrates:
+```text
+/projects
+```
 
-- a compiled thesis
-- a structured dossier
-- first-class catalysts
-- contradictions with rationale
-- a canonical timeline
-- fresh/stale monitoring
-- ask-mode outputs saved as artifacts
+Use the loaded demo project:
 
-## Recommended Route Order
+```text
+Northstar Semiconductor Diligence
+```
+
+## Route Order
 
 1. `/projects`
 2. `/projects/project-northstar-semiconductor`
@@ -27,59 +27,86 @@ The best live path is the Northstar Semiconductor demo workspace because it alre
 9. `/artifacts`
 10. `/dossier`
 
-## What Each Surface Proves
+## What To Click
 
 ### `/projects`
 
-Proves that the product is a research OS with a loaded project, not a generic chat shell.
+Click `Open Command View`.
+
+What it demonstrates:
+
+- EregionForge is a research OS, not a chat shell
+- one project is explicitly loaded
+- the main intelligence surfaces are already visible
 
 ### `/projects/project-northstar-semiconductor`
 
-Proves there is a central command view that summarizes the whole research stack:
+Click `Open Thesis`.
 
-- thesis posture
-- freshness
-- dossier readiness
-- catalysts
-- contradictions
-- timeline
-- artifacts
+What it demonstrates:
+
+- the project command view is the central operating surface
+- thesis, dossier, catalysts, contradictions, timeline, monitoring, and artifacts are summarized together
 
 ### `/thesis`
 
-Proves the underwriting view is compiled from canonical knowledge and remains revision-aware.
+Click into `Open Contradictions` and `Open Monitoring`.
+
+What it demonstrates:
+
+- underwriting is compiled from canon
+- revisions make the thesis a living object
+- freshness and disagreement visibly matter
 
 ### `/contradictions`
 
-Proves disagreement is first-class and actionable, not buried in notes.
+What it demonstrates:
+
+- disagreement is first-class
+- the product can isolate research tension instead of hiding it
 
 ### `/catalysts`
 
-Proves thesis-moving events are tracked as durable objects with evidence and timeframes.
+What it demonstrates:
+
+- catalysts are durable, linked objects with timing and importance
 
 ### `/timeline`
 
-Proves chronology is compiled into canon rather than left as scattered dates in source text.
+What it demonstrates:
+
+- chronology is canonical, not just extracted dates in a list
 
 ### `/monitoring`
 
-Proves the system understands freshness and can warn when the investment view may be stale.
+What it demonstrates:
+
+- the system knows when major compiled views may be stale
+- freshness drives concrete next actions
 
 ### `/ask`
 
-Proves questions route through canon first and can produce reusable research outputs.
+What it demonstrates:
+
+- Ask mode resolves against canon first
+- consulted objects and confidence remain visible
 
 ### `/artifacts`
 
-Proves strong outputs persist as project assets instead of disappearing as ephemeral answers.
+What it demonstrates:
+
+- strong outputs persist as durable project assets
+- saved Ask outputs reinforce the research-ops story
 
 ### `/dossier`
 
-Proves the same underlying knowledge can be recompiled into a structured company intelligence view.
+What it demonstrates:
 
-## Demo Rules
+- the same canon can compile into a structured company intelligence surface
 
-- Stay on one project.
-- Start from the command view before diving into any single research surface.
-- Use links between thesis, contradictions, catalysts, timeline, monitoring, ask, and artifacts to show continuity.
-- Emphasize provenance and trust on every surface.
+## Wow Moments
+
+- The thesis is revision-aware and visibly under freshness pressure.
+- Contradictions make the pricing debate explicit.
+- Catalysts, timeline, and monitoring all reinforce the same research narrative.
+- Ask mode produces an artifact instead of a disposable answer.

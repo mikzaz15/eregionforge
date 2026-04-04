@@ -2,115 +2,96 @@
 
 ## Setup
 
-- Start on `/projects`
-- Keep the Northstar Semiconductor project loaded
-- Use the product as if you are preparing an internal investment discussion
+- Run `npm run dev`
+- Open `http://localhost:3000/projects`
+- Keep the Northstar Semiconductor project loaded throughout
 
-## Talk Track
+## Short Narrative
 
-### 1. Research Command
+EregionForge is a knowledge compiler for investment research. It turns sources into canon, canon into an investment view, and strong outputs into durable assets.
 
-Open `/projects`.
+## Step-by-Step Script
 
-Talking points:
+### 1. Projects
 
-- EregionForge is a research OS built around compiled canon.
-- The loaded project is explicit.
-- The main intelligence surfaces are visible before any deep dive begins.
+Say:
+
+`This is not a chat shell. The product opens on a loaded research workspace with a clear next action and a visible set of intelligence surfaces.`
 
 ### 2. Command View
 
 Open `/projects/project-northstar-semiconductor`.
 
-Talking points:
+Say:
 
-- This is the command surface for the whole project.
-- Thesis status, dossier readiness, catalysts, contradictions, timeline posture, monitoring alerts, and recent artifacts all sit in one place.
-- This is where an analyst can decide what to open next.
+`This is the project command surface. In one place, I can see thesis posture, freshness, dossier readiness, catalysts, contradictions, chronology, and artifacts.`
 
 ### 3. Thesis
 
 Open `/thesis`.
 
-Talking points:
+Say:
 
-- The thesis is not freeform text; it is compiled from pages, claims, sources, timeline entries, contradictions, and artifacts.
-- Revision history shows the thesis is a living object.
-- The current thesis is intentionally under freshness pressure, which sets up the monitoring story.
+`The thesis is compiled from canonical knowledge, not manually typed. It also has revision history, so the underwriting view can evolve as the research changes.`
 
 ### 4. Contradictions
 
 Open `/contradictions`.
 
-Talking points:
+Say:
 
-- The system makes disagreement explicit.
-- The main Northstar tension is pricing resilience versus second-half ASP pressure.
-- Contradictions are source-grounded and linked back to the implicated claims and pages.
+`The core debate is visible here: pricing resilience versus later ASP pressure. The system makes disagreement explicit and links it back to the implicated claims and sources.`
 
 ### 5. Catalysts
 
 Open `/catalysts`.
 
-Talking points:
+Say:
 
-- Catalysts are durable objects, not just bullets in the thesis.
-- They connect expected timeframe, importance, confidence, timeline events, claims, and contradictions.
+`Catalysts are not just bullets in the thesis. They are tracked objects with timeframe, importance, confidence, and links back to the thesis, timeline, and contradictions.`
 
 ### 6. Timeline
 
 Open `/timeline`.
 
-Talking points:
+Say:
 
-- The chronology is compiled into a canonical view.
-- Timeline entries help explain why catalyst timing and thesis timing matter.
+`The chronology is canonical too. It gives the thesis and catalyst story an explicit time axis.`
 
 ### 7. Monitoring
 
 Open `/monitoring`.
 
-Talking points:
+Say:
 
-- The system understands when the research stack may be stale.
-- Monitoring ties freshness to compiled intelligence quality, not generic notifications.
-- This is where the operator sees what to refresh next.
+`The system also knows when the investment view may be stale. Monitoring ties freshness to research quality, not generic notifications.`
 
 ### 8. Ask
 
 Open `/ask`.
 
-Talking points:
+Say:
 
-- Ask mode reasons over canon first, then claims and sources.
-- It exposes the consulted objects and confidence.
-- This is research operations, not chatbot theater.
+`Ask mode starts from compiled canon first. It shows what it consulted and keeps the trust posture visible.`
 
 ### 9. Artifacts
 
 Open `/artifacts`.
 
-Talking points:
+Say:
 
-- Saved Ask outputs and other research products persist as durable assets.
-- Provenance shows which outputs came from Ask versus other synthesis workflows.
+`Strong outputs do not disappear. They persist as first-class assets, including outputs saved from Ask mode.`
 
 ### 10. Dossier
 
 Open `/dossier`.
 
-Talking points:
+Say:
 
-- The same underlying canon can compile into a company dossier.
-- This proves the system is not a single-page thesis tool; it is a reusable knowledge compiler.
+`The same underlying canon can recompile into a structured company dossier. This proves the product is a knowledge compiler, not a single-view thesis tool.`
 
 ## Close
 
-End on the idea that EregionForge turns research into:
+Close with:
 
-- canonical knowledge
-- visible trust
-- living investment views
-- durable outputs
-
-That is the core differentiation to reinforce in a live showcase.
+`EregionForge turns research into canonical knowledge, visible trust, living investment views, and durable outputs.`
