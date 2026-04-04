@@ -7,6 +7,7 @@ import type {
   CatalystType,
   Claim,
   Contradiction,
+  ResearchEntity,
   RevisionConfidence,
   Source,
   Thesis,
@@ -21,6 +22,10 @@ import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { thesesRepository } from "@/lib/repositories/theses-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import {
+  compileProjectEntities,
+  matchEntitiesToText,
+} from "@/lib/services/entity-intelligence-service";
 import {
   buildSemanticProfile,
   confidenceLabelFromScore,
@@ -57,6 +62,7 @@ type CandidateInput = {
   claims: Claim[];
   contradictions: Contradiction[];
   sources: Source[];
+  entities: ResearchEntity[];
 };
 
 function stableKey(...parts: Array<string | null | undefined>): string {
@@ -75,6 +81,29 @@ function preview(value: string | null | undefined, length = 180): string {
   return normalized.length > length
     ? `${normalized.slice(0, length).trimEnd()}...`
     : normalized;
+}
+
+function primaryEntityForText(
+  text: string,
+  entities: ResearchEntity[],
+): ResearchEntity | null {
+  return (
+    matchEntitiesToText(text ? entities : [], text, [
+      "company",
+      "product_or_segment",
+      "metric",
+      "market_or_competitor",
+      "risk_theme",
+      "operator",
+    ])[0] ?? null
+  );
+}
+
+function catalystTitleWithEntity(
+  title: string,
+  entity: ResearchEntity | null,
+): string {
+  return entity ? `${entity.canonicalName}: ${title}` : title;
 }
 
 function confidenceRank(confidence: RevisionConfidence): number {
@@ -307,13 +336,19 @@ function buildCatalystDescription(input: {
   catalystType: CatalystType;
   themes: SemanticTheme[];
   contradictions: Contradiction[];
+  primaryEntity: ResearchEntity | null;
 }): string {
   return [
+    input.primaryEntity
+      ? `Primary entity: ${input.primaryEntity.canonicalName}.`
+      : null,
     input.baseText,
     whyItMattersSentence(input.catalystType, input.themes),
     thesisRelevanceSentence(input.catalystType, input.contradictions),
     riskLinkageSentence(input.contradictions),
-  ].join(" ");
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(" ");
 }
 
 function findRelatedContradictions(
@@ -357,6 +392,10 @@ function buildDraftFromTimelineEvent(
     ).values(),
   );
   const themes = buildSemanticProfile(`${event.title} ${event.description}`).themes;
+  const primaryEntity = primaryEntityForText(
+    `${event.title} ${event.description}`,
+    input.entities,
+  );
   const confidence = confidenceForCatalyst({
     sourceCount: event.sourceIds.length,
     claimCount: event.claimIds.length,
@@ -367,12 +406,13 @@ function buildDraftFromTimelineEvent(
   return {
     stableKey: stableKey("timeline", catalystType, event.title, event.eventDate),
     projectId: event.projectId,
-    title: event.title,
+    title: catalystTitleWithEntity(event.title, primaryEntity),
     description: buildCatalystDescription({
       baseText: preview(event.description),
       catalystType,
       themes,
       contradictions: relatedContradictions,
+      primaryEntity,
     }),
     catalystType,
     status: inferStatus(event.eventDate),
@@ -396,6 +436,7 @@ function buildDraftFromTimelineEvent(
       timeframeLabel: formatDateLabel(event.eventDate, event.eventDatePrecision),
       derivedFrom: "timeline",
       semanticThemes: themes.join(", "),
+      primaryEntityName: primaryEntity?.canonicalName ?? "",
     },
   };
 }
@@ -427,6 +468,7 @@ function buildDraftFromClaim(
   const timeframePrecision =
     linkedTimelineEvents[0]?.eventDatePrecision ?? "unknown_estimated";
   const themes = buildSemanticProfile(claim.text).themes;
+  const primaryEntity = primaryEntityForText(claim.text, input.entities);
   const confidence = confidenceForCatalyst({
     sourceCount: claim.sourceId ? 1 : 0,
     claimCount: 1,
@@ -435,14 +477,20 @@ function buildDraftFromClaim(
   });
 
   return {
-    stableKey: stableKey("claim", catalystType, claim.text.slice(0, 80)),
+    stableKey: stableKey(
+      "claim",
+      primaryEntity?.canonicalName,
+      catalystType,
+      claim.text.slice(0, 80),
+    ),
     projectId: claim.projectId,
-    title: preview(claim.text, 90),
+    title: catalystTitleWithEntity(preview(claim.text, 90), primaryEntity),
     description: buildCatalystDescription({
       baseText: claim.text,
       catalystType,
       themes,
       contradictions: linkedContradictions,
+      primaryEntity,
     }),
     catalystType,
     status: inferStatus(expectedTimeframe),
@@ -465,6 +513,7 @@ function buildDraftFromClaim(
     metadata: {
       derivedFrom: "claim",
       semanticThemes: themes.join(", "),
+      primaryEntityName: primaryEntity?.canonicalName ?? "",
     },
   };
 }
@@ -491,6 +540,10 @@ function buildDraftFromSource(
   const timeframePrecision =
     relatedTimelineEvents[0]?.eventDatePrecision ?? "unknown_estimated";
   const themes = buildSemanticProfile(`${source.title} ${source.body ?? ""}`).themes;
+  const primaryEntity = primaryEntityForText(
+    `${source.title} ${source.body ?? ""}`,
+    input.entities,
+  );
   const confidence = confidenceForCatalyst({
     sourceCount: 1,
     claimCount: relatedClaims.length,
@@ -499,14 +552,15 @@ function buildDraftFromSource(
   });
 
   return {
-    stableKey: stableKey("source", catalystType, source.title),
+    stableKey: stableKey("source", primaryEntity?.canonicalName, catalystType, source.title),
     projectId: source.projectId,
-    title: source.title,
+    title: catalystTitleWithEntity(source.title, primaryEntity),
     description: buildCatalystDescription({
       baseText: preview(source.body),
       catalystType,
       themes,
       contradictions: relatedContradictions,
+      primaryEntity,
     }),
     catalystType,
     status: inferStatus(expectedTimeframe),
@@ -529,11 +583,15 @@ function buildDraftFromSource(
     metadata: {
       derivedFrom: "source",
       semanticThemes: themes.join(", "),
+      primaryEntityName: primaryEntity?.canonicalName ?? "",
     },
   };
 }
 
-function buildDraftFromThesis(thesis: Thesis): CatalystDraft[] {
+function buildDraftFromThesis(
+  thesis: Thesis,
+  entities: ResearchEntity[],
+): CatalystDraft[] {
   const lines = extractThesisCatalystLines(thesis.catalystSummaryMarkdown);
 
   const drafts = lines
@@ -553,6 +611,7 @@ function buildDraftFromThesis(thesis: Thesis): CatalystDraft[] {
             ? "year"
             : "unknown_estimated";
       const themes = buildSemanticProfile(line).themes;
+      const primaryEntity = primaryEntityForText(line, entities);
       const confidence = confidenceForCatalyst({
         sourceCount: thesis.supportBySection.catalystSummary.sourceIds.length,
         claimCount: thesis.supportBySection.catalystSummary.claimIds.length,
@@ -563,12 +622,13 @@ function buildDraftFromThesis(thesis: Thesis): CatalystDraft[] {
       return {
         stableKey: stableKey("thesis", catalystType, line.slice(0, 72)),
         projectId: thesis.projectId,
-        title: preview(line, 88),
+        title: catalystTitleWithEntity(preview(line, 88), primaryEntity),
         description: buildCatalystDescription({
           baseText: line,
           catalystType,
           themes,
           contradictions: [],
+          primaryEntity,
         }),
         catalystType,
         status: "unknown",
@@ -591,6 +651,7 @@ function buildDraftFromThesis(thesis: Thesis): CatalystDraft[] {
         metadata: {
           derivedFrom: "thesis",
           semanticThemes: themes.join(", "),
+          primaryEntityName: primaryEntity?.canonicalName ?? "",
         },
       } satisfies CatalystDraft;
     })
@@ -667,12 +728,13 @@ function buildCatalystSummary(catalysts: Catalyst[]): string {
 }
 
 export async function compileProjectCatalysts(projectId: string): Promise<Catalyst[]> {
-  const [thesis, timelineEvents, claims, contradictions, sources] = await Promise.all([
+  const [thesis, timelineEvents, claims, contradictions, sources, entityCompileResult] = await Promise.all([
     thesesRepository.getByProjectId(projectId),
     timelineEventsRepository.listByProjectId(projectId),
     claimsRepository.listByProjectId(projectId),
     contradictionsRepository.listByProjectId(projectId),
     sourcesRepository.listByProjectId(projectId),
+    compileProjectEntities(projectId),
   ]);
 
   const input: CandidateInput = {
@@ -681,9 +743,10 @@ export async function compileProjectCatalysts(projectId: string): Promise<Cataly
     claims,
     contradictions,
     sources,
+    entities: entityCompileResult.entities,
   };
   const drafts = [
-    ...(thesis ? buildDraftFromThesis(thesis) : []),
+    ...(thesis ? buildDraftFromThesis(thesis, input.entities) : []),
     ...timelineEvents
       .map((event) => buildDraftFromTimelineEvent(event, input))
       .filter((draft): draft is CatalystDraft => Boolean(draft)),

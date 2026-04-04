@@ -100,6 +100,13 @@ export type AskAnswerMode =
   | "compare-viewpoints"
   | "identify-contradictions"
   | "follow-up-questions";
+export type EntityType =
+  | "company"
+  | "product_or_segment"
+  | "operator"
+  | "market_or_competitor"
+  | "metric"
+  | "risk_theme";
 export type TimelineEventDatePrecision =
   | "exact_day"
   | "month"
@@ -496,6 +503,36 @@ export interface AskSession {
 }
 
 export type AskSessionPayload = Omit<AskSession, "id" | "createdAt" | "updatedAt">;
+
+export interface ResearchEntity {
+  id: string;
+  projectId: string;
+  entityType: EntityType;
+  canonicalName: string;
+  aliases: string[];
+  description: string;
+  confidence: RevisionConfidence;
+  relatedSourceIds: string[];
+  relatedClaimIds: string[];
+  relatedWikiPageIds: string[];
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  metadata?: StringMetadata;
+}
+
+export type ResearchEntityDraft = Omit<
+  ResearchEntity,
+  "id" | "createdAt" | "updatedAt"
+> & {
+  stableKey: string;
+};
+
+export interface EntityAnalysisState {
+  projectId: string;
+  lastCompiledAt: Timestamp | null;
+  entityCount: number;
+  summary: string;
+}
 
 export interface TimelineEvent {
   id: string;

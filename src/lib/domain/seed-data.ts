@@ -8,9 +8,11 @@ import type {
   CompileJob,
   Contradiction,
   ContradictionAnalysisState,
+  EntityAnalysisState,
   EvidenceLink,
   MonitoringAnalysisState,
   Project,
+  ResearchEntity,
   Source,
   SourceMonitoringRecord,
   StaleAlert,
@@ -1539,6 +1541,145 @@ export const seedCatalystCompileStates: CatalystCompileState[] = [
     catalystCount: 3,
     summary:
       "Compiled three thesis-linked catalysts spanning the next earnings checkpoint, the Gen-4 ramp, and the second-half ASP-compression watch.",
+  },
+];
+
+export const seedEntities: ResearchEntity[] = [
+  {
+    id: "entity-ns-company",
+    projectId: "project-northstar-semiconductor",
+    entityType: "company",
+    canonicalName: "Northstar Semiconductor",
+    aliases: ["Northstar Semi", "Northstar"],
+    description:
+      "Power-module supplier under active diligence across margin expansion, pricing durability, and Gen-4 execution.",
+    confidence: "high",
+    relatedSourceIds: [
+      "source-ns-investor-day",
+      "source-ns-earnings-call",
+      "source-ns-channel-checks",
+    ],
+    relatedClaimIds: [
+      "claim-ns-margin-target",
+      "claim-ns-pricing-discipline",
+      "claim-ns-margin-delay",
+    ],
+    relatedWikiPageIds: ["page-ns-dossier", "page-ns-thesis", "page-ns-market"],
+    metadata: { ticker: "NSTR", role: "subject-company" },
+    createdAt: "2026-04-03T09:12:00Z",
+    updatedAt: "2026-04-03T09:12:00Z",
+  },
+  {
+    id: "entity-ns-auto-modules",
+    projectId: "project-northstar-semiconductor",
+    entityType: "product_or_segment",
+    canonicalName: "Automotive power modules",
+    aliases: ["EV power modules", "automotive modules"],
+    description:
+      "Core mix-upside segment that anchors the margin-expansion case and pricing durability debate.",
+    confidence: "high",
+    relatedSourceIds: ["source-ns-investor-day", "source-ns-channel-checks"],
+    relatedClaimIds: [
+      "claim-ns-margin-target",
+      "claim-ns-qualification-stickiness",
+      "claim-ns-pricing-discipline",
+    ],
+    relatedWikiPageIds: ["page-ns-dossier", "page-ns-thesis", "page-ns-market"],
+    createdAt: "2026-04-03T09:12:00Z",
+    updatedAt: "2026-04-03T09:12:00Z",
+  },
+  {
+    id: "entity-ns-gen4-platform",
+    projectId: "project-northstar-semiconductor",
+    entityType: "product_or_segment",
+    canonicalName: "Gen-4 platform",
+    aliases: ["Gen 4 platform", "Gen-4 ramp"],
+    description:
+      "Next product ramp expected to pull mix higher and serve as a key thesis catalyst.",
+    confidence: "medium",
+    relatedSourceIds: ["source-ns-investor-day"],
+    relatedClaimIds: ["claim-ns-gen4-ramp"],
+    relatedWikiPageIds: ["page-ns-thesis", "page-ns-dossier"],
+    createdAt: "2026-04-03T09:12:00Z",
+    updatedAt: "2026-04-03T09:12:00Z",
+  },
+  {
+    id: "entity-ns-management",
+    projectId: "project-northstar-semiconductor",
+    entityType: "operator",
+    canonicalName: "Management team",
+    aliases: ["management", "leadership"],
+    description:
+      "Operating voice setting the margin bridge, pricing-discipline, and execution posture.",
+    confidence: "medium",
+    relatedSourceIds: ["source-ns-investor-day", "source-ns-earnings-call"],
+    relatedClaimIds: ["claim-ns-margin-target", "claim-ns-pricing-discipline"],
+    relatedWikiPageIds: ["page-ns-thesis", "page-ns-dossier"],
+    createdAt: "2026-04-03T09:12:00Z",
+    updatedAt: "2026-04-03T09:12:00Z",
+  },
+  {
+    id: "entity-ns-market-vendors",
+    projectId: "project-northstar-semiconductor",
+    entityType: "market_or_competitor",
+    canonicalName: "Power module vendors",
+    aliases: ["peer vendors", "competitor set"],
+    description:
+      "Peer pricing set used to test whether Northstar can keep premium pricing in automotive modules.",
+    confidence: "medium",
+    relatedSourceIds: ["source-ns-pricing-table", "source-ns-industry-note"],
+    relatedClaimIds: ["claim-ns-asp-pressure", "claim-ns-industrial-socket-pressure"],
+    relatedWikiPageIds: ["page-ns-market", "page-ns-dossier"],
+    createdAt: "2026-04-03T09:12:00Z",
+    updatedAt: "2026-04-03T09:12:00Z",
+  },
+  {
+    id: "entity-ns-gross-margin",
+    projectId: "project-northstar-semiconductor",
+    entityType: "metric",
+    canonicalName: "Gross margin",
+    aliases: ["margin", "gross margin above 34%"],
+    description:
+      "Primary underwriting metric linking mix improvement, pricing durability, and Gen-4 execution.",
+    confidence: "high",
+    relatedSourceIds: ["source-ns-investor-day", "source-ns-earnings-call"],
+    relatedClaimIds: ["claim-ns-margin-target", "claim-ns-margin-delay"],
+    relatedWikiPageIds: ["page-ns-thesis", "page-ns-risks"],
+    createdAt: "2026-04-03T09:12:00Z",
+    updatedAt: "2026-04-03T09:12:00Z",
+  },
+  {
+    id: "entity-ns-pricing-pressure",
+    projectId: "project-northstar-semiconductor",
+    entityType: "risk_theme",
+    canonicalName: "Pricing pressure",
+    aliases: ["ASP compression", "pricing durability", "discounting"],
+    description:
+      "Central risk theme around whether premium pricing holds in automotive modules as new capacity arrives.",
+    confidence: "high",
+    relatedSourceIds: [
+      "source-ns-earnings-call",
+      "source-ns-pricing-table",
+      "source-ns-industry-note",
+    ],
+    relatedClaimIds: [
+      "claim-ns-pricing-discipline",
+      "claim-ns-asp-pressure",
+      "claim-ns-price-durability-open",
+    ],
+    relatedWikiPageIds: ["page-ns-market", "page-ns-risks", "page-ns-open-questions"],
+    createdAt: "2026-04-03T09:12:00Z",
+    updatedAt: "2026-04-03T09:12:00Z",
+  },
+];
+
+export const seedEntityAnalysisStates: EntityAnalysisState[] = [
+  {
+    projectId: "project-northstar-semiconductor",
+    lastCompiledAt: "2026-04-03T09:12:00Z",
+    entityCount: 7,
+    summary:
+      "Compiled seven focused investment-research entities spanning the company, core products, management, peer market structure, key metrics, and active risk themes.",
   },
 ];
 

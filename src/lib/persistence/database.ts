@@ -3,6 +3,8 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import {
   activeProjectId,
+  seedEntities,
+  seedEntityAnalysisStates,
   seedClaims,
   seedEvidenceLinks,
   seedArtifacts,
@@ -22,8 +24,10 @@ import {
 import type {
   Artifact,
   AskSession,
+  EntityAnalysisState,
   MonitoringAnalysisState,
   Project,
+  ResearchEntity,
   Source,
   SourceFragment,
   SourceMonitoringRecord,
@@ -226,6 +230,22 @@ function ensureSchema(database: SqliteDatabase) {
       payload TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_ask_sessions_store_project ON ask_sessions_store(project_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS entities_store (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      canonical_name TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_entities_store_project ON entities_store(project_id, entity_type, canonical_name);
+
+    CREATE TABLE IF NOT EXISTS entity_analysis_states_store (
+      project_id TEXT PRIMARY KEY,
+      last_compiled_at TEXT,
+      payload TEXT NOT NULL
+    );
 
     CREATE TABLE IF NOT EXISTS theses_store (
       id TEXT PRIMARY KEY,
@@ -437,6 +457,35 @@ function ensureSchema(database: SqliteDatabase) {
       session.createdAt,
       session.updatedAt,
       serializeRecord(session),
+    );
+  }
+
+  const insertEntity = database.prepare(`
+    INSERT OR IGNORE INTO entities_store (
+      id, project_id, entity_type, canonical_name, updated_at, payload
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  for (const entity of seedEntities) {
+    insertEntity.run(
+      entity.id,
+      entity.projectId,
+      entity.entityType,
+      entity.canonicalName,
+      entity.updatedAt,
+      serializeRecord(entity),
+    );
+  }
+
+  const insertEntityAnalysisState = database.prepare(`
+    INSERT OR IGNORE INTO entity_analysis_states_store (
+      project_id, last_compiled_at, payload
+    ) VALUES (?, ?, ?)
+  `);
+  for (const state of seedEntityAnalysisStates) {
+    insertEntityAnalysisState.run(
+      state.projectId,
+      state.lastCompiledAt,
+      serializeRecord(state),
     );
   }
 
@@ -746,6 +795,58 @@ export function upsertAskSessionRecord(session: AskSession): void {
       session.createdAt,
       session.updatedAt,
       serializeRecord(session),
+    );
+}
+
+export function upsertEntityRecord(entity: ResearchEntity): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO entities_store (
+        id, project_id, entity_type, canonical_name, updated_at, payload
+      ) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        project_id = excluded.project_id,
+        entity_type = excluded.entity_type,
+        canonical_name = excluded.canonical_name,
+        updated_at = excluded.updated_at,
+        payload = excluded.payload
+    `)
+    .run(
+      entity.id,
+      entity.projectId,
+      entity.entityType,
+      entity.canonicalName,
+      entity.updatedAt,
+      serializeRecord(entity),
+    );
+}
+
+export function upsertEntityAnalysisStateRecord(state: EntityAnalysisState): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO entity_analysis_states_store (
+        project_id, last_compiled_at, payload
+      ) VALUES (?, ?, ?)
+      ON CONFLICT(project_id) DO UPDATE SET
+        last_compiled_at = excluded.last_compiled_at,
+        payload = excluded.payload
+    `)
+    .run(
+      state.projectId,
+      state.lastCompiledAt,
+      serializeRecord(state),
     );
 }
 

@@ -42,6 +42,12 @@ export default async function DossierPage() {
           >
             Open Monitoring
           </Link>
+          <Link
+            href="/entities"
+            className="action-button-secondary"
+          >
+            Open Entities
+          </Link>
         </div>
       }
     />

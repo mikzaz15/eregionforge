@@ -2,6 +2,7 @@ import type {
   Artifact,
   Claim,
   Contradiction,
+  ResearchEntity,
   RevisionConfidence,
   Source,
   StringMetadata,
@@ -24,6 +25,7 @@ import { thesisRevisionsRepository } from "@/lib/repositories/thesis-revisions-r
 import { thesesRepository } from "@/lib/repositories/theses-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import { compileProjectEntities } from "@/lib/services/entity-intelligence-service";
 import {
   listProjectContradictions,
   type ContradictionReferenceRecord,
@@ -335,6 +337,16 @@ function referencesFromContradiction(
   };
 }
 
+function referencesFromEntity(entity: ResearchEntity): ThesisSectionReferences {
+  return {
+    wikiPageIds: entity.relatedWikiPageIds,
+    claimIds: entity.relatedClaimIds,
+    sourceIds: entity.relatedSourceIds,
+    timelineEventIds: [],
+    contradictionIds: [],
+  };
+}
+
 function renderBulletMarkdown(title: string, bullets: Bullet[], fallback: string): string {
   if (bullets.length === 0) {
     return `# ${title}\n\n- ${fallback}`;
@@ -504,6 +516,14 @@ function detectSubjectName(projectName: string, sources: Source[]): string {
   return issuer ?? projectName;
 }
 
+function detectSubjectNameFromEntities(
+  fallback: string,
+  entities: ResearchEntity[],
+): string {
+  const company = entities.find((entity) => entity.entityType === "company");
+  return company?.canonicalName ?? fallback;
+}
+
 function detectTicker(sources: Source[]): string | null {
   for (const source of sources) {
     const ticker = source.metadata.ticker ?? source.metadata.symbol ?? null;
@@ -513,6 +533,14 @@ function detectTicker(sources: Source[]): string | null {
   }
 
   return null;
+}
+
+function detectTickerFromEntities(
+  fallback: string | null,
+  entities: ResearchEntity[],
+): string | null {
+  const company = entities.find((entity) => entity.entityType === "company");
+  return company?.metadata?.ticker ?? fallback;
 }
 
 function sectionContentFromCandidate(
@@ -722,10 +750,14 @@ function buildChangeSummary(input: {
 function buildCompiledThesisCandidate(
   projectName: string,
   state: ThesisKnowledgeState,
+  entities: ResearchEntity[],
 ): CompiledThesisCandidate {
   const fingerprint = buildKnowledgeFingerprint(state);
-  const subjectName = detectSubjectName(projectName, state.sources);
-  const ticker = detectTicker(state.sources);
+  const subjectName = detectSubjectNameFromEntities(
+    detectSubjectName(projectName, state.sources),
+    entities,
+  );
+  const ticker = detectTickerFromEntities(detectTicker(state.sources), entities);
   const positiveClaims = state.claims.filter(
     (claim) => claim.supportStatus === "supported" && textSignalScore(claim.text) > 0,
   );
@@ -798,6 +830,16 @@ function buildCompiledThesisCandidate(
           `${context.page.title} ${context.revision?.summary ?? ""} ${context.revision?.markdownContent ?? ""}`,
         ) + confidenceRank(context.revision?.confidence),
     }));
+  const positiveEntityBullets = entities
+    .filter((entity) => ["company", "product_or_segment", "metric"].includes(entity.entityType))
+    .map<Bullet>((entity) => ({
+      text: `${entity.canonicalName}: ${entity.description}`,
+      references: referencesFromEntity(entity),
+      score:
+        2 +
+        confidenceRank(entity.confidence) +
+        (entity.entityType === "company" ? 1 : 0),
+    }));
   const negativePageBullets = state.pageContexts
     .filter(
       (context) =>
@@ -816,6 +858,22 @@ function buildCompiledThesisCandidate(
             `${context.page.title} ${context.revision?.summary ?? ""} ${context.revision?.markdownContent ?? ""}`,
           ),
         ) + confidenceRank(context.revision?.confidence),
+    }));
+  const riskEntityBullets = entities
+    .filter((entity) => entity.entityType === "risk_theme")
+    .map<Bullet>((entity) => ({
+      text: `${entity.canonicalName}: ${entity.description}`,
+      references: referencesFromEntity(entity),
+      score: 2 + confidenceRank(entity.confidence),
+    }));
+  const variantEntityBullets = entities
+    .filter((entity) =>
+      ["market_or_competitor", "operator", "product_or_segment"].includes(entity.entityType),
+    )
+    .map<Bullet>((entity) => ({
+      text: `${entity.canonicalName}: ${entity.description}`,
+      references: referencesFromEntity(entity),
+      score: 1 + confidenceRank(entity.confidence),
     }));
   const positiveClaimBullets = positiveClaims.map<Bullet>((claim) => ({
     text: claim.text,
@@ -889,17 +947,23 @@ function buildCompiledThesisCandidate(
           ? "mixed"
           : "monitor";
   const bullBullets = chooseTopBullets(
-    [...positiveClaimBullets, ...positivePageBullets],
+    [...positiveClaimBullets, ...positivePageBullets, ...positiveEntityBullets],
     4,
   );
   const bearBullets = chooseTopBullets(
-    [...negativeClaimBullets, ...negativePageBullets, ...contradictionBullets],
+    [
+      ...negativeClaimBullets,
+      ...negativePageBullets,
+      ...contradictionBullets,
+      ...riskEntityBullets,
+    ],
     4,
   );
   const variantBullets = chooseTopBullets(
     [
       ...contradictionBullets,
       ...timelineBullets.filter((entry) => entry.score >= 2),
+      ...variantEntityBullets,
     ],
     4,
   );
@@ -908,6 +972,7 @@ function buildCompiledThesisCandidate(
       ...negativePageBullets,
       ...negativeClaimBullets,
       ...contradictionBullets.filter((entry) => entry.score >= 3),
+      ...riskEntityBullets,
     ],
     4,
   );
@@ -1122,17 +1187,22 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
     throw new Error("Project is required to compile a thesis.");
   }
 
-  const [state, existingThesis, existingRevisions] = await Promise.all([
+  const [state, existingThesis, existingRevisions, entityCompileResult] = await Promise.all([
     buildKnowledgeState(projectId),
     thesesRepository.getByProjectId(projectId),
     thesisRevisionsRepository.listByProjectId(projectId),
+    compileProjectEntities(projectId),
   ]);
   const previousRevision = existingThesis?.currentRevisionId
     ? (await thesisRevisionsRepository.getById(existingThesis.currentRevisionId)) ??
       existingRevisions[0] ??
       null
     : existingRevisions[0] ?? null;
-  const candidate = buildCompiledThesisCandidate(project.name, state);
+  const candidate = buildCompiledThesisCandidate(
+    project.name,
+    state,
+    entityCompileResult.entities,
+  );
   const changedSections = buildChangedSections(previousRevision, candidate);
   const contradictionCount = parseInteger(candidate.metadata.contradictionCount);
   const catalystCount = parseInteger(candidate.metadata.catalystCount);

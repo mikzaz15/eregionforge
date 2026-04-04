@@ -11,6 +11,7 @@ import {
   runProjectContradictionAnalysis,
   updateContradictionStatus,
 } from "@/lib/services/contradiction-service";
+import { compileProjectEntities } from "@/lib/services/entity-intelligence-service";
 import { runProjectMonitoringAnalysis } from "@/lib/services/source-monitoring-service";
 import { compileProjectThesis } from "@/lib/services/thesis-service";
 import { compileProjectTimeline } from "@/lib/services/timeline-service";
@@ -36,6 +37,7 @@ function refreshWorkspacePaths(projectId: string) {
   revalidatePath("/monitoring");
   revalidatePath("/thesis");
   revalidatePath("/dossier");
+  revalidatePath("/entities");
   revalidatePath("/catalysts");
   revalidatePath("/timeline");
   revalidatePath("/settings");
@@ -226,6 +228,13 @@ export async function compileActiveProjectDossierAction() {
   await compileProjectCompanyDossier(projectId);
   refreshWorkspacePaths(projectId);
   redirect("/dossier");
+}
+
+export async function compileActiveProjectEntitiesAction() {
+  const projectId = await getActiveProjectId();
+  await compileProjectEntities(projectId);
+  refreshWorkspacePaths(projectId);
+  redirect("/entities");
 }
 
 export async function compileProjectDossierAction(formData: FormData) {

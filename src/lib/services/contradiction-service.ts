@@ -4,6 +4,7 @@ import type {
   ContradictionAnalysisState,
   ContradictionDraft,
   ContradictionSeverity,
+  ResearchEntity,
   RevisionConfidence,
   Source,
   TimelineEvent,
@@ -15,6 +16,10 @@ import { contradictionsRepository } from "@/lib/repositories/contradictions-repo
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import {
+  compileProjectEntities,
+  matchEntitiesToText,
+} from "@/lib/services/entity-intelligence-service";
 import {
   buildSemanticProfile,
   dominantConflictTheme,
@@ -86,6 +91,29 @@ function preview(value: string, length = 220): string {
   return normalized.length > length
     ? `${normalized.slice(0, length).trimEnd()}...`
     : normalized;
+}
+
+function sharedEntitiesForTexts(
+  entities: ResearchEntity[],
+  leftText: string,
+  rightText: string,
+): ResearchEntity[] {
+  const leftMatches = matchEntitiesToText(entities, leftText);
+  const rightMatches = matchEntitiesToText(entities, rightText);
+  const rightIds = new Set(rightMatches.map((entity) => entity.id));
+
+  return leftMatches.filter((entity) => rightIds.has(entity.id));
+}
+
+function entitySummary(sharedEntities: ResearchEntity[]): string | null {
+  if (sharedEntities.length === 0) {
+    return null;
+  }
+
+  return sharedEntities
+    .slice(0, 2)
+    .map((entity) => entity.canonicalName)
+    .join(", ");
 }
 
 function extractNumbers(value: string): string[] {
@@ -347,12 +375,14 @@ async function buildPageContexts(projectId: string): Promise<PageContradictionCo
 }
 
 async function computeContradictionDrafts(projectId: string): Promise<ContradictionDraft[]> {
-  const [claims, sources, pageContexts, timelineEvents] = await Promise.all([
+  const [claims, sources, pageContexts, timelineEvents, entityCompileResult] = await Promise.all([
     claimsRepository.listByProjectId(projectId),
     sourcesRepository.listByProjectId(projectId),
     buildPageContexts(projectId),
     timelineEventsRepository.listByProjectId(projectId),
+    compileProjectEntities(projectId),
   ]);
+  const entities = entityCompileResult.entities;
   const issues: ContradictionDraft[] = [];
   const pageIdsBySourceId = new Map<string, string[]>();
 
@@ -375,6 +405,16 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         continue;
       }
 
+      const sharedEntities = sharedEntitiesForTexts(entities, left.text, right.text);
+
+      if (
+        sharedEntities.length === 0 &&
+        comparison.primaryTheme === null &&
+        comparison.sharedTokens.length < 3
+      ) {
+        continue;
+      }
+
       const newer = left.createdAt >= right.createdAt ? left : right;
       const older = newer.id === left.id ? right : left;
       const contradictionType =
@@ -388,13 +428,14 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         comparison.overlap +
           comparison.sharedThemes.length * 0.18 +
           comparison.sharedTokens.length * 0.03 +
+          sharedEntities.length * 0.08 +
           (comparison.primaryTheme ? 0.08 : 0) +
           (contradictionType === "stale_vs_newer_claim" ? 0.06 : 0) +
           (maxConfidence(left.confidence, right.confidence) === "high" ? 0.1 : 0),
       );
-      const scopeLabel = comparison.primaryTheme
+      const scopeLabel = sharedEntities[0]?.canonicalName ?? (comparison.primaryTheme
         ? formatThemeLabel(comparison.primaryTheme)
-        : "claim";
+        : "claim");
 
       issues.push({
         stableKey: stableKey("claim", contradictionType, left.id, right.id),
@@ -414,11 +455,12 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
           new Set([left.sourceId ?? null, right.sourceId ?? null].filter(Boolean) as string[]),
         ),
         relatedTimelineEventIds: [],
-        rationale: `${comparison.reason} Shared tokens: ${comparison.sharedTokens.join(", ") || "theme overlap only"}. Newer claim timestamp: ${newer.createdAt.slice(0, 10)}.`,
+        rationale: `${comparison.reason} ${entitySummary(sharedEntities) ? `Shared entity scope: ${entitySummary(sharedEntities)}. ` : ""}Shared tokens: ${comparison.sharedTokens.join(", ") || "theme overlap only"}. Newer claim timestamp: ${newer.createdAt.slice(0, 10)}.`,
         metadata: {
           newerClaimId: newer.id,
           olderClaimId: older.id,
           primaryTheme: comparison.primaryTheme ?? "",
+          entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
         },
       });
     }
@@ -437,10 +479,23 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         continue;
       }
 
+      const leftText = `${left.title}. ${left.body ?? ""}`;
+      const rightText = `${right.title}. ${right.body ?? ""}`;
+      const sharedEntities = sharedEntitiesForTexts(entities, leftText, rightText);
+
+      if (
+        sharedEntities.length === 0 &&
+        comparison.primaryTheme === null &&
+        comparison.sharedTokens.length < 3
+      ) {
+        continue;
+      }
+
       const confidence = confidenceFromScore(
         comparison.overlap +
           comparison.sharedThemes.length * 0.18 +
           comparison.sharedTokens.length * 0.03 +
+          sharedEntities.length * 0.08 +
           (comparison.primaryTheme ? 0.06 : 0),
       );
 
@@ -448,7 +503,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         stableKey: stableKey("source", left.id, right.id, comparison.signalKind),
         projectId,
         contradictionType: "source_disagreement",
-        title: comparison.primaryTheme
+        title: sharedEntities[0]
+          ? `Source disagreement on ${sharedEntities[0].canonicalName}`
+          : comparison.primaryTheme
           ? `Source disagreement on ${formatThemeLabel(comparison.primaryTheme)}`
           : `Source disagreement: ${left.title} vs ${right.title}`,
         description: `${preview(left.body ?? left.title, 120)} / ${preview(right.body ?? right.title, 120)}`,
@@ -464,9 +521,10 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         ),
         relatedSourceIds: [left.id, right.id],
         relatedTimelineEventIds: [],
-        rationale: `${comparison.reason} This pair was flagged from overlapping source narratives rather than canonical claim ids.`,
+        rationale: `${comparison.reason} ${entitySummary(sharedEntities) ? `Shared entity scope: ${entitySummary(sharedEntities)}. ` : ""}This pair was flagged from overlapping source narratives rather than canonical claim ids.`,
         metadata: {
           primaryTheme: comparison.primaryTheme ?? "",
+          entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
         },
       });
     }
@@ -484,10 +542,21 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         continue;
       }
 
+      const sharedEntities = sharedEntitiesForTexts(entities, leftText, rightText);
+
+      if (
+        sharedEntities.length === 0 &&
+        comparison.primaryTheme === null &&
+        comparison.sharedTokens.length < 3
+      ) {
+        continue;
+      }
+
       const confidence = confidenceFromScore(
         comparison.overlap +
           comparison.sharedThemes.length * 0.18 +
           comparison.sharedTokens.length * 0.03 +
+          sharedEntities.length * 0.08 +
           (left.revision?.confidence === "high" || right.revision?.confidence === "high"
             ? 0.08
             : 0),
@@ -497,7 +566,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         stableKey: stableKey("page", left.page.id, right.page.id, comparison.signalKind),
         projectId,
         contradictionType: "overlapping_but_inconsistent_summary",
-        title: comparison.primaryTheme
+        title: sharedEntities[0]
+          ? `Canonical tension on ${sharedEntities[0].canonicalName}`
+          : comparison.primaryTheme
           ? `Canonical summary tension on ${formatThemeLabel(comparison.primaryTheme)}`
           : `Canonical summary tension: ${left.page.title} vs ${right.page.title}`,
         description: `${preview(left.revision?.summary ?? leftText, 120)} / ${preview(right.revision?.summary ?? rightText, 120)}`,
@@ -508,9 +579,10 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         relatedPageIds: [left.page.id, right.page.id],
         relatedSourceIds: Array.from(new Set([...left.sourceIds, ...right.sourceIds])),
         relatedTimelineEventIds: [],
-        rationale: `${comparison.reason} The current page summaries overlap enough to warrant review as canonical tension rather than isolated note variance.`,
+        rationale: `${comparison.reason} ${entitySummary(sharedEntities) ? `Shared entity scope: ${entitySummary(sharedEntities)}. ` : ""}The current page summaries overlap enough to warrant review as canonical tension rather than isolated note variance.`,
         metadata: {
           primaryTheme: comparison.primaryTheme ?? "",
+          entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
         },
       });
     }
@@ -530,6 +602,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         continue;
       }
 
+      const sourceText = `${source.title}. ${source.body ?? ""}`;
+      const sharedEntities = sharedEntitiesForTexts(entities, pageText, sourceText);
+
       if (
         pageContext.sourceIds.includes(source.id) &&
         comparison.signalKind !== "status" &&
@@ -538,10 +613,19 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         continue;
       }
 
+      if (
+        sharedEntities.length === 0 &&
+        comparison.primaryTheme === null &&
+        comparison.sharedTokens.length < 3
+      ) {
+        continue;
+      }
+
       const confidence = confidenceFromScore(
         comparison.overlap +
           comparison.sharedThemes.length * 0.18 +
           comparison.sharedTokens.length * 0.03 +
+          sharedEntities.length * 0.08 +
           (comparison.primaryTheme ? 0.05 : 0),
       );
 
@@ -549,7 +633,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         stableKey: stableKey("page-source", pageContext.page.id, source.id, comparison.signalKind),
         projectId,
         contradictionType: "source_disagreement",
-        title: comparison.primaryTheme
+        title: sharedEntities[0]
+          ? `Canon disagrees on ${sharedEntities[0].canonicalName}`
+          : comparison.primaryTheme
           ? `Canon disagrees with source on ${formatThemeLabel(comparison.primaryTheme)}`
           : `Canonical summary disagrees with source note: ${pageContext.page.title}`,
         description: `${preview(pageContext.revision?.summary ?? pageContext.page.title, 120)} / ${preview(source.body ?? source.title, 120)}`,
@@ -560,9 +646,10 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         relatedPageIds: [pageContext.page.id],
         relatedSourceIds: [source.id],
         relatedTimelineEventIds: [],
-        rationale: `${comparison.reason} The contradiction was detected between canon and a project source record, not between two claims.`,
+        rationale: `${comparison.reason} ${entitySummary(sharedEntities) ? `Shared entity scope: ${entitySummary(sharedEntities)}. ` : ""}The contradiction was detected between canon and a project source record, not between two claims.`,
         metadata: {
           primaryTheme: comparison.primaryTheme ?? "",
+          entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
         },
       });
     }
@@ -581,6 +668,7 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         tokenizeMeaningful(right.title),
       );
       const comparison = detectConflictSignal(leftText, rightText);
+      const sharedEntities = sharedEntitiesForTexts(entities, leftText, rightText);
       const impactTheme = comparison?.primaryTheme ?? null;
       const dayDiff = Math.abs(
         new Date(left.eventDate).getTime() - new Date(right.eventDate).getTime(),
@@ -592,7 +680,7 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         );
 
       if (
-        !(sourceOverlap || pageOverlap || titleOverlap >= 0.28 || comparison) ||
+        !(sourceOverlap || pageOverlap || titleOverlap >= 0.28 || comparison || sharedEntities.length > 0) ||
         dayDiff < (highImpactTiming ? 45 : 90)
       ) {
         continue;
@@ -601,6 +689,7 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
       const confidence = confidenceFromScore(
         titleOverlap +
           (comparison ? comparison.sharedThemes.length * 0.16 : 0) +
+          sharedEntities.length * 0.08 +
           (left.eventDatePrecision === "exact_day" && right.eventDatePrecision === "exact_day"
             ? 0.2
             : 0.08),
@@ -610,7 +699,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         stableKey: stableKey("timeline", left.id, right.id),
         projectId,
         contradictionType: "timeline_tension",
-        title: impactTheme
+        title: sharedEntities[0]
+          ? `Timeline tension on ${sharedEntities[0].canonicalName}`
+          : impactTheme
           ? `Timeline tension on ${formatThemeLabel(impactTheme)}`
           : `Timeline tension between ${left.title} and ${right.title}`,
         description: `${preview(left.description, 110)} / ${preview(right.description, 110)}`,
@@ -627,13 +718,14 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         relatedSourceIds: Array.from(new Set([...left.sourceIds, ...right.sourceIds])),
         relatedTimelineEventIds: [left.id, right.id],
         rationale: comparison
-          ? `${comparison.reason} The timeline compiler placed related ${formatThemeLabel(
+          ? `${comparison.reason} ${entitySummary(sharedEntities) ? `Shared entity scope: ${entitySummary(sharedEntities)}. ` : ""}The timeline compiler placed related ${formatThemeLabel(
               impactTheme ?? comparison.sharedThemes[0] ?? "timing",
             )} events ${Math.round(dayDiff)} days apart, which can change thesis timing and catalyst posture.`
-          : `The timeline compiler produced overlapping events tied to related scope but placed them ${Math.round(dayDiff)} days apart. Review chronology, date precision, and source provenance together.`,
+          : `${entitySummary(sharedEntities) ? `Shared entity scope: ${entitySummary(sharedEntities)}. ` : ""}The timeline compiler produced overlapping events tied to related scope but placed them ${Math.round(dayDiff)} days apart. Review chronology, date precision, and source provenance together.`,
         metadata: {
           primaryTheme: impactTheme ?? "",
           dayDiff: String(Math.round(dayDiff)),
+          entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
         },
       });
     }

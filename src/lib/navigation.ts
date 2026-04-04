@@ -49,6 +49,12 @@ export const workspaceNavigation: NavigationItem[] = [
     shortLabel: "DS",
   },
   {
+    href: "/entities",
+    label: "Entities",
+    description: "Focused entity intelligence across companies, products, operators, markets, metrics, and risk themes.",
+    shortLabel: "EN",
+  },
+  {
     href: "/catalysts",
     label: "Catalysts",
     description: "First-class catalyst tracker linking thesis, timeline, contradictions, and evidence.",

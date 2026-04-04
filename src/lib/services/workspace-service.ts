@@ -48,6 +48,11 @@ import {
   type CompanyDossierDetailRecord,
 } from "@/lib/services/company-dossier-service";
 import {
+  getProjectEntitiesPageData as buildProjectEntitiesPageData,
+  getProjectEntitySnapshot,
+  type EntityReferenceRecord,
+} from "@/lib/services/entity-intelligence-service";
+import {
   getProjectLintSnapshot,
   type ProjectLintHealthSummary,
 } from "@/lib/services/lint-service";
@@ -80,6 +85,7 @@ export type ProjectSummary = {
   project: Project;
   sourceCount: number;
   wikiPageCount: number;
+  entityCount: number;
   artifactCount: number;
   generatedPageCount: number;
   sourceSummaryPageCount: number;
@@ -267,6 +273,18 @@ export type ThesisPageData = {
 export type DossierPageData = {
   summary: ProjectSummary;
   dossier: CompanyDossierDetailRecord | null;
+  metrics: Array<{ label: string; value: string; note: string }>;
+};
+
+export type EntitiesPageData = {
+  summary: ProjectSummary;
+  entities: EntityReferenceRecord[];
+  analysisState: {
+    projectId: string;
+    lastCompiledAt: string | null;
+    entityCount: number;
+    summary: string;
+  };
   metrics: Array<{ label: string; value: string; note: string }>;
 };
 
@@ -594,6 +612,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     dossier,
     catalystPageData,
     monitoringSnapshot,
+    entitySnapshot,
   ] =
     await Promise.all([
       sourcesRepository.listByProjectId(project.id),
@@ -609,6 +628,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       getStoredProjectCompanyDossier(project.id),
       getProjectCatalystPageData(project.id),
       getProjectMonitoringSnapshot(project.id),
+      getProjectEntitySnapshot(project.id),
     ]);
   const generatedPageCount = pages.filter(
     (page) => page.generationMetadata?.generatedBy === "deterministic-compiler",
@@ -629,6 +649,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     project,
     sourceCount: sources.length,
     wikiPageCount: pages.length,
+    entityCount: entitySnapshot.entities.length,
     artifactCount: artifacts.length,
     generatedPageCount,
     sourceSummaryPageCount,
@@ -1289,6 +1310,26 @@ export async function getDossierPageData(
         note: "Readiness stays tied to compiled section coverage rather than a generic completeness flag.",
       },
     ],
+  };
+}
+
+export async function getEntitiesPageData(
+  projectId: string,
+): Promise<EntitiesPageData | null> {
+  const [summary, entityData] = await Promise.all([
+    getProjectSummary(projectId),
+    buildProjectEntitiesPageData(projectId),
+  ]);
+
+  if (!summary) {
+    return null;
+  }
+
+  return {
+    summary,
+    entities: entityData.entities,
+    analysisState: entityData.analysisState,
+    metrics: entityData.metrics,
   };
 }
 

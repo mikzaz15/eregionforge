@@ -60,6 +60,12 @@ export default async function ThesisPage({
           >
             Open Catalysts
           </Link>
+          <Link
+            href="/entities"
+            className="action-button-secondary"
+          >
+            Open Entities
+          </Link>
         </div>
       }
     />

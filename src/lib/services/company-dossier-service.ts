@@ -4,6 +4,7 @@ import type {
   CompanyDossier,
   DossierSectionReferences,
   DossierSectionSupportMap,
+  ResearchEntity,
   RevisionConfidence,
   Source,
   Thesis,
@@ -18,6 +19,7 @@ import { projectsRepository } from "@/lib/repositories/projects-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { thesesRepository } from "@/lib/repositories/theses-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import { compileProjectEntities } from "@/lib/services/entity-intelligence-service";
 import {
   confidenceLabelFromScore,
   deriveConfidenceScore,
@@ -141,6 +143,15 @@ function artifactReferences(artifact: Artifact): DossierSectionReferences {
   };
 }
 
+function entityReferences(entity: ResearchEntity): DossierSectionReferences {
+  return {
+    wikiPageIds: entity.relatedWikiPageIds,
+    claimIds: entity.relatedClaimIds,
+    sourceIds: entity.relatedSourceIds,
+    artifactIds: [],
+  };
+}
+
 function chooseTopBullets(bullets: DossierBullet[], limit: number): DossierBullet[] {
   return [...bullets]
     .sort((left, right) => right.score - left.score || left.text.localeCompare(right.text))
@@ -174,12 +185,28 @@ async function buildPageContexts(projectId: string): Promise<PageContext[]> {
   );
 }
 
-function detectCompanyName(projectName: string, sources: Source[]): string {
+function detectCompanyName(
+  projectName: string,
+  sources: Source[],
+  entities: ResearchEntity[],
+): string {
+  const entityName = entities.find((entity) => entity.entityType === "company")?.canonicalName;
+  if (entityName) {
+    return entityName;
+  }
+
   const issuer = sources.find((source) => source.metadata.issuer)?.metadata.issuer;
   return issuer ?? projectName;
 }
 
-function detectTicker(sources: Source[]): string | null {
+function detectTicker(sources: Source[], entities: ResearchEntity[]): string | null {
+  const entityTicker = entities.find((entity) => entity.entityType === "company")?.aliases.find(
+    (alias) => /^[A-Z]{1,6}$/.test(alias.toUpperCase()),
+  );
+  if (entityTicker) {
+    return entityTicker.toUpperCase();
+  }
+
   for (const source of sources) {
     const ticker = source.metadata.ticker ?? source.metadata.symbol ?? null;
     if (ticker) {
@@ -188,6 +215,20 @@ function detectTicker(sources: Source[]): string | null {
   }
 
   return null;
+}
+
+function buildEntityBullets(
+  entities: ResearchEntity[],
+  entityTypes: ResearchEntity["entityType"][],
+  baseScore: number,
+): DossierBullet[] {
+  return entities
+    .filter((entity) => entityTypes.includes(entity.entityType))
+    .map<DossierBullet>((entity) => ({
+      text: `${entity.canonicalName}: ${entity.description}`,
+      references: entityReferences(entity),
+      score: baseScore + confidenceRank(entity.confidence),
+    }));
 }
 
 function detectSector(
@@ -234,6 +275,7 @@ function buildBusinessOverviewBullets(input: {
   pageContexts: PageContext[];
   claims: Claim[];
   thesis: Thesis | null;
+  entities: ResearchEntity[];
 }): DossierBullet[] {
   const pageBullets = input.pageContexts
     .filter((context) =>
@@ -269,7 +311,12 @@ function buildBusinessOverviewBullets(input: {
       ]
     : [];
 
-  return chooseTopBullets([...pageBullets, ...claimBullets, ...thesisBullets], 4);
+  const entityBullets = buildEntityBullets(input.entities, ["company"], 4);
+
+  return chooseTopBullets(
+    [...pageBullets, ...claimBullets, ...thesisBullets, ...entityBullets],
+    4,
+  );
 }
 
 function buildProductsBullets(input: {
@@ -277,6 +324,7 @@ function buildProductsBullets(input: {
   claims: Claim[];
   sources: Source[];
   artifacts: Artifact[];
+  entities: ResearchEntity[];
 }): DossierBullet[] {
   const pageBullets = input.pageContexts
     .filter((context) =>
@@ -317,8 +365,10 @@ function buildProductsBullets(input: {
       score: 1,
     }));
 
+  const entityBullets = buildEntityBullets(input.entities, ["product_or_segment"], 4);
+
   return chooseTopBullets(
-    [...pageBullets, ...claimBullets, ...sourceBullets, ...artifactBullets],
+    [...pageBullets, ...claimBullets, ...sourceBullets, ...artifactBullets, ...entityBullets],
     4,
   );
 }
@@ -327,6 +377,7 @@ function buildManagementBullets(input: {
   pageContexts: PageContext[];
   claims: Claim[];
   sources: Source[];
+  entities: ResearchEntity[];
 }): DossierBullet[] {
   const pageBullets = input.pageContexts
     .filter((context) => /management|operator|team|leadership/i.test(context.page.title))
@@ -357,7 +408,12 @@ function buildManagementBullets(input: {
       score: 1,
     }));
 
-  return chooseTopBullets([...pageBullets, ...claimBullets, ...sourceBullets], 4);
+  const entityBullets = buildEntityBullets(input.entities, ["operator"], 4);
+
+  return chooseTopBullets(
+    [...pageBullets, ...claimBullets, ...sourceBullets, ...entityBullets],
+    4,
+  );
 }
 
 function buildMarketBullets(input: {
@@ -365,6 +421,7 @@ function buildMarketBullets(input: {
   claims: Claim[];
   sources: Source[];
   artifacts: Artifact[];
+  entities: ResearchEntity[];
 }): DossierBullet[] {
   const pageBullets = input.pageContexts
     .filter((context) =>
@@ -405,8 +462,14 @@ function buildMarketBullets(input: {
       score: 1,
     }));
 
+  const entityBullets = buildEntityBullets(
+    input.entities,
+    ["market_or_competitor", "risk_theme"],
+    4,
+  );
+
   return chooseTopBullets(
-    [...pageBullets, ...claimBullets, ...sourceBullets, ...artifactBullets],
+    [...pageBullets, ...claimBullets, ...sourceBullets, ...artifactBullets, ...entityBullets],
     4,
   );
 }
@@ -415,6 +478,7 @@ function buildMetricsBullets(input: {
   claims: Claim[];
   sources: Source[];
   thesis: Thesis | null;
+  entities: ResearchEntity[];
 }): DossierBullet[] {
   const claimBullets = input.claims
     .filter((claim) => /\d|margin|backlog|pricing|count|confidence|risk/i.test(claim.text))
@@ -448,7 +512,12 @@ function buildMetricsBullets(input: {
       ]
     : [];
 
-  return chooseTopBullets([...claimBullets, ...sourceBullets, ...thesisBullets], 5);
+  const entityBullets = buildEntityBullets(input.entities, ["metric"], 4);
+
+  return chooseTopBullets(
+    [...claimBullets, ...sourceBullets, ...thesisBullets, ...entityBullets],
+    5,
+  );
 }
 
 function buildCoverageBullets(input: {
@@ -523,7 +592,7 @@ export async function compileProjectCompanyDossier(
     throw new Error("Project is required to compile a company dossier.");
   }
 
-  const [pageContexts, claims, sources, artifacts, thesis, contradictions] =
+  const [pageContexts, claims, sources, artifacts, thesis, contradictions, entityCompileResult] =
     await Promise.all([
     buildPageContexts(projectId),
     claimsRepository.listByProjectId(projectId),
@@ -531,38 +600,45 @@ export async function compileProjectCompanyDossier(
     artifactsRepository.listByProjectId(projectId),
     thesesRepository.getByProjectId(projectId),
     contradictionsRepository.listByProjectId(projectId),
+    compileProjectEntities(projectId),
   ]);
+  const entities = entityCompileResult.entities;
 
-  const companyName = detectCompanyName(project.name, sources);
-  const ticker = detectTicker(sources);
+  const companyName = detectCompanyName(project.name, sources, entities);
+  const ticker = detectTicker(sources, entities);
   const sector = detectSector(project.domain, sources, claims);
   const geography = detectGeography(sources, claims);
   const businessOverviewBullets = buildBusinessOverviewBullets({
     pageContexts,
     claims,
     thesis,
+    entities,
   });
   const productsBullets = buildProductsBullets({
     pageContexts,
     claims,
     sources,
     artifacts,
+    entities,
   });
   const managementBullets = buildManagementBullets({
     pageContexts,
     claims,
     sources,
+    entities,
   });
   const marketBullets = buildMarketBullets({
     pageContexts,
     claims,
     sources,
     artifacts,
+    entities,
   });
   const metricsBullets = buildMetricsBullets({
     claims,
     sources,
     thesis,
+    entities,
   });
   const coverageBullets = buildCoverageBullets({
     pageContexts,

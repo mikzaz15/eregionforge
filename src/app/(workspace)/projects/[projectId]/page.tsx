@@ -210,6 +210,14 @@ export default async function ProjectDetailPage({
           >
             Open Dossier
           </Link>
+          {isActiveWorkspace ? (
+            <Link
+              href="/entities"
+              className="action-button-secondary"
+            >
+              Open Entities
+            </Link>
+          ) : null}
           <Link
             href={`/projects/${projectId}/catalysts`}
             className="action-button-secondary"
@@ -252,6 +260,11 @@ export default async function ProjectDetailPage({
           label="Artifacts"
           value={String(projectData.summary.artifactCount)}
           note="Durable outputs remain attached to the same project workspace."
+        />
+        <MetricCard
+          label="Entities"
+          value={String(projectData.summary.entityCount)}
+          note="Entity intelligence turns core research subjects into durable structured objects that sharpen downstream analysis."
         />
         <MetricCard
           label="Timeline"
@@ -328,6 +341,14 @@ export default async function ProjectDetailPage({
               >
                 Open Catalysts
               </Link>
+              {isActiveWorkspace ? (
+                <Link
+                  href="/entities"
+                  className="action-button-secondary"
+                >
+                  Open Entities
+                </Link>
+              ) : null}
               {isActiveWorkspace ? (
                 <Link
                   href="/monitoring"
