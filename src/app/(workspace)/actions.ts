@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { AskAnswerMode, ArtifactType, WikiPageType } from "@/lib/domain/types";
 import { runAskSession, saveAskSessionAsArtifact } from "@/lib/services/ask-service";
 import { setArtifactWikiFilingEligibility } from "@/lib/services/artifact-service";
+import { compileProjectCatalysts } from "@/lib/services/catalyst-service";
 import { compileProjectCompanyDossier } from "@/lib/services/company-dossier-service";
 import {
   runProjectContradictionAnalysis,
@@ -33,10 +34,12 @@ function refreshWorkspacePaths(projectId: string) {
   revalidatePath("/contradictions");
   revalidatePath("/thesis");
   revalidatePath("/dossier");
+  revalidatePath("/catalysts");
   revalidatePath("/timeline");
   revalidatePath("/settings");
   revalidatePath("/projects/[projectId]/thesis", "page");
   revalidatePath("/projects/[projectId]/dossier", "page");
+  revalidatePath("/projects/[projectId]/catalysts", "page");
 }
 
 export async function createActiveProjectSourceAction(formData: FormData) {
@@ -225,6 +228,26 @@ export async function compileProjectDossierAction(formData: FormData) {
   }
 
   await compileProjectCompanyDossier(projectId);
+  refreshWorkspacePaths(projectId);
+  redirect(redirectTo);
+}
+
+export async function compileActiveProjectCatalystsAction() {
+  const projectId = await getActiveProjectId();
+  await compileProjectCatalysts(projectId);
+  refreshWorkspacePaths(projectId);
+  redirect("/catalysts");
+}
+
+export async function compileProjectCatalystsAction(formData: FormData) {
+  const projectId = String(formData.get("projectId") ?? "");
+  const redirectTo = String(formData.get("redirectTo") ?? "/catalysts");
+
+  if (!projectId) {
+    throw new Error("Project id is required to compile catalysts.");
+  }
+
+  await compileProjectCatalysts(projectId);
   refreshWorkspacePaths(projectId);
   redirect(redirectTo);
 }

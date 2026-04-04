@@ -198,6 +198,7 @@ export function ThesisView({
   title,
   description,
   basePath,
+  catalystsPath,
   actions,
 }: Readonly<{
   data: ThesisPageData;
@@ -205,6 +206,7 @@ export function ThesisView({
   title: string;
   description: string;
   basePath: string;
+  catalystsPath: string;
   actions?: ReactNode;
 }>) {
   const thesisDetail = data.thesis;
@@ -616,6 +618,12 @@ export function ThesisView({
               description="Catalysts are sourced from the compiled timeline and related supporting knowledge."
             >
               <div className="space-y-4">
+                <Link
+                  href={catalystsPath}
+                  className="inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                >
+                  Open Catalyst Tracker
+                </Link>
                 <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
                   <MarkdownDocument content={thesis.catalystSummaryMarkdown} />
                 </div>

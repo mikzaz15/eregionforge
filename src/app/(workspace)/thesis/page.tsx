@@ -27,6 +27,7 @@ export default async function ThesisPage({
       title="Investment Thesis"
       description={`The thesis tracker compiles a source-grounded thesis for ${data.summary.project.name} from canon, claims, timeline state, contradictions, and durable research outputs.`}
       basePath="/thesis"
+      catalystsPath="/catalysts"
       actions={
         <div className="flex flex-wrap gap-3">
           <form action={compileActiveProjectThesisAction}>
@@ -45,6 +46,12 @@ export default async function ThesisPage({
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
           >
             Open Contradictions
+          </Link>
+          <Link
+            href="/catalysts"
+            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+          >
+            Open Catalysts
           </Link>
         </div>
       }

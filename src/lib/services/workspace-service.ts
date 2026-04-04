@@ -38,6 +38,11 @@ import {
   type ArtifactTypeOption,
 } from "@/lib/services/artifact-service";
 import {
+  getProjectCatalystPageData,
+  listProjectCatalysts,
+  type CatalystReferenceRecord,
+} from "@/lib/services/catalyst-service";
+import {
   getProjectCompanyDossierDetail,
   getStoredProjectCompanyDossier,
   type CompanyDossierDetailRecord,
@@ -94,6 +99,10 @@ export type ProjectSummary = {
   dossierConfidence: CompanyDossier["confidence"] | null;
   dossierSectionCoverageLabel: string;
   dossierReady: boolean;
+  catalystCount: number;
+  upcomingCatalystCount: number;
+  resolvedCatalystCount: number;
+  highImportanceCatalystCount: number;
   health: ProjectLintHealthSummary;
 };
 
@@ -118,6 +127,7 @@ export type ProjectDetailData = {
   artifactTypeMix: Array<{ artifactType: ArtifactType; count: number }>;
   timelineEvents: TimelineReferenceRecord[];
   contradictions: ContradictionReferenceRecord[];
+  catalysts: CatalystReferenceRecord[];
   thesis: ThesisDetailRecord | null;
   dossier: CompanyDossierDetailRecord | null;
   latestCompile: CompileJob | null;
@@ -240,6 +250,18 @@ export type ThesisPageData = {
 export type DossierPageData = {
   summary: ProjectSummary;
   dossier: CompanyDossierDetailRecord | null;
+  metrics: Array<{ label: string; value: string; note: string }>;
+};
+
+export type CatalystsPageData = {
+  summary: ProjectSummary;
+  catalysts: CatalystReferenceRecord[];
+  compileState: {
+    projectId: string;
+    lastCompiledAt: string | null;
+    catalystCount: number;
+    summary: string;
+  };
   metrics: Array<{ label: string; value: string; note: string }>;
 };
 
@@ -544,6 +566,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     contradictionSnapshot,
     thesisSnapshot,
     dossier,
+    catalystPageData,
   ] =
     await Promise.all([
       sourcesRepository.listByProjectId(project.id),
@@ -557,6 +580,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       getProjectContradictionSnapshot(project.id),
       getProjectThesisSnapshot(project.id),
       getStoredProjectCompanyDossier(project.id),
+      getProjectCatalystPageData(project.id),
     ]);
   const generatedPageCount = pages.filter(
     (page) => page.generationMetadata?.generatedBy === "deterministic-compiler",
@@ -611,6 +635,10 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     dossierSectionCoverageLabel:
       dossier?.metadata?.sectionCoverageLabel ?? "0/6 sections supported",
     dossierReady: Number(dossier?.metadata?.coveredSections ?? "0") >= 4,
+    catalystCount: catalystPageData.summary.totalCatalysts,
+    upcomingCatalystCount: catalystPageData.summary.upcomingCatalysts,
+    resolvedCatalystCount: catalystPageData.summary.resolvedCatalysts,
+    highImportanceCatalystCount: catalystPageData.summary.highImportanceCatalysts,
     health: lintSnapshot.health,
   };
 });
@@ -750,12 +778,13 @@ export async function getProjectDetailData(
     return null;
   }
 
-  const [sources, wikiPages, artifacts, timelineEvents, contradictions, thesis, dossier] = await Promise.all([
+  const [sources, wikiPages, artifacts, timelineEvents, contradictions, catalysts, thesis, dossier] = await Promise.all([
     sourcesRepository.listByProjectId(projectId),
     buildWikiPageSummaries(projectId),
     listProjectArtifacts({ projectId }),
     listProjectTimelineEvents(projectId),
     listProjectContradictions(projectId),
+    listProjectCatalysts(projectId),
     getProjectThesisDetail(projectId),
     getProjectCompanyDossierDetail(projectId),
   ]);
@@ -769,6 +798,7 @@ export async function getProjectDetailData(
     artifactTypeMix: buildArtifactTypeMix(artifacts),
     timelineEvents,
     contradictions,
+    catalysts,
     thesis,
     dossier,
     latestCompile,
@@ -1210,6 +1240,25 @@ export async function getDossierPageData(
         note: "Readiness stays tied to compiled section coverage rather than a generic completeness flag.",
       },
     ],
+  };
+}
+
+export async function getCatalystsPageData(
+  projectId: string,
+): Promise<CatalystsPageData | null> {
+  const summary = await getProjectSummary(projectId);
+
+  if (!summary) {
+    return null;
+  }
+
+  const catalystData = await getProjectCatalystPageData(projectId);
+
+  return {
+    summary,
+    catalysts: catalystData.catalysts,
+    compileState: catalystData.compileState,
+    metrics: catalystData.metrics,
   };
 }
 

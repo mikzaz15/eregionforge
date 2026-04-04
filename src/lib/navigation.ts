@@ -49,6 +49,12 @@ export const workspaceNavigation: NavigationItem[] = [
     shortLabel: "DS",
   },
   {
+    href: "/catalysts",
+    label: "Catalysts",
+    description: "First-class catalyst tracker linking thesis, timeline, contradictions, and evidence.",
+    shortLabel: "CT",
+  },
+  {
     href: "/timeline",
     label: "Timeline",
     description: "Compiled chronology of the active project knowledge base.",

@@ -202,6 +202,12 @@ export default async function ProjectDetailPage({
           >
             Open Dossier
           </Link>
+          <Link
+            href={`/projects/${projectId}/catalysts`}
+            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+          >
+            Open Catalysts
+          </Link>
           <StatusPill tone={compileTone(projectData.summary.latestCompileStatus)}>
             {projectData.summary.latestCompileStatus}
           </StatusPill>
@@ -258,6 +264,11 @@ export default async function ProjectDetailPage({
           label="Dossier"
           value={projectData.summary.dossierCompanyName ?? "Not compiled"}
           note="The dossier compiles a structured company research view from the same canonical project knowledge stack."
+        />
+        <MetricCard
+          label="Catalysts"
+          value={String(projectData.summary.catalystCount)}
+          note="Catalysts are now first-class research objects rather than only a thesis subsection."
         />
       </div>
 
@@ -348,7 +359,7 @@ export default async function ProjectDetailPage({
           description="These top-level screens are already structured around project-owned data."
         >
           <div className="space-y-3">
-            {["/sources", "/wiki", "/artifacts", "/dossier", "/timeline", "/contradictions", "/ask"].map((href) => (
+            {["/sources", "/wiki", "/artifacts", "/dossier", "/catalysts", "/timeline", "/contradictions", "/ask"].map((href) => (
               <Link
                 key={href}
                 href={href}
@@ -368,6 +379,12 @@ export default async function ProjectDetailPage({
               className="block rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm font-semibold text-foreground transition hover:bg-background"
             >
               thesis
+            </Link>
+            <Link
+              href={`/projects/${projectId}/catalysts`}
+              className="block rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm font-semibold text-foreground transition hover:bg-background"
+            >
+              catalysts
             </Link>
           </div>
         </SectionCard>
@@ -425,6 +442,77 @@ export default async function ProjectDetailPage({
               <p className="text-sm leading-6 text-muted">
                 No dossier has been compiled for this project yet. Use the dossier view to generate a structured company briefing from current pages, claims, sources, artifacts, and thesis context.
               </p>
+            )}
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        eyebrow="Catalysts"
+        title="First-class catalyst tracker"
+        description="Catalysts compile into durable research objects connected to thesis, chronology, contradictions, and source support."
+      >
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
+              <div className="flex flex-wrap gap-2">
+                <StatusPill tone={projectData.summary.catalystCount > 0 ? "success" : "neutral"}>
+                  {projectData.summary.catalystCount > 0 ? "compiled" : "not compiled"}
+                </StatusPill>
+                <StatusPill tone="neutral">
+                  Upcoming {projectData.summary.upcomingCatalystCount}
+                </StatusPill>
+                <StatusPill tone="accent">
+                  Resolved {projectData.summary.resolvedCatalystCount}
+                </StatusPill>
+                <StatusPill tone={projectData.summary.highImportanceCatalystCount > 0 ? "danger" : "neutral"}>
+                  High {projectData.summary.highImportanceCatalystCount}
+                </StatusPill>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-foreground">
+                Total catalysts: {projectData.summary.catalystCount}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-foreground">
+                Thesis-linked view with timeframe, confidence, and contradiction linkage.
+              </p>
+              <Link
+                href={`/projects/${projectId}/catalysts`}
+                className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+              >
+                Open Catalyst Tracker
+              </Link>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {projectData.catalysts.length > 0 ? (
+              projectData.catalysts.slice(0, 3).map((entry) => (
+                <div
+                  key={entry.catalyst.id}
+                  className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold tracking-tight text-foreground">
+                      {entry.catalyst.title}
+                    </p>
+                    <StatusPill tone={entry.catalyst.importance === "high" ? "danger" : entry.catalyst.importance === "medium" ? "accent" : "neutral"}>
+                      {entry.catalyst.importance}
+                    </StatusPill>
+                    <StatusPill tone={entry.catalyst.status === "resolved" ? "success" : entry.catalyst.status === "active" ? "accent" : "neutral"}>
+                      {entry.catalyst.status}
+                    </StatusPill>
+                  </div>
+                  <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                    {entry.catalyst.catalystType.replaceAll("_", " ")}
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-foreground">
+                    {entry.catalyst.description}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm leading-6 text-muted">
+                No catalysts have been compiled for this project yet. Use the catalyst tracker to promote catalyst candidates into a durable research layer.
+              </div>
             )}
           </div>
         </div>

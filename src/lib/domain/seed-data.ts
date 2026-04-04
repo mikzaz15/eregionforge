@@ -1,6 +1,7 @@
 import type {
   Artifact,
   AskSession,
+  Catalyst,
   Claim,
   CompanyDossier,
   CompileJob,
@@ -622,6 +623,7 @@ export const seedArtifacts: Artifact[] = [
 export const seedAskSessions: AskSession[] = [];
 export const seedTimelineEvents: TimelineEvent[] = [];
 export const seedContradictions: Contradiction[] = [];
+export const seedCatalysts: Catalyst[] = [];
 export const seedCompanyDossiers: CompanyDossier[] = [];
 export const seedTheses: Thesis[] = [];
 export const seedThesisRevisions: ThesisRevision[] = [];

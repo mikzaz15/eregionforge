@@ -55,6 +55,22 @@ export type ArtifactProvenance =
 export type DossierStatus = "draft" | "active" | "stale";
 export type ThesisStatus = "draft" | "active" | "stale";
 export type ThesisStance = "bullish" | "bearish" | "mixed" | "monitor";
+export type CatalystType =
+  | "earnings"
+  | "product_launch"
+  | "regulatory"
+  | "guidance_change"
+  | "customer_or_contract"
+  | "financing"
+  | "macro_or_industry"
+  | "other";
+export type CatalystStatus =
+  | "upcoming"
+  | "active"
+  | "resolved"
+  | "invalidated"
+  | "unknown";
+export type CatalystImportance = "high" | "medium" | "low";
 export type ThesisChangedSection =
   | "summary"
   | "bullCase"
@@ -276,6 +292,41 @@ export interface CompanyDossier {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   metadata?: StringMetadata;
+}
+
+export interface Catalyst {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  catalystType: CatalystType;
+  status: CatalystStatus;
+  expectedTimeframe: string | null;
+  timeframePrecision: TimelineEventDatePrecision;
+  importance: CatalystImportance;
+  confidence: RevisionConfidence;
+  linkedThesisId?: string | null;
+  linkedTimelineEventIds: string[];
+  linkedClaimIds: string[];
+  linkedSourceIds: string[];
+  linkedContradictionIds: string[];
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  metadata?: StringMetadata;
+}
+
+export type CatalystDraft = Omit<
+  Catalyst,
+  "id" | "createdAt" | "updatedAt"
+> & {
+  stableKey: string;
+};
+
+export interface CatalystCompileState {
+  projectId: string;
+  lastCompiledAt: Timestamp | null;
+  catalystCount: number;
+  summary: string;
 }
 
 export interface ThesisSectionReferences {
