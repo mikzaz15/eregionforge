@@ -93,19 +93,19 @@ export default async function AskPage({
         <div className="flex flex-wrap gap-3">
           <Link
             href={`/projects/${data.summary.project.id}`}
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Command View
           </Link>
           <Link
             href="/thesis"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Thesis
           </Link>
           <Link
             href="/artifacts"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Artifact Ledger
           </Link>
@@ -198,7 +198,7 @@ export default async function AskPage({
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
-              <button className="rounded-full border border-border-strong bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:bg-[#2b3135]">
+              <button className="action-button-primary">
                 Run Ask Session
               </button>
             </div>
@@ -293,7 +293,7 @@ export default async function AskPage({
                     </select>
                   </div>
                   <div className="flex flex-wrap gap-3">
-                    <button className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background">
+                    <button className="action-button-secondary">
                       Save As Artifact
                     </button>
                     <Link
@@ -302,7 +302,7 @@ export default async function AskPage({
                           ? `/artifacts/${data.savedArtifact.id}`
                           : "/artifacts"
                       }
-                      className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                      className="action-button-secondary"
                     >
                       {data.savedArtifact ? "Open Saved Artifact" : "Open Artifacts"}
                     </Link>

@@ -23,8 +23,8 @@ export function PageFrame({
   children: ReactNode;
 }>) {
   return (
-    <div className="space-y-6">
-      <div className="rounded-[1.75rem] border border-border bg-background/70 px-5 py-5">
+    <div className="space-y-7">
+      <div className="rounded-[1.85rem] border border-border bg-background/72 px-5 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.32)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl space-y-3">
             <p className="mono-label text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
@@ -39,7 +39,7 @@ export function PageFrame({
               </p>
             </div>
           </div>
-          {actions ? <div className="shrink-0">{actions}</div> : null}
+          {actions ? <div className="shrink-0 xl:max-w-[40rem]">{actions}</div> : null}
         </div>
       </div>
       {children}
@@ -59,8 +59,8 @@ export function SectionCard({
   children: ReactNode;
 }>) {
   return (
-    <section className="rounded-[1.75rem] border border-border bg-background/70 px-5 py-5">
-      <div className="mb-5 space-y-2">
+    <section className="rounded-[1.85rem] border border-border bg-background/72 px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.24)]">
+      <div className="mb-6 space-y-2">
         <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
           {eyebrow}
         </p>
@@ -82,12 +82,12 @@ export function MetricCard({
   note: string;
 }>) {
   return (
-    <section className="rounded-[1.75rem] border border-border bg-background/70 px-5 py-5">
+    <section className="rounded-[1.85rem] border border-border bg-background/72 px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]">
       <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
         {label}
       </p>
       <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
-      <p className="mt-3 text-sm leading-6 text-muted">{note}</p>
+      <p className="mt-3 max-w-[24rem] text-sm leading-6 text-muted">{note}</p>
     </section>
   );
 }
@@ -101,7 +101,7 @@ export function StatusPill({
 }>) {
   return (
     <span
-      className={`rounded-full border px-2.5 py-1 mono-label text-[11px] font-semibold uppercase tracking-[0.24em] ${toneClasses[tone]}`}
+      className={`rounded-full border px-2.5 py-1 mono-label text-[10px] font-semibold uppercase tracking-[0.18em] ${toneClasses[tone]}`}
     >
       {children}
     </span>

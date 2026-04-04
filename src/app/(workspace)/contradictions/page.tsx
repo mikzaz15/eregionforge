@@ -71,25 +71,25 @@ export default async function ContradictionsPage() {
       actions={
         <div className="flex flex-wrap gap-3">
           <form action={runActiveProjectContradictionAnalysisAction}>
-            <button className="rounded-full border border-border-strong bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:bg-[#2b3135]">
+            <button className="action-button-primary">
               Re-Run Analysis
             </button>
           </form>
           <Link
             href={`/projects/${data.summary.project.id}`}
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Command View
           </Link>
           <Link
             href="/thesis"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Thesis
           </Link>
           <Link
             href="/monitoring"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Monitoring
           </Link>
@@ -288,7 +288,7 @@ export default async function ContradictionsPage() {
                       {leftLink ? (
                         <Link
                           href={leftLink.href}
-                          className="rounded-full border border-border bg-background/70 px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                          className="action-button-secondary action-button-compact"
                         >
                           {leftLink.label}
                         </Link>
@@ -296,14 +296,14 @@ export default async function ContradictionsPage() {
                       {rightLink ? (
                         <Link
                           href={rightLink.href}
-                          className="rounded-full border border-border bg-background/70 px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                          className="action-button-secondary action-button-compact"
                         >
                           {rightLink.label}
                         </Link>
                       ) : null}
                       <Link
                         href={sourceLink}
-                        className="rounded-full border border-border bg-background/70 px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                        className="action-button-secondary action-button-compact"
                       >
                         Open Sources
                       </Link>
@@ -316,7 +316,7 @@ export default async function ContradictionsPage() {
                           />
                           <input type="hidden" name="status" value="reviewed" />
                           <input type="hidden" name="redirectTo" value="/contradictions" />
-                          <button className="rounded-full border border-border bg-background/70 px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-background">
+                          <button className="action-button-secondary action-button-compact">
                             Mark Reviewed
                           </button>
                         </form>
@@ -330,7 +330,7 @@ export default async function ContradictionsPage() {
                           />
                           <input type="hidden" name="status" value="resolved" />
                           <input type="hidden" name="redirectTo" value="/contradictions" />
-                          <button className="rounded-full border border-border bg-background/70 px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-background">
+                          <button className="action-button-secondary action-button-compact">
                             Mark Resolved
                           </button>
                         </form>

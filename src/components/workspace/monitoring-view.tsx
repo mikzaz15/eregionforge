@@ -308,7 +308,7 @@ export function MonitoringView({
               <div className="mt-4">
                 <Link
                   href={`${sourcesPath}#${entry.record.sourceId}`}
-                  className="inline-flex rounded-full border border-border bg-background/70 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:bg-background"
+                  className="action-button-secondary action-button-compact"
                 >
                   Review Source
                 </Link>

@@ -174,45 +174,45 @@ export default async function ProjectDetailPage({
         <div className="flex flex-wrap gap-3">
           <Link
             href="/projects"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Back To Projects
           </Link>
           <Link
             href="/lint"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Lint
           </Link>
           <Link
             href="/contradictions"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Contradictions
           </Link>
           {isActiveWorkspace ? (
             <Link
               href="/monitoring"
-              className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+              className="action-button-secondary"
             >
               Open Monitoring
             </Link>
           ) : null}
           <Link
             href={`/projects/${projectId}/thesis`}
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Thesis
           </Link>
           <Link
             href={`/projects/${projectId}/dossier`}
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Dossier
           </Link>
           <Link
             href={`/projects/${projectId}/catalysts`}
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Catalysts
           </Link>
@@ -312,26 +312,26 @@ export default async function ProjectDetailPage({
             <div className="mt-4 flex flex-wrap gap-3">
               <Link
                 href={`/projects/${projectId}/thesis`}
-                className="rounded-full border border-border-strong bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:bg-[#2b3135]"
+                className="action-button-primary"
               >
                 Open Thesis
               </Link>
               <Link
                 href={`/projects/${projectId}/dossier`}
-                className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                className="action-button-secondary"
               >
                 Open Dossier
               </Link>
               <Link
                 href={`/projects/${projectId}/catalysts`}
-                className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                className="action-button-secondary"
               >
                 Open Catalysts
               </Link>
               {isActiveWorkspace ? (
                 <Link
                   href="/monitoring"
-                  className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                  className="action-button-secondary"
                 >
                   Open Monitoring
                 </Link>
@@ -434,7 +434,7 @@ export default async function ProjectDetailPage({
                 {isActiveWorkspace ? (
                   <Link
                     href="/monitoring"
-                    className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                    className="action-button-secondary mt-4"
                   >
                     Open Monitoring
                   </Link>
@@ -597,7 +597,7 @@ export default async function ProjectDetailPage({
               </p>
               <Link
                 href={`/projects/${projectId}/dossier`}
-                className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                className="action-button-secondary mt-4"
               >
                 Open Dossier
               </Link>
@@ -657,7 +657,7 @@ export default async function ProjectDetailPage({
               </p>
               <Link
                 href={`/projects/${projectId}/catalysts`}
-                className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                className="action-button-secondary mt-4"
               >
                 Open Catalyst Tracker
               </Link>
@@ -736,7 +736,7 @@ export default async function ProjectDetailPage({
               </p>
               <Link
                 href={`/projects/${projectId}/thesis`}
-                className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                className="action-button-secondary mt-4"
               >
                 Open Thesis
               </Link>
@@ -780,7 +780,7 @@ export default async function ProjectDetailPage({
               </p>
               <Link
                 href="/contradictions"
-                className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                className="action-button-secondary mt-4"
               >
                 Open Contradictions Map
               </Link>
@@ -839,7 +839,7 @@ export default async function ProjectDetailPage({
             </p>
             <Link
               href="/timeline"
-              className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+              className="action-button-secondary mt-4"
             >
               Open Timeline
             </Link>

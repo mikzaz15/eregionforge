@@ -34,34 +34,34 @@ export default async function MonitoringPage() {
       actions={
         <div className="flex flex-wrap gap-3">
           <form action={runActiveProjectMonitoringAnalysisAction}>
-            <button className="rounded-full border border-border-strong bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:bg-[#2b3135]">
+            <button className="action-button-primary">
               Run Monitoring
             </button>
           </form>
           <form action={compileActiveProjectThesisAction}>
-            <button className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background">
+            <button className="action-button-secondary">
               Refresh Thesis
             </button>
           </form>
           <form action={runActiveProjectContradictionAnalysisAction}>
-            <button className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background">
+            <button className="action-button-secondary">
               Re-Run Contradictions
             </button>
           </form>
           <form action={compileActiveProjectTimelineAction}>
-            <button className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background">
+            <button className="action-button-secondary">
               Rebuild Timeline
             </button>
           </form>
           <Link
             href="/sources"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Review Sources
           </Link>
           <Link
             href={`/projects/${data.summary.project.id}`}
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Command View
           </Link>

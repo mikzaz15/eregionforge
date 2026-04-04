@@ -141,14 +141,14 @@ export async function AppShell({
                   </p>
                   <Link
                     href={recommendedAction.href}
-                    className="mt-4 inline-flex rounded-full border border-border px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                    className="action-button-secondary action-button-compact mt-4"
                   >
                     Open
                   </Link>
                 </div>
                 <Link
                   href={`/projects/${activeSummary.project.id}`}
-                  className="mt-4 inline-flex rounded-full border border-border px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                  className="action-button-secondary action-button-compact mt-4"
                 >
                   Open Command View
                 </Link>
@@ -209,7 +209,7 @@ export async function AppShell({
               </div>
               <Link
                 href="/wiki"
-                className="mt-4 inline-flex rounded-full border border-stone-700 px-3 py-2 text-sm font-semibold text-stone-100 transition hover:border-stone-500 hover:bg-stone-800"
+                className="action-button-primary action-button-compact mt-4 border-stone-700 bg-stone-900 text-stone-100 hover:border-stone-500 hover:bg-stone-800"
               >
                 Open Canon
               </Link>
@@ -237,7 +237,7 @@ export async function AppShell({
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
                 <div className="rounded-2xl border border-border bg-background/70 px-4 py-3">
                   <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
                     Sources

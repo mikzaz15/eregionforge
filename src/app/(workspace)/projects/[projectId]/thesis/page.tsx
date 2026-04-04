@@ -44,19 +44,19 @@ export default async function ProjectThesisPage({
               name="redirectTo"
               value={`/projects/${projectId}/thesis`}
             />
-            <button className="rounded-full border border-border-strong bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:bg-[#2b3135]">
+            <button className="action-button-primary">
               Refresh Thesis
             </button>
           </form>
           <Link
             href={`/projects/${projectId}`}
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Project Detail
           </Link>
           <Link
             href="/projects"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Back To Projects
           </Link>

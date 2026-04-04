@@ -72,19 +72,19 @@ export default async function ArtifactsPage({
         <div className="flex flex-wrap gap-3">
           <Link
             href={`/projects/${data.summary.project.id}`}
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Command View
           </Link>
           <Link
             href="/thesis"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Thesis
           </Link>
           <Link
             href="/ask"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Ask
           </Link>
@@ -184,7 +184,7 @@ export default async function ArtifactsPage({
                   <div className="mt-4 flex flex-wrap gap-3">
                     <Link
                       href={`/artifacts/${entry.artifact.id}`}
-                      className="rounded-full border border-border bg-background/70 px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                      className="action-button-secondary action-button-compact"
                     >
                       Open Detail
                     </Link>
@@ -204,7 +204,7 @@ export default async function ArtifactsPage({
                             : `/artifacts?type=${data.activeFilter}`
                         }
                       />
-                      <button className="rounded-full border border-border bg-background/70 px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-background">
+                      <button className="action-button-secondary action-button-compact">
                         {entry.artifact.eligibleForWikiFiling
                           ? "Remove Wiki Filing"
                           : "Mark For Wiki Filing"}

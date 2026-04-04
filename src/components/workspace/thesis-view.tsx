@@ -325,14 +325,14 @@ export function ThesisView({
                             {monitoringPath ? (
                               <Link
                                 href={monitoringPath}
-                                className="inline-flex rounded-full border border-border bg-background/70 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:bg-background"
+                                className="action-button-secondary action-button-compact"
                               >
                                 Open Monitoring
                               </Link>
                             ) : null}
                             <Link
                               href={catalystsPath}
-                              className="inline-flex rounded-full border border-border bg-background/70 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:bg-background"
+                              className="action-button-secondary action-button-compact"
                             >
                               Open Catalyst Tracker
                             </Link>
@@ -501,7 +501,7 @@ export function ThesisView({
               <div className="space-y-3">
                 <Link
                   href={basePath}
-                  className="inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                  className="action-button-secondary"
                 >
                   View Current Thesis
                 </Link>
@@ -538,7 +538,7 @@ export function ThesisView({
                       {!isCurrent ? (
                         <Link
                           href={buildRevisionHref(basePath, entry.revision.id)}
-                          className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                          className="action-button-secondary mt-4"
                         >
                           Compare To Current
                         </Link>
@@ -675,7 +675,7 @@ export function ThesisView({
               <div className="space-y-4">
                 <Link
                   href={catalystsPath}
-                  className="inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                  className="action-button-secondary"
                 >
                   Open Catalyst Tracker
                 </Link>
