@@ -52,6 +52,8 @@ export type ArtifactProvenance =
   | "manual"
   | "wiki-derived"
   | "research-synthesis";
+export type ThesisStatus = "draft" | "active" | "stale";
+export type ThesisStance = "bullish" | "bearish" | "mixed" | "monitor";
 export type RevisionConfidence = "low" | "medium" | "high";
 export type CompileJobStatus = "pending" | "running" | "completed" | "failed";
 export type AskAnswerMode =
@@ -228,6 +230,46 @@ export interface Artifact {
   metadata: StringMetadata;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+export interface ThesisSectionReferences {
+  wikiPageIds: string[];
+  claimIds: string[];
+  sourceIds: string[];
+  timelineEventIds: string[];
+  contradictionIds: string[];
+}
+
+export interface ThesisSectionSupportMap {
+  summary: ThesisSectionReferences;
+  bullCase: ThesisSectionReferences;
+  bearCase: ThesisSectionReferences;
+  variantView: ThesisSectionReferences;
+  keyRisks: ThesisSectionReferences;
+  keyUnknowns: ThesisSectionReferences;
+  catalystSummary: ThesisSectionReferences;
+}
+
+export interface Thesis {
+  id: string;
+  projectId: string;
+  title: string;
+  subjectName: string;
+  ticker: string | null;
+  status: ThesisStatus;
+  overallStance: ThesisStance;
+  summary: string;
+  bullCaseMarkdown: string;
+  bearCaseMarkdown: string;
+  variantViewMarkdown: string;
+  keyRisksMarkdown: string;
+  keyUnknownsMarkdown: string;
+  catalystSummaryMarkdown: string;
+  confidence: RevisionConfidence;
+  supportBySection: ThesisSectionSupportMap;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  metadata?: StringMetadata;
 }
 
 export interface CompileJob {

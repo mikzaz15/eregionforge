@@ -86,6 +86,22 @@ function timelineConfidenceTone(confidence: string): StatusTone {
   return "neutral";
 }
 
+function thesisStanceTone(stance: string | null): StatusTone {
+  if (stance === "bullish") {
+    return "success";
+  }
+
+  if (stance === "bearish") {
+    return "danger";
+  }
+
+  if (stance === "mixed") {
+    return "accent";
+  }
+
+  return "neutral";
+}
+
 function formatTimelineDate(date: string): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -96,6 +112,14 @@ function formatTimelineDate(date: string): string {
 
 function formatContradictionType(value: string): string {
   return value.replaceAll("_", " ");
+}
+
+function labelize(value: string | null): string {
+  if (!value) {
+    return "Not set";
+  }
+
+  return value.replace(/([A-Z])/g, " $1").replaceAll("-", " ");
 }
 
 export default async function ProjectDetailPage({
@@ -139,6 +163,12 @@ export default async function ProjectDetailPage({
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
           >
             Open Contradictions
+          </Link>
+          <Link
+            href={`/projects/${projectId}/thesis`}
+            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+          >
+            Open Thesis
           </Link>
           <StatusPill tone={compileTone(projectData.summary.latestCompileStatus)}>
             {projectData.summary.latestCompileStatus}
@@ -186,6 +216,11 @@ export default async function ProjectDetailPage({
           label="Contradictions"
           value={String(projectData.summary.contradictionCount)}
           note="Contradiction analysis makes disagreement and tension reviewable instead of implicit."
+        />
+        <MetricCard
+          label="Thesis"
+          value={projectData.summary.thesisStance ?? "Not compiled"}
+          note="The thesis tracker compiles stance, risk, unknowns, and catalysts from current project knowledge."
         />
       </div>
 
@@ -291,9 +326,67 @@ export default async function ProjectDetailPage({
             >
               lint
             </Link>
+            <Link
+              href={`/projects/${projectId}/thesis`}
+              className="block rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm font-semibold text-foreground transition hover:bg-background"
+            >
+              thesis
+            </Link>
           </div>
         </SectionCard>
       </div>
+
+      <SectionCard
+        eyebrow="Thesis"
+        title="Compiled investment view"
+        description="The thesis tracker turns current project knowledge into a stance, risk, variant, and catalyst view backed by canon."
+      >
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
+              <div className="flex flex-wrap gap-2">
+                <StatusPill tone={projectData.summary.thesisStatus === "active" ? "success" : projectData.summary.thesisStatus === "draft" ? "accent" : "neutral"}>
+                  {projectData.summary.thesisStatus ?? "not compiled"}
+                </StatusPill>
+                <StatusPill tone={thesisStanceTone(projectData.summary.thesisStance)}>
+                  {labelize(projectData.summary.thesisStance)}
+                </StatusPill>
+                <StatusPill tone={timelineConfidenceTone(projectData.summary.thesisConfidence ?? "low")}>
+                  {projectData.summary.thesisConfidence ?? "not set"}
+                </StatusPill>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-foreground">
+                Catalysts: {projectData.summary.thesisCatalystCount}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-foreground">
+                Unresolved contradictions: {projectData.summary.unresolvedContradictionCount}
+              </p>
+              <Link
+                href={`/projects/${projectId}/thesis`}
+                className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+              >
+                Open Thesis
+              </Link>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+            {projectData.thesis ? (
+              <div className="space-y-4">
+                <p className="font-semibold tracking-tight text-foreground">
+                  {projectData.thesis.thesis.title}
+                </p>
+                <p className="text-sm leading-6 text-foreground">
+                  {projectData.thesis.thesis.summary}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm leading-6 text-muted">
+                No thesis has been compiled for this project yet. Use the thesis view to generate the first pass from current pages, claims, timeline events, contradictions, and artifacts.
+              </p>
+            )}
+          </div>
+        </div>
+      </SectionCard>
 
       <SectionCard
         eyebrow="Contradictions"

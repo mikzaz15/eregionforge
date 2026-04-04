@@ -14,6 +14,7 @@ import type {
   EvidenceLink,
   LintIssue,
   Project,
+  Thesis,
   Source,
   SourceFragment,
   WikiPage,
@@ -51,6 +52,11 @@ import {
   listProjectTimelineEvents,
   type TimelineReferenceRecord,
 } from "@/lib/services/timeline-service";
+import {
+  getProjectThesisDetail,
+  getStoredProjectThesis,
+  type ThesisDetailRecord,
+} from "@/lib/services/thesis-service";
 
 export type ProjectSummary = {
   project: Project;
@@ -70,6 +76,10 @@ export type ProjectSummary = {
   contradictionCount: number;
   highSeverityContradictionCount: number;
   unresolvedContradictionCount: number;
+  thesisStatus: Thesis["status"] | null;
+  thesisStance: Thesis["overallStance"] | null;
+  thesisConfidence: Thesis["confidence"] | null;
+  thesisCatalystCount: number;
   health: ProjectLintHealthSummary;
 };
 
@@ -94,6 +104,7 @@ export type ProjectDetailData = {
   artifactTypeMix: Array<{ artifactType: ArtifactType; count: number }>;
   timelineEvents: TimelineReferenceRecord[];
   contradictions: ContradictionReferenceRecord[];
+  thesis: ThesisDetailRecord | null;
   latestCompile: CompileJob | null;
 };
 
@@ -201,6 +212,12 @@ export type TimelinePageData = {
     eventCount: number;
     summary: string;
   };
+  metrics: Array<{ label: string; value: string; note: string }>;
+};
+
+export type ThesisPageData = {
+  summary: ProjectSummary;
+  thesis: ThesisDetailRecord | null;
   metrics: Array<{ label: string; value: string; note: string }>;
 };
 
@@ -503,6 +520,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     timelineEvents,
     lintSnapshot,
     contradictionSnapshot,
+    thesis,
   ] =
     await Promise.all([
       sourcesRepository.listByProjectId(project.id),
@@ -514,6 +532,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       listProjectTimelineEvents(project.id),
       getProjectLintSnapshot(project.id),
       getProjectContradictionSnapshot(project.id),
+      getStoredProjectThesis(project.id),
     ]);
   const generatedPageCount = pages.filter(
     (page) => page.generationMetadata?.generatedBy === "deterministic-compiler",
@@ -549,6 +568,10 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       contradictionSnapshot.summary.highSeverityContradictions,
     unresolvedContradictionCount:
       contradictionSnapshot.summary.unresolvedContradictions,
+    thesisStatus: thesis?.status ?? null,
+    thesisStance: thesis?.overallStance ?? null,
+    thesisConfidence: thesis?.confidence ?? null,
+    thesisCatalystCount: Number(thesis?.metadata?.catalystCount ?? "0"),
     health: lintSnapshot.health,
   };
 });
@@ -688,12 +711,13 @@ export async function getProjectDetailData(
     return null;
   }
 
-  const [sources, wikiPages, artifacts, timelineEvents, contradictions] = await Promise.all([
+  const [sources, wikiPages, artifacts, timelineEvents, contradictions, thesis] = await Promise.all([
     sourcesRepository.listByProjectId(projectId),
     buildWikiPageSummaries(projectId),
     listProjectArtifacts({ projectId }),
     listProjectTimelineEvents(projectId),
     listProjectContradictions(projectId),
+    getProjectThesisDetail(projectId),
   ]);
   const latestCompile = await compileJobsRepository.getLatestByProjectId(projectId);
 
@@ -705,6 +729,7 @@ export async function getProjectDetailData(
     artifactTypeMix: buildArtifactTypeMix(artifacts),
     timelineEvents,
     contradictions,
+    thesis,
     latestCompile,
   };
 }
@@ -1052,6 +1077,44 @@ export async function getContradictionsPageData(
     contradictions: contradictionData.contradictions,
     analysisState: contradictionData.analysisState,
     metrics: contradictionData.metrics,
+  };
+}
+
+export async function getThesisPageData(projectId: string): Promise<ThesisPageData | null> {
+  const [summary, thesisDetail] = await Promise.all([
+    getProjectSummary(projectId),
+    getProjectThesisDetail(projectId),
+  ]);
+
+  if (!summary) {
+    return null;
+  }
+
+  return {
+    summary,
+    thesis: thesisDetail,
+    metrics: [
+      {
+        label: "Thesis Status",
+        value: summary.thesisStatus ?? "Not compiled",
+        note: "The thesis is a compiled project view, not a manually typed note.",
+      },
+      {
+        label: "Stance",
+        value: summary.thesisStance ?? "Not set",
+        note: "Overall stance is derived from current canon, contradictions, timeline state, and supporting research outputs.",
+      },
+      {
+        label: "Confidence",
+        value: summary.thesisConfidence ?? "Not set",
+        note: "Confidence reflects the current density and consistency of compiled supporting knowledge.",
+      },
+      {
+        label: "Catalysts",
+        value: String(summary.thesisCatalystCount),
+        note: "Catalysts are currently sourced from compiled timeline events and related knowledge objects.",
+      },
+    ],
   };
 }
 

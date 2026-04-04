@@ -9,6 +9,7 @@ import {
   runProjectContradictionAnalysis,
   updateContradictionStatus,
 } from "@/lib/services/contradiction-service";
+import { compileProjectThesis } from "@/lib/services/thesis-service";
 import { compileProjectTimeline } from "@/lib/services/timeline-service";
 import { getActiveProjectId } from "@/lib/services/workspace-service";
 import { compileProject } from "@/lib/services/compiler-service";
@@ -29,8 +30,10 @@ function refreshWorkspacePaths(projectId: string) {
   revalidatePath("/artifacts/[artifactId]", "page");
   revalidatePath("/ask");
   revalidatePath("/contradictions");
+  revalidatePath("/thesis");
   revalidatePath("/timeline");
   revalidatePath("/settings");
+  revalidatePath("/projects/[projectId]/thesis", "page");
 }
 
 export async function createActiveProjectSourceAction(formData: FormData) {
@@ -179,6 +182,26 @@ export async function updateContradictionStatusAction(formData: FormData) {
     contradictionId,
     status as "open" | "reviewed" | "resolved",
   );
+  refreshWorkspacePaths(projectId);
+  redirect(redirectTo);
+}
+
+export async function compileActiveProjectThesisAction() {
+  const projectId = await getActiveProjectId();
+  await compileProjectThesis(projectId);
+  refreshWorkspacePaths(projectId);
+  redirect("/thesis");
+}
+
+export async function compileProjectThesisAction(formData: FormData) {
+  const projectId = String(formData.get("projectId") ?? "");
+  const redirectTo = String(formData.get("redirectTo") ?? "/thesis");
+
+  if (!projectId) {
+    throw new Error("Project id is required to compile a thesis.");
+  }
+
+  await compileProjectThesis(projectId);
   refreshWorkspacePaths(projectId);
   redirect(redirectTo);
 }

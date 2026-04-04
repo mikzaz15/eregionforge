@@ -8,6 +8,7 @@ import type {
   Project,
   Source,
   SourceFragment,
+  Thesis,
   TimelineEvent,
   WikiPage,
   WikiPageRevision,
@@ -619,6 +620,7 @@ export const seedArtifacts: Artifact[] = [
 export const seedAskSessions: AskSession[] = [];
 export const seedTimelineEvents: TimelineEvent[] = [];
 export const seedContradictions: Contradiction[] = [];
+export const seedTheses: Thesis[] = [];
 
 export const seedCompileJobs: CompileJob[] = [
   {

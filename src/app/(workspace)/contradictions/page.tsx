@@ -164,6 +164,7 @@ export default async function ContradictionsPage() {
                 return (
                   <article
                     key={entry.contradiction.id}
+                    id={entry.contradiction.id}
                     className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">

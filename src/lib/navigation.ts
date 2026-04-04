@@ -37,6 +37,12 @@ export const workspaceNavigation: NavigationItem[] = [
     shortLabel: "AR",
   },
   {
+    href: "/thesis",
+    label: "Thesis",
+    description: "Compiled investment thesis view for the active project workspace.",
+    shortLabel: "TH",
+  },
+  {
     href: "/timeline",
     label: "Timeline",
     description: "Compiled chronology of the active project knowledge base.",
