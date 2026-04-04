@@ -15,6 +15,17 @@ import { contradictionsRepository } from "@/lib/repositories/contradictions-repo
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import {
+  buildSemanticProfile,
+  dominantConflictTheme,
+  formatThemeLabel,
+  jaccardSimilarity,
+  sharedMeaningfulTokens,
+  sharedThemes,
+  summarizeThemeList,
+  tokenizeMeaningful,
+  type SemanticTheme,
+} from "@/lib/services/semantic-intelligence-v1";
 
 type PageContradictionContext = {
   page: WikiPage;
@@ -26,8 +37,9 @@ type TextComparison = {
   signalKind: "canon-vs-chat" | "directional" | "numeric" | "status";
   reason: string;
   overlap: number;
-  sharedThemes: string[];
+  sharedThemes: SemanticTheme[];
   sharedTokens: string[];
+  primaryTheme: SemanticTheme | null;
 };
 
 export type ContradictionReferenceRecord = {
@@ -58,25 +70,6 @@ const severityOrder: Record<ContradictionSeverity, number> = {
   low: 3,
 };
 
-const stopWords = new Set([
-  "the",
-  "and",
-  "for",
-  "with",
-  "that",
-  "this",
-  "from",
-  "into",
-  "page",
-  "source",
-  "sources",
-  "claim",
-  "claims",
-  "project",
-  "current",
-  "should",
-]);
-
 function normalizeText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9%]+/g, " ").trim();
 }
@@ -93,63 +86,6 @@ function preview(value: string, length = 220): string {
   return normalized.length > length
     ? `${normalized.slice(0, length).trimEnd()}...`
     : normalized;
-}
-
-function tokenSet(value: string): Set<string> {
-  return new Set(
-    normalizeText(value)
-      .split(/\s+/)
-      .filter((token) => token.length > 2 && !stopWords.has(token)),
-  );
-}
-
-function jaccardSimilarity(left: Set<string>, right: Set<string>): number {
-  if (left.size === 0 || right.size === 0) {
-    return 0;
-  }
-
-  let intersection = 0;
-
-  for (const token of left) {
-    if (right.has(token)) {
-      intersection += 1;
-    }
-  }
-
-  const union = new Set([...left, ...right]).size;
-  return union === 0 ? 0 : intersection / union;
-}
-
-function sharedTokens(left: Set<string>, right: Set<string>): string[] {
-  return Array.from(left).filter((token) => right.has(token)).slice(0, 5);
-}
-
-function detectThemes(value: string): Set<string> {
-  const normalized = normalizeText(value);
-  const themes = new Set<string>();
-
-  if (
-    ["ask", "chat", "assistant", "conversational", "canonical", "canon", "wiki", "compiled", "raw", "file", "files"]
-      .some((token) => normalized.includes(token))
-  ) {
-    themes.add("interaction-model");
-  }
-
-  if (
-    ["pricing", "margin", "asp", "mix", "returns", "utilization", "backlog", "compression", "expansion", "premium"]
-      .some((token) => normalized.includes(token))
-  ) {
-    themes.add("financial-outlook");
-  }
-
-  if (
-    ["compiled", "parsed", "failed", "pending", "draft", "active", "stale", "running", "completed"]
-      .some((token) => normalized.includes(token))
-  ) {
-    themes.add("execution-status");
-  }
-
-  return themes;
 }
 
 function extractNumbers(value: string): string[] {
@@ -191,13 +127,13 @@ function extractStatusTerms(value: string): string[] {
 }
 
 function detectConflictSignal(leftText: string, rightText: string): TextComparison | null {
-  const leftTokens = tokenSet(leftText);
-  const rightTokens = tokenSet(rightText);
+  const leftTokens = tokenizeMeaningful(leftText);
+  const rightTokens = tokenizeMeaningful(rightText);
   const overlap = jaccardSimilarity(leftTokens, rightTokens);
-  const commonThemes = Array.from(detectThemes(leftText)).filter((theme) =>
-    detectThemes(rightText).has(theme),
-  );
-  const commonTokens = sharedTokens(leftTokens, rightTokens);
+  const leftProfile = buildSemanticProfile(leftText);
+  const rightProfile = buildSemanticProfile(rightText);
+  const commonThemes = sharedThemes(leftProfile, rightProfile);
+  const commonTokens = sharedMeaningfulTokens(leftTokens, rightTokens);
   const leftNormalized = normalizeText(leftText);
   const rightNormalized = normalizeText(rightText);
   const hasComparableContext = overlap >= 0.12 || commonThemes.length > 0 || commonTokens.length >= 2;
@@ -242,46 +178,20 @@ function detectConflictSignal(leftText: string, rightText: string): TextComparis
       overlap,
       sharedThemes: commonThemes,
       sharedTokens: commonTokens,
+      primaryTheme: null,
     };
   }
 
-  const growthTerms = [
-    "expansion",
-    "expand",
-    "improvement",
-    "improve",
-    "higher",
-    "growth",
-    "durable",
-    "premium",
-    "stable",
-    "upside",
-  ];
-  const pressureTerms = [
-    "pressure",
-    "compression",
-    "compress",
-    "lower",
-    "decline",
-    "downside",
-    "risk",
-    "normalize",
-    "normalization",
-    "failed",
-  ];
-  const leftGrowth = growthTerms.some((term) => leftNormalized.includes(term));
-  const rightGrowth = growthTerms.some((term) => rightNormalized.includes(term));
-  const leftPressure = pressureTerms.some((term) => leftNormalized.includes(term));
-  const rightPressure = pressureTerms.some((term) => rightNormalized.includes(term));
+  const primaryTheme = dominantConflictTheme(leftProfile, rightProfile);
 
-  if ((leftGrowth && rightPressure) || (rightGrowth && leftPressure)) {
+  if (primaryTheme) {
     return {
       signalKind: "directional",
-      reason:
-        "The compared records describe the same topic with materially different directional posture, mixing expansion or strength language with compression or downside language.",
+      reason: `The compared records describe ${formatThemeLabel(primaryTheme)} with materially opposing directionality, mixing strengthening language with pressure, delay, or downside language.`,
       overlap,
       sharedThemes: commonThemes,
       sharedTokens: commonTokens,
+      primaryTheme,
     };
   }
 
@@ -296,10 +206,11 @@ function detectConflictSignal(leftText: string, rightText: string): TextComparis
   ) {
     return {
       signalKind: "numeric",
-      reason: `The compared records cite different numeric values (${leftNumbers[0]} vs ${rightNumbers[0]}) for an overlapping topic area.`,
+      reason: `The compared records cite different numeric values (${leftNumbers[0]} vs ${rightNumbers[0]}) for overlapping ${summarizeThemeList(commonThemes)}.`,
       overlap,
       sharedThemes: commonThemes,
       sharedTokens: commonTokens,
+      primaryTheme: commonThemes[0] ?? null,
     };
   }
 
@@ -317,6 +228,7 @@ function detectConflictSignal(leftText: string, rightText: string): TextComparis
       overlap,
       sharedThemes: commonThemes,
       sharedTokens: commonTokens,
+      primaryTheme: commonThemes[0] ?? null,
     };
   }
 
@@ -327,6 +239,16 @@ function severityForComparison(
   comparison: TextComparison,
   confidence: RevisionConfidence,
 ): ContradictionSeverity {
+  if (
+    comparison.primaryTheme &&
+    ["pricing", "margin", "demand", "timing", "guidance", "earnings", "product", "regulatory", "customer"].includes(
+      comparison.primaryTheme,
+    ) &&
+    confidence === "high"
+  ) {
+    return "high";
+  }
+
   if (comparison.signalKind === "numeric" || comparison.signalKind === "canon-vs-chat") {
     return confidence === "high" ? "high" : "medium";
   }
@@ -456,16 +378,32 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
       const newer = left.createdAt >= right.createdAt ? left : right;
       const older = newer.id === left.id ? right : left;
       const contradictionType =
-        newer.createdAt !== older.createdAt
+        newer.createdAt.localeCompare(older.createdAt) > 0 &&
+        (comparison.primaryTheme !== null ||
+          left.wikiPageId === right.wikiPageId ||
+          left.sourceId === right.sourceId)
           ? "stale_vs_newer_claim"
           : "direct_claim_conflict";
-      const confidence = maxConfidence(left.confidence, right.confidence);
+      const confidence = confidenceFromScore(
+        comparison.overlap +
+          comparison.sharedThemes.length * 0.18 +
+          comparison.sharedTokens.length * 0.03 +
+          (comparison.primaryTheme ? 0.08 : 0) +
+          (contradictionType === "stale_vs_newer_claim" ? 0.06 : 0) +
+          (maxConfidence(left.confidence, right.confidence) === "high" ? 0.1 : 0),
+      );
+      const scopeLabel = comparison.primaryTheme
+        ? formatThemeLabel(comparison.primaryTheme)
+        : "claim";
 
       issues.push({
         stableKey: stableKey("claim", contradictionType, left.id, right.id),
         projectId,
         contradictionType,
-        title: `Claim conflict between ${left.claimType} and ${right.claimType}`,
+        title:
+          contradictionType === "stale_vs_newer_claim"
+            ? `Newer ${scopeLabel} claim conflicts with older canon`
+            : `${scopeLabel[0]?.toUpperCase() ?? "C"}${scopeLabel.slice(1)} claim conflict`,
         description: `${preview(left.text, 140)} / ${preview(right.text, 140)}`,
         severity: severityForComparison(comparison, confidence),
         confidence,
@@ -476,10 +414,11 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
           new Set([left.sourceId ?? null, right.sourceId ?? null].filter(Boolean) as string[]),
         ),
         relatedTimelineEventIds: [],
-        rationale: `${comparison.reason} Shared tokens: ${comparison.sharedTokens.join(", ") || "theme overlap only"}.`,
+        rationale: `${comparison.reason} Shared tokens: ${comparison.sharedTokens.join(", ") || "theme overlap only"}. Newer claim timestamp: ${newer.createdAt.slice(0, 10)}.`,
         metadata: {
           newerClaimId: newer.id,
           olderClaimId: older.id,
+          primaryTheme: comparison.primaryTheme ?? "",
         },
       });
     }
@@ -498,13 +437,20 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         continue;
       }
 
-      const confidence = confidenceFromScore(comparison.overlap + comparison.sharedThemes.length * 0.16);
+      const confidence = confidenceFromScore(
+        comparison.overlap +
+          comparison.sharedThemes.length * 0.18 +
+          comparison.sharedTokens.length * 0.03 +
+          (comparison.primaryTheme ? 0.06 : 0),
+      );
 
       issues.push({
         stableKey: stableKey("source", left.id, right.id, comparison.signalKind),
         projectId,
         contradictionType: "source_disagreement",
-        title: `Source disagreement: ${left.title} vs ${right.title}`,
+        title: comparison.primaryTheme
+          ? `Source disagreement on ${formatThemeLabel(comparison.primaryTheme)}`
+          : `Source disagreement: ${left.title} vs ${right.title}`,
         description: `${preview(left.body ?? left.title, 120)} / ${preview(right.body ?? right.title, 120)}`,
         severity: severityForComparison(comparison, confidence),
         confidence,
@@ -519,6 +465,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         relatedSourceIds: [left.id, right.id],
         relatedTimelineEventIds: [],
         rationale: `${comparison.reason} This pair was flagged from overlapping source narratives rather than canonical claim ids.`,
+        metadata: {
+          primaryTheme: comparison.primaryTheme ?? "",
+        },
       });
     }
   }
@@ -538,6 +487,7 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
       const confidence = confidenceFromScore(
         comparison.overlap +
           comparison.sharedThemes.length * 0.18 +
+          comparison.sharedTokens.length * 0.03 +
           (left.revision?.confidence === "high" || right.revision?.confidence === "high"
             ? 0.08
             : 0),
@@ -547,7 +497,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         stableKey: stableKey("page", left.page.id, right.page.id, comparison.signalKind),
         projectId,
         contradictionType: "overlapping_but_inconsistent_summary",
-        title: `Canonical summary tension: ${left.page.title} vs ${right.page.title}`,
+        title: comparison.primaryTheme
+          ? `Canonical summary tension on ${formatThemeLabel(comparison.primaryTheme)}`
+          : `Canonical summary tension: ${left.page.title} vs ${right.page.title}`,
         description: `${preview(left.revision?.summary ?? leftText, 120)} / ${preview(right.revision?.summary ?? rightText, 120)}`,
         severity: severityForComparison(comparison, confidence),
         confidence,
@@ -557,6 +509,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         relatedSourceIds: Array.from(new Set([...left.sourceIds, ...right.sourceIds])),
         relatedTimelineEventIds: [],
         rationale: `${comparison.reason} The current page summaries overlap enough to warrant review as canonical tension rather than isolated note variance.`,
+        metadata: {
+          primaryTheme: comparison.primaryTheme ?? "",
+        },
       });
     }
   }
@@ -584,14 +539,19 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
       }
 
       const confidence = confidenceFromScore(
-        comparison.overlap + comparison.sharedThemes.length * 0.16,
+        comparison.overlap +
+          comparison.sharedThemes.length * 0.18 +
+          comparison.sharedTokens.length * 0.03 +
+          (comparison.primaryTheme ? 0.05 : 0),
       );
 
       issues.push({
         stableKey: stableKey("page-source", pageContext.page.id, source.id, comparison.signalKind),
         projectId,
         contradictionType: "source_disagreement",
-        title: `Canonical summary disagrees with source note: ${pageContext.page.title}`,
+        title: comparison.primaryTheme
+          ? `Canon disagrees with source on ${formatThemeLabel(comparison.primaryTheme)}`
+          : `Canonical summary disagrees with source note: ${pageContext.page.title}`,
         description: `${preview(pageContext.revision?.summary ?? pageContext.page.title, 120)} / ${preview(source.body ?? source.title, 120)}`,
         severity: severityForComparison(comparison, confidence),
         confidence,
@@ -601,6 +561,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         relatedSourceIds: [source.id],
         relatedTimelineEventIds: [],
         rationale: `${comparison.reason} The contradiction was detected between canon and a project source record, not between two claims.`,
+        metadata: {
+          primaryTheme: comparison.primaryTheme ?? "",
+        },
       });
     }
   }
@@ -611,17 +574,33 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
       const right = timelineEvents[pairIndex];
       const sourceOverlap = left.sourceIds.some((sourceId) => right.sourceIds.includes(sourceId));
       const pageOverlap = left.wikiPageIds.some((pageId) => right.wikiPageIds.includes(pageId));
-      const titleOverlap = jaccardSimilarity(tokenSet(left.title), tokenSet(right.title));
+      const leftText = `${left.title} ${left.description}`;
+      const rightText = `${right.title} ${right.description}`;
+      const titleOverlap = jaccardSimilarity(
+        tokenizeMeaningful(left.title),
+        tokenizeMeaningful(right.title),
+      );
+      const comparison = detectConflictSignal(leftText, rightText);
+      const impactTheme = comparison?.primaryTheme ?? null;
       const dayDiff = Math.abs(
         new Date(left.eventDate).getTime() - new Date(right.eventDate).getTime(),
       ) / (1000 * 60 * 60 * 24);
+      const highImpactTiming =
+        impactTheme &&
+        ["pricing", "margin", "demand", "timing", "product", "regulatory", "customer", "earnings", "guidance"].includes(
+          impactTheme,
+        );
 
-      if (!(sourceOverlap || pageOverlap || titleOverlap >= 0.28) || dayDiff < 90) {
+      if (
+        !(sourceOverlap || pageOverlap || titleOverlap >= 0.28 || comparison) ||
+        dayDiff < (highImpactTiming ? 45 : 90)
+      ) {
         continue;
       }
 
       const confidence = confidenceFromScore(
         titleOverlap +
+          (comparison ? comparison.sharedThemes.length * 0.16 : 0) +
           (left.eventDatePrecision === "exact_day" && right.eventDatePrecision === "exact_day"
             ? 0.2
             : 0.08),
@@ -631,17 +610,31 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         stableKey: stableKey("timeline", left.id, right.id),
         projectId,
         contradictionType: "timeline_tension",
-        title: `Timeline tension between ${left.title} and ${right.title}`,
+        title: impactTheme
+          ? `Timeline tension on ${formatThemeLabel(impactTheme)}`
+          : `Timeline tension between ${left.title} and ${right.title}`,
         description: `${preview(left.description, 110)} / ${preview(right.description, 110)}`,
-        severity: dayDiff >= 365 ? "high" : "medium",
+        severity:
+          highImpactTiming && dayDiff >= 180
+            ? "critical"
+            : highImpactTiming || dayDiff >= 365
+              ? "high"
+              : "medium",
         confidence,
         leftClaimId: null,
         rightClaimId: null,
         relatedPageIds: Array.from(new Set([...left.wikiPageIds, ...right.wikiPageIds])),
         relatedSourceIds: Array.from(new Set([...left.sourceIds, ...right.sourceIds])),
         relatedTimelineEventIds: [left.id, right.id],
-        rationale:
-          "The timeline compiler produced overlapping events tied to related scope but placed them at materially different dates. Review chronology, date precision, and source provenance together.",
+        rationale: comparison
+          ? `${comparison.reason} The timeline compiler placed related ${formatThemeLabel(
+              impactTheme ?? comparison.sharedThemes[0] ?? "timing",
+            )} events ${Math.round(dayDiff)} days apart, which can change thesis timing and catalyst posture.`
+          : `The timeline compiler produced overlapping events tied to related scope but placed them ${Math.round(dayDiff)} days apart. Review chronology, date precision, and source provenance together.`,
+        metadata: {
+          primaryTheme: impactTheme ?? "",
+          dayDiff: String(Math.round(dayDiff)),
+        },
       });
     }
   }

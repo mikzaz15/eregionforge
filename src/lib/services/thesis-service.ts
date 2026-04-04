@@ -32,6 +32,11 @@ import {
   listProjectTimelineEvents,
   type TimelineReferenceRecord,
 } from "@/lib/services/timeline-service";
+import {
+  confidenceLabelFromScore,
+  deriveConfidenceScore,
+  safeRatio,
+} from "@/lib/services/semantic-intelligence-v1";
 
 type PageContext = {
   page: WikiPage;
@@ -732,6 +737,48 @@ function buildCompiledThesisCandidate(
   const contradictionCount = state.contradictionEntries.filter(
     (entry) => entry.contradiction.status !== "resolved",
   ).length;
+  const highSeverityContradictionCount = state.contradictionEntries.filter(
+    (entry) =>
+      entry.contradiction.status !== "resolved" &&
+      (entry.contradiction.severity === "high" ||
+        entry.contradiction.severity === "critical"),
+  ).length;
+  const supportedClaimsCount = state.claims.filter(
+    (claim) => claim.supportStatus === "supported",
+  ).length;
+  const weakClaimsCount = state.claims.filter(
+    (claim) => claim.supportStatus === "weak-support",
+  ).length;
+  const unresolvedClaimsCount = state.claims.filter(
+    (claim) => claim.supportStatus === "unresolved",
+  ).length;
+  const sourceDiversityCount = new Set(
+    [
+      ...state.claims.map((claim) => claim.sourceId ?? null),
+      ...state.pageContexts.flatMap((context) => context.sourceIds),
+    ].filter((value): value is string => Boolean(value)),
+  ).size;
+  const preciseTimelineCount = state.timelineEntries.filter(
+    (entry) => entry.event.eventDatePrecision === "exact_day",
+  ).length;
+  const freshnessBurden = safeRatio(
+    state.sources.filter((source) => source.status === "failed" || source.status === "pending")
+      .length,
+    state.sources.length,
+  );
+  const supportDensity = safeRatio(
+    supportedClaimsCount,
+    Math.max(supportedClaimsCount + weakClaimsCount + unresolvedClaimsCount, 1),
+  );
+  const confidence = confidenceLabelFromScore(
+    deriveConfidenceScore({
+      supportDensity,
+      sourceDiversityCount,
+      contradictionBurden: safeRatio(highSeverityContradictionCount, 3),
+      freshnessBurden,
+      precisionSupport: safeRatio(preciseTimelineCount, Math.max(state.timelineEntries.length, 1)),
+    }),
+  );
   const positivePageBullets = state.pageContexts
     .filter(
       (context) =>
@@ -841,12 +888,6 @@ function buildCompiledThesisCandidate(
         : positiveCount > 0 || negativeCount > 0
           ? "mixed"
           : "monitor";
-  const confidence: RevisionConfidence =
-    state.claims.length >= 6 && contradictionCount <= 1
-      ? "high"
-      : state.claims.length >= 3 || state.timelineEntries.length >= 3
-        ? "medium"
-        : "low";
   const bullBullets = chooseTopBullets(
     [...positiveClaimBullets, ...positivePageBullets],
     4,
@@ -946,9 +987,17 @@ function buildCompiledThesisCandidate(
     metadata: {
       catalystCount: String(catalystBullets.length),
       contradictionCount: String(contradictionCount),
+      highSeverityContradictionCount: String(highSeverityContradictionCount),
       positiveSignalCount: String(positiveCount),
       negativeSignalCount: String(negativeCount),
       artifactSignalScore: String(artifactSignalScore),
+      supportedClaimCount: String(supportedClaimsCount),
+      weakClaimCount: String(weakClaimsCount),
+      unresolvedClaimCount: String(unresolvedClaimsCount),
+      sourceDiversityCount: String(sourceDiversityCount),
+      preciseTimelineCount: String(preciseTimelineCount),
+      supportDensity: supportDensity.toFixed(2),
+      freshnessBurden: freshnessBurden.toFixed(2),
       latestKnowledgeUpdateAt: fingerprint.latestKnowledgeUpdateAt ?? "",
     },
   };
@@ -1188,6 +1237,55 @@ export async function getProjectThesisSnapshot(
         (fingerprint.latestKnowledgeUpdateAt !== null &&
           fingerprint.latestKnowledgeUpdateAt > thesis.updatedAt)),
   );
+  const currentSupportedClaimCount = state.claims.filter(
+    (claim) => claim.supportStatus === "supported",
+  ).length;
+  const currentSourceDiversityCount = new Set(
+    state.claims
+      .map((claim) => claim.sourceId ?? null)
+      .filter((value): value is string => Boolean(value)),
+  ).size;
+  const currentHighSeverityContradictions = state.contradictionEntries.filter(
+    (entry) =>
+      entry.contradiction.status !== "resolved" &&
+      (entry.contradiction.severity === "high" ||
+        entry.contradiction.severity === "critical"),
+  ).length;
+  const currentPreciseTimelineCount = state.timelineEntries.filter(
+    (entry) => entry.event.eventDatePrecision === "exact_day",
+  ).length;
+  const supportDelta = thesis
+    ? currentSupportedClaimCount -
+      parseInteger(thesis.metadata?.supportedClaimCount)
+    : 0;
+  const diversityDelta = thesis
+    ? currentSourceDiversityCount -
+      parseInteger(thesis.metadata?.sourceDiversityCount)
+    : 0;
+  const contradictionDelta = thesis
+    ? currentHighSeverityContradictions -
+      parseInteger(thesis.metadata?.highSeverityContradictionCount)
+    : 0;
+  const preciseTimelineDelta = thesis
+    ? currentPreciseTimelineCount -
+      parseInteger(thesis.metadata?.preciseTimelineCount)
+    : 0;
+  const freshnessReasonSegments = [
+    supportDelta > 0
+      ? `${supportDelta} additional supported claim(s)`
+      : null,
+    diversityDelta > 0
+      ? `${diversityDelta} additional source input(s)`
+      : null,
+    contradictionDelta !== 0
+      ? `${Math.abs(contradictionDelta)} ${
+          contradictionDelta > 0 ? "more" : "fewer"
+        } high-severity contradiction(s)`
+      : null,
+    preciseTimelineDelta > 0
+      ? `${preciseTimelineDelta} more exact-date timeline signal(s)`
+      : null,
+  ].filter((value): value is string => Boolean(value));
 
   return {
     thesis,
@@ -1199,7 +1297,9 @@ export async function getProjectThesisSnapshot(
       potentiallyStale,
       reason: thesis
         ? potentiallyStale
-          ? "New or updated project knowledge appears to postdate the current thesis revision."
+          ? freshnessReasonSegments.length > 0
+            ? `New or updated project knowledge appears to postdate the current thesis revision: ${freshnessReasonSegments.join(", ")}.`
+            : "New or updated project knowledge appears to postdate the current thesis revision."
           : "Current thesis matches the latest compiled project knowledge fingerprint."
         : "No thesis has been compiled for this project yet.",
     },

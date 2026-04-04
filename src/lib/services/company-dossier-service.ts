@@ -13,10 +13,16 @@ import type {
 import { artifactsRepository } from "@/lib/repositories/artifacts-repository";
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { companyDossiersRepository } from "@/lib/repositories/company-dossiers-repository";
+import { contradictionsRepository } from "@/lib/repositories/contradictions-repository";
 import { projectsRepository } from "@/lib/repositories/projects-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { thesesRepository } from "@/lib/repositories/theses-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import {
+  confidenceLabelFromScore,
+  deriveConfidenceScore,
+  safeRatio,
+} from "@/lib/services/semantic-intelligence-v1";
 
 type PageContext = {
   page: WikiPage;
@@ -517,12 +523,14 @@ export async function compileProjectCompanyDossier(
     throw new Error("Project is required to compile a company dossier.");
   }
 
-  const [pageContexts, claims, sources, artifacts, thesis] = await Promise.all([
+  const [pageContexts, claims, sources, artifacts, thesis, contradictions] =
+    await Promise.all([
     buildPageContexts(projectId),
     claimsRepository.listByProjectId(projectId),
     sourcesRepository.listByProjectId(projectId),
     artifactsRepository.listByProjectId(projectId),
     thesesRepository.getByProjectId(projectId),
+    contradictionsRepository.listByProjectId(projectId),
   ]);
 
   const companyName = detectCompanyName(project.name, sources);
@@ -589,12 +597,29 @@ export async function compileProjectCompanyDossier(
       refs.sourceIds.length > 0 ||
       refs.artifactIds.length > 0,
   ).length;
-  const confidence: RevisionConfidence =
-    claims.length >= 6 && pageContexts.length >= 4
-      ? "high"
-      : claims.length >= 3 || sources.length >= 3
-        ? "medium"
-        : "low";
+  const supportedClaimsCount = claims.filter(
+    (claim) => claim.supportStatus === "supported",
+  ).length;
+  const sourceDiversityCount = new Set(
+    Object.values(supportBySection).flatMap((refs) => refs.sourceIds),
+  ).size;
+  const openContradictions = contradictions.filter(
+    (entry) => entry.status !== "resolved",
+  ).length;
+  const freshnessBurden = safeRatio(
+    sources.filter((source) => source.status === "failed" || source.status === "pending")
+      .length,
+    sources.length,
+  );
+  const confidence: RevisionConfidence = confidenceLabelFromScore(
+    deriveConfidenceScore({
+      supportDensity: safeRatio(supportedClaimsCount, Math.max(claims.length, 1)),
+      sourceDiversityCount,
+      contradictionBurden: safeRatio(openContradictions, 4),
+      freshnessBurden,
+      precisionSupport: safeRatio(coveredSections, 6),
+    }),
+  );
 
   return companyDossiersRepository.upsertForProject({
     projectId,
@@ -639,6 +664,10 @@ export async function compileProjectCompanyDossier(
       coveredSections: String(coveredSections),
       totalSections: "6",
       sectionCoverageLabel: `${coveredSections}/6 sections supported`,
+      supportedClaimCount: String(supportedClaimsCount),
+      sourceDiversityCount: String(sourceDiversityCount),
+      openContradictionCount: String(openContradictions),
+      freshnessBurden: freshnessBurden.toFixed(2),
     },
   });
 }
