@@ -55,6 +55,19 @@ export type ArtifactProvenance =
 export type DossierStatus = "draft" | "active" | "stale";
 export type ThesisStatus = "draft" | "active" | "stale";
 export type ThesisStance = "bullish" | "bearish" | "mixed" | "monitor";
+export type SourceFreshnessStatus =
+  | "current"
+  | "new_since_compile"
+  | "uncompiled"
+  | "stale";
+export type FreshnessImpactLevel = "high" | "medium" | "low";
+export type StaleAlertType =
+  | "thesis_may_be_stale"
+  | "dossier_may_be_stale"
+  | "catalyst_tracker_needs_refresh"
+  | "contradictions_should_rerun";
+export type StaleAlertSeverity = "critical" | "high" | "medium" | "low";
+export type StaleAlertStatus = "open" | "resolved" | "dismissed";
 export type CatalystType =
   | "earnings"
   | "product_launch"
@@ -326,6 +339,61 @@ export interface CatalystCompileState {
   projectId: string;
   lastCompiledAt: Timestamp | null;
   catalystCount: number;
+  summary: string;
+}
+
+export interface SourceMonitoringRecord {
+  id: string;
+  projectId: string;
+  sourceId: string;
+  lastSeenAt: Timestamp;
+  lastCompiledAt: Timestamp | null;
+  freshnessStatus: SourceFreshnessStatus;
+  possibleImpactLevel: FreshnessImpactLevel;
+  staleReason: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  metadata?: StringMetadata;
+}
+
+export type SourceMonitoringDraft = Omit<
+  SourceMonitoringRecord,
+  "id" | "createdAt" | "updatedAt"
+> & {
+  stableKey: string;
+};
+
+export interface StaleAlert {
+  id: string;
+  projectId: string;
+  alertType: StaleAlertType;
+  title: string;
+  description: string;
+  severity: StaleAlertSeverity;
+  status: StaleAlertStatus;
+  relatedSourceIds: string[];
+  relatedThesisId?: string | null;
+  relatedDossierId?: string | null;
+  relatedCatalystIds: string[];
+  relatedTimelineIds: string[];
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  metadata?: StringMetadata;
+}
+
+export type StaleAlertDraft = Omit<
+  StaleAlert,
+  "id" | "status" | "createdAt" | "updatedAt"
+> & {
+  stableKey: string;
+  status?: StaleAlertStatus;
+};
+
+export interface MonitoringAnalysisState {
+  projectId: string;
+  lastEvaluatedAt: Timestamp | null;
+  sourceRecordCount: number;
+  alertCount: number;
   summary: string;
 }
 

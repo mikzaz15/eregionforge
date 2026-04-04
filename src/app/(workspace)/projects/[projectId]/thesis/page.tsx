@@ -34,6 +34,7 @@ export default async function ProjectThesisPage({
       description={`This thesis view is scoped to ${projectData.summary.project.name}. It compiles current project knowledge into an investment-style stance and tracking surface without leaving the canonical stack.`}
       basePath={`/projects/${projectId}/thesis`}
       catalystsPath={`/projects/${projectId}/catalysts`}
+      monitoringPath={null}
       actions={
         <div className="flex flex-wrap gap-3">
           <form action={compileProjectThesisAction}>

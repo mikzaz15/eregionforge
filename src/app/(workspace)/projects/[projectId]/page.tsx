@@ -190,6 +190,14 @@ export default async function ProjectDetailPage({
           >
             Open Contradictions
           </Link>
+          {isActiveWorkspace ? (
+            <Link
+              href="/monitoring"
+              className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            >
+              Open Monitoring
+            </Link>
+          ) : null}
           <Link
             href={`/projects/${projectId}/thesis`}
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
@@ -270,6 +278,11 @@ export default async function ProjectDetailPage({
           value={String(projectData.summary.catalystCount)}
           note="Catalysts are now first-class research objects rather than only a thesis subsection."
         />
+        <MetricCard
+          label="Freshness Alerts"
+          value={String(projectData.summary.freshnessAlertCount)}
+          note="Freshness monitoring flags when thesis or adjacent compiled views may lag newer knowledge inputs."
+        />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
@@ -308,6 +321,96 @@ export default async function ProjectDetailPage({
                     </p>
                   </div>
                 ),
+              )}
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          eyebrow="Freshness Intelligence"
+          title="Monitoring and stale alerts"
+          description="Freshness monitoring turns newer sources and analysis deltas into an explicit queue for keeping the investment view current."
+        >
+          <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
+                <div className="flex flex-wrap gap-2">
+                  <StatusPill tone={projectData.summary.freshnessAlertCount > 0 ? "danger" : "success"}>
+                    {projectData.summary.freshnessAlertCount > 0 ? "attention" : "current"}
+                  </StatusPill>
+                  <StatusPill tone={projectData.summary.highSeverityFreshnessAlertCount > 0 ? "danger" : "neutral"}>
+                    High {projectData.summary.highSeverityFreshnessAlertCount}
+                  </StatusPill>
+                  <StatusPill tone={projectData.summary.sourcesNeedingReviewCount > 0 ? "accent" : "neutral"}>
+                    Review {projectData.summary.sourcesNeedingReviewCount}
+                  </StatusPill>
+                </div>
+                <p className="mt-4 text-sm leading-6 text-foreground">
+                  Last evaluated {formatDateTime(projectData.summary.monitoringLastEvaluatedAt)}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-foreground">
+                  Thesis freshness: {projectData.summary.thesisPotentiallyStale ? "attention required" : "current"}.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  {projectData.summary.thesisFreshnessReason}
+                </p>
+                {isActiveWorkspace ? (
+                  <Link
+                    href="/monitoring"
+                    className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                  >
+                    Open Monitoring
+                  </Link>
+                ) : null}
+              </div>
+              <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                  Last intelligence refresh
+                </p>
+                <p className="mt-3 text-sm leading-6 text-foreground">
+                  Thesis: {formatDateTime(projectData.summary.thesisLastRefreshedAt)}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-foreground">
+                  Dossier: {formatDateTime(projectData.summary.dossierLastRefreshedAt)}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-foreground">
+                  Timeline: {formatDateTime(projectData.summary.timelineLastCompiledAt)}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-foreground">
+                  Contradictions: {formatDateTime(projectData.summary.contradictionsLastAnalyzedAt)}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-foreground">
+                  Catalysts: {formatDateTime(projectData.summary.catalystsLastCompiledAt)}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {projectData.monitoring.alerts.length > 0 ? (
+                projectData.monitoring.alerts.slice(0, 3).map((entry) => (
+                  <div
+                    key={entry.alert.id}
+                    className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold tracking-tight text-foreground">
+                        {entry.alert.title}
+                      </p>
+                      <StatusPill tone={severityTone(entry.alert.severity)}>
+                        {entry.alert.severity}
+                      </StatusPill>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-foreground">
+                      {entry.alert.description}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      Suggested action: {entry.alert.metadata?.suggestedAction ?? "Review updated knowledge inputs"}.
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm leading-6 text-muted">
+                  No active stale alerts are open for this project right now.
+                </div>
               )}
             </div>
           </div>
@@ -359,7 +462,7 @@ export default async function ProjectDetailPage({
           description="These top-level screens are already structured around project-owned data."
         >
           <div className="space-y-3">
-            {["/sources", "/wiki", "/artifacts", "/dossier", "/catalysts", "/timeline", "/contradictions", "/ask"].map((href) => (
+            {["/sources", "/wiki", "/artifacts", "/dossier", "/catalysts", "/timeline", "/contradictions", "/ask", ...(isActiveWorkspace ? ["/monitoring"] : [])].map((href) => (
               <Link
                 key={href}
                 href={href}

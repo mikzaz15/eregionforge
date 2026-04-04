@@ -7,8 +7,11 @@ import type {
   CompileJob,
   Contradiction,
   EvidenceLink,
+  MonitoringAnalysisState,
   Project,
   Source,
+  SourceMonitoringRecord,
+  StaleAlert,
   SourceFragment,
   Thesis,
   ThesisRevision,
@@ -625,6 +628,9 @@ export const seedTimelineEvents: TimelineEvent[] = [];
 export const seedContradictions: Contradiction[] = [];
 export const seedCatalysts: Catalyst[] = [];
 export const seedCompanyDossiers: CompanyDossier[] = [];
+export const seedSourceMonitoringRecords: SourceMonitoringRecord[] = [];
+export const seedStaleAlerts: StaleAlert[] = [];
+export const seedMonitoringAnalysisStates: MonitoringAnalysisState[] = [];
 export const seedTheses: Thesis[] = [];
 export const seedThesisRevisions: ThesisRevision[] = [];
 

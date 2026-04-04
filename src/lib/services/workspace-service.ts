@@ -64,6 +64,13 @@ import {
   type TimelineReferenceRecord,
 } from "@/lib/services/timeline-service";
 import {
+  getProjectMonitoringPageData as buildProjectMonitoringPageData,
+  getProjectMonitoringSnapshot,
+  type ProjectMonitoringSnapshot,
+  type SourceMonitoringRecordDetail,
+  type StaleAlertReferenceRecord,
+} from "@/lib/services/source-monitoring-service";
+import {
   getProjectThesisDetail,
   type ThesisDetailRecord,
   getProjectThesisSnapshot,
@@ -95,14 +102,22 @@ export type ProjectSummary = {
   thesisLastRefreshedAt: string | null;
   thesisPotentiallyStale: boolean;
   thesisFreshnessReason: string;
+  freshnessAlertCount: number;
+  highSeverityFreshnessAlertCount: number;
+  sourcesNeedingReviewCount: number;
+  monitoringLastEvaluatedAt: string | null;
   dossierCompanyName: string | null;
   dossierConfidence: CompanyDossier["confidence"] | null;
   dossierSectionCoverageLabel: string;
   dossierReady: boolean;
+  dossierLastRefreshedAt: string | null;
   catalystCount: number;
   upcomingCatalystCount: number;
   resolvedCatalystCount: number;
   highImportanceCatalystCount: number;
+  catalystsLastCompiledAt: string | null;
+  timelineLastCompiledAt: string | null;
+  contradictionsLastAnalyzedAt: string | null;
   health: ProjectLintHealthSummary;
 };
 
@@ -130,6 +145,7 @@ export type ProjectDetailData = {
   catalysts: CatalystReferenceRecord[];
   thesis: ThesisDetailRecord | null;
   dossier: CompanyDossierDetailRecord | null;
+  monitoring: ProjectMonitoringSnapshot;
   latestCompile: CompileJob | null;
 };
 
@@ -243,6 +259,7 @@ export type TimelinePageData = {
 export type ThesisPageData = {
   summary: ProjectSummary;
   thesis: ThesisDetailRecord | null;
+  freshnessAlerts: StaleAlertReferenceRecord[];
   selectedRevisionId: string | null;
   metrics: Array<{ label: string; value: string; note: string }>;
 };
@@ -262,6 +279,15 @@ export type CatalystsPageData = {
     catalystCount: number;
     summary: string;
   };
+  metrics: Array<{ label: string; value: string; note: string }>;
+};
+
+export type MonitoringPageData = {
+  summary: ProjectSummary;
+  sourceRecords: SourceMonitoringRecordDetail[];
+  alerts: StaleAlertReferenceRecord[];
+  analysisState: ProjectMonitoringSnapshot["analysisState"];
+  monitoringSummary: ProjectMonitoringSnapshot["summary"];
   metrics: Array<{ label: string; value: string; note: string }>;
 };
 
@@ -561,12 +587,13 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     latestCompile,
     claims,
     evidenceLinks,
-    timelineEvents,
+    timelineData,
     lintSnapshot,
     contradictionSnapshot,
     thesisSnapshot,
     dossier,
     catalystPageData,
+    monitoringSnapshot,
   ] =
     await Promise.all([
       sourcesRepository.listByProjectId(project.id),
@@ -575,12 +602,13 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       compileJobsRepository.getLatestByProjectId(project.id),
       claimsRepository.listByProjectId(project.id),
       evidenceLinksRepository.listByProjectId(project.id),
-      listProjectTimelineEvents(project.id),
+      getProjectTimelinePageData(project.id),
       getProjectLintSnapshot(project.id),
       getProjectContradictionSnapshot(project.id),
       getProjectThesisSnapshot(project.id),
       getStoredProjectCompanyDossier(project.id),
       getProjectCatalystPageData(project.id),
+      getProjectMonitoringSnapshot(project.id),
     ]);
   const generatedPageCount = pages.filter(
     (page) => page.generationMetadata?.generatedBy === "deterministic-compiler",
@@ -612,7 +640,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     latestCompileAt: latestCompile?.completedAt ?? null,
     latestCompileSummary:
       latestCompile?.summary ?? "No compile job has been run against this project yet.",
-    timelineEventCount: timelineEvents.length,
+    timelineEventCount: timelineData.events.length,
     contradictionCount: contradictionSnapshot.summary.totalContradictions,
     highSeverityContradictionCount:
       contradictionSnapshot.summary.highSeverityContradictions,
@@ -630,15 +658,23 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     thesisLastRefreshedAt: thesisSnapshot.freshness.lastRefreshedAt,
     thesisPotentiallyStale: thesisSnapshot.freshness.potentiallyStale,
     thesisFreshnessReason: thesisSnapshot.freshness.reason,
+    freshnessAlertCount: monitoringSnapshot.summary.activeAlerts,
+    highSeverityFreshnessAlertCount: monitoringSnapshot.summary.highSeverityAlerts,
+    sourcesNeedingReviewCount: monitoringSnapshot.summary.sourcesNeedingReview,
+    monitoringLastEvaluatedAt: monitoringSnapshot.analysisState.lastEvaluatedAt,
     dossierCompanyName: dossier?.companyName ?? null,
     dossierConfidence: dossier?.confidence ?? null,
     dossierSectionCoverageLabel:
       dossier?.metadata?.sectionCoverageLabel ?? "0/6 sections supported",
     dossierReady: Number(dossier?.metadata?.coveredSections ?? "0") >= 4,
+    dossierLastRefreshedAt: dossier?.updatedAt ?? null,
     catalystCount: catalystPageData.summary.totalCatalysts,
     upcomingCatalystCount: catalystPageData.summary.upcomingCatalysts,
     resolvedCatalystCount: catalystPageData.summary.resolvedCatalysts,
     highImportanceCatalystCount: catalystPageData.summary.highImportanceCatalysts,
+    catalystsLastCompiledAt: catalystPageData.compileState.lastCompiledAt,
+    timelineLastCompiledAt: timelineData.compileState.lastCompiledAt,
+    contradictionsLastAnalyzedAt: contradictionSnapshot.analysisState.lastAnalyzedAt,
     health: lintSnapshot.health,
   };
 });
@@ -778,16 +814,18 @@ export async function getProjectDetailData(
     return null;
   }
 
-  const [sources, wikiPages, artifacts, timelineEvents, contradictions, catalysts, thesis, dossier] = await Promise.all([
-    sourcesRepository.listByProjectId(projectId),
-    buildWikiPageSummaries(projectId),
-    listProjectArtifacts({ projectId }),
-    listProjectTimelineEvents(projectId),
-    listProjectContradictions(projectId),
-    listProjectCatalysts(projectId),
-    getProjectThesisDetail(projectId),
-    getProjectCompanyDossierDetail(projectId),
-  ]);
+  const [sources, wikiPages, artifacts, timelineEvents, contradictions, catalysts, thesis, dossier, monitoring] =
+    await Promise.all([
+      sourcesRepository.listByProjectId(projectId),
+      buildWikiPageSummaries(projectId),
+      listProjectArtifacts({ projectId }),
+      listProjectTimelineEvents(projectId),
+      listProjectContradictions(projectId),
+      listProjectCatalysts(projectId),
+      getProjectThesisDetail(projectId),
+      getProjectCompanyDossierDetail(projectId),
+      getProjectMonitoringSnapshot(projectId),
+    ]);
   const latestCompile = await compileJobsRepository.getLatestByProjectId(projectId);
 
   return {
@@ -801,6 +839,7 @@ export async function getProjectDetailData(
     catalysts,
     thesis,
     dossier,
+    monitoring,
     latestCompile,
   };
 }
@@ -1155,9 +1194,10 @@ export async function getThesisPageData(
   projectId: string,
   selectedRevisionId?: string | null,
 ): Promise<ThesisPageData | null> {
-  const [summary, thesisDetail] = await Promise.all([
+  const [summary, thesisDetail, monitoringSnapshot] = await Promise.all([
     getProjectSummary(projectId),
     getProjectThesisDetail(projectId, selectedRevisionId),
+    getProjectMonitoringSnapshot(projectId),
   ]);
 
   if (!summary) {
@@ -1167,6 +1207,12 @@ export async function getThesisPageData(
   return {
     summary,
     thesis: thesisDetail,
+    freshnessAlerts: monitoringSnapshot.alerts.filter(
+      (entry) =>
+        entry.alert.status === "open" &&
+        (entry.alert.alertType === "thesis_may_be_stale" ||
+          entry.relatedThesis?.id === thesisDetail?.thesis.id),
+    ),
     selectedRevisionId: selectedRevisionId ?? null,
     metrics: [
       {
@@ -1197,7 +1243,10 @@ export async function getThesisPageData(
       {
         label: "Freshness",
         value: summary.thesisPotentiallyStale ? "Attention" : "Current",
-        note: summary.thesisFreshnessReason,
+        note:
+          monitoringSnapshot.summary.activeAlerts > 0
+            ? `${summary.thesisFreshnessReason} Monitoring has ${monitoringSnapshot.summary.activeAlerts} active stale alert(s).`
+            : summary.thesisFreshnessReason,
       },
     ],
   };
@@ -1259,6 +1308,28 @@ export async function getCatalystsPageData(
     catalysts: catalystData.catalysts,
     compileState: catalystData.compileState,
     metrics: catalystData.metrics,
+  };
+}
+
+export async function getMonitoringPageData(
+  projectId: string,
+): Promise<MonitoringPageData | null> {
+  const [summary, monitoringData] = await Promise.all([
+    getProjectSummary(projectId),
+    buildProjectMonitoringPageData(projectId),
+  ]);
+
+  if (!summary) {
+    return null;
+  }
+
+  return {
+    summary,
+    sourceRecords: monitoringData.sourceRecords,
+    alerts: monitoringData.alerts,
+    analysisState: monitoringData.analysisState,
+    monitoringSummary: monitoringData.summary,
+    metrics: monitoringData.metrics,
   };
 }
 

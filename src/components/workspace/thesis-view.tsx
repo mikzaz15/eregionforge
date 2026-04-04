@@ -55,6 +55,18 @@ function thesisStatusTone(status: string | null): StatusTone {
   return "neutral";
 }
 
+function severityTone(severity: string): StatusTone {
+  if (severity === "critical" || severity === "high") {
+    return "danger";
+  }
+
+  if (severity === "medium") {
+    return "accent";
+  }
+
+  return "neutral";
+}
+
 function labelize(value: string | null): string {
   if (!value) {
     return "Not set";
@@ -199,6 +211,7 @@ export function ThesisView({
   description,
   basePath,
   catalystsPath,
+  monitoringPath,
   actions,
 }: Readonly<{
   data: ThesisPageData;
@@ -207,6 +220,7 @@ export function ThesisView({
   description: string;
   basePath: string;
   catalystsPath: string;
+  monitoringPath?: string | null;
   actions?: ReactNode;
 }>) {
   const thesisDetail = data.thesis;
@@ -286,6 +300,47 @@ export function ThesisView({
                   <p className="mt-2 text-sm leading-6 text-muted">
                     Latest knowledge update {formatDateTime(thesisDetail.freshness.latestKnowledgeUpdateAt)}
                   </p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    Monitoring last evaluated {formatDateTime(data.summary.monitoringLastEvaluatedAt)}
+                  </p>
+                  {data.freshnessAlerts.length > 0 ? (
+                    <div className="mt-4 space-y-3">
+                      {data.freshnessAlerts.slice(0, 2).map((entry) => (
+                        <div
+                          key={entry.alert.id}
+                          className="rounded-2xl border border-border bg-background/65 px-4 py-4"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold tracking-tight text-foreground">
+                              {entry.alert.title}
+                            </p>
+                            <StatusPill tone={severityTone(entry.alert.severity)}>
+                              {entry.alert.severity}
+                            </StatusPill>
+                          </div>
+                          <p className="mt-3 text-sm leading-6 text-foreground">
+                            {entry.alert.description}
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {monitoringPath ? (
+                              <Link
+                                href={monitoringPath}
+                                className="inline-flex rounded-full border border-border bg-background/70 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:bg-background"
+                              >
+                                Open Monitoring
+                              </Link>
+                            ) : null}
+                            <Link
+                              href={catalystsPath}
+                              className="inline-flex rounded-full border border-border bg-background/70 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:bg-background"
+                            >
+                              Open Catalyst Tracker
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

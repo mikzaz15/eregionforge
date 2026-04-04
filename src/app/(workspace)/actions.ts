@@ -11,6 +11,7 @@ import {
   runProjectContradictionAnalysis,
   updateContradictionStatus,
 } from "@/lib/services/contradiction-service";
+import { runProjectMonitoringAnalysis } from "@/lib/services/source-monitoring-service";
 import { compileProjectThesis } from "@/lib/services/thesis-service";
 import { compileProjectTimeline } from "@/lib/services/timeline-service";
 import { getActiveProjectId } from "@/lib/services/workspace-service";
@@ -32,6 +33,7 @@ function refreshWorkspacePaths(projectId: string) {
   revalidatePath("/artifacts/[artifactId]", "page");
   revalidatePath("/ask");
   revalidatePath("/contradictions");
+  revalidatePath("/monitoring");
   revalidatePath("/thesis");
   revalidatePath("/dossier");
   revalidatePath("/catalysts");
@@ -172,6 +174,13 @@ export async function runActiveProjectContradictionAnalysisAction() {
   await runProjectContradictionAnalysis(projectId);
   refreshWorkspacePaths(projectId);
   redirect("/contradictions");
+}
+
+export async function runActiveProjectMonitoringAnalysisAction() {
+  const projectId = await getActiveProjectId();
+  await runProjectMonitoringAnalysis(projectId);
+  refreshWorkspacePaths(projectId);
+  redirect("/monitoring");
 }
 
 export async function updateContradictionStatusAction(formData: FormData) {

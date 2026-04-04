@@ -61,6 +61,12 @@ export const workspaceNavigation: NavigationItem[] = [
     shortLabel: "TL",
   },
   {
+    href: "/monitoring",
+    label: "Monitoring",
+    description: "Freshness intelligence and stale-alert operations for compiled research views.",
+    shortLabel: "MN",
+  },
+  {
     href: "/contradictions",
     label: "Contradictions",
     description: "Compiled disagreement map across canon, sources, claims, and chronology.",
