@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import {
+  compileActiveProjectCatalystsAction,
+  compileActiveProjectDossierAction,
+  compileActiveProjectThesisAction,
+  compileActiveProjectTimelineAction,
+  runActiveProjectContradictionAnalysisAction,
+} from "@/app/(workspace)/actions";
+import {
   MetricCard,
   PageFrame,
   SectionCard,
@@ -65,6 +72,83 @@ function formatDateTime(value: string | null): string {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function alertTargetPath(input: {
+  alertType: string;
+  thesisPath: string;
+  dossierPath: string;
+  catalystsPath: string;
+  timelinePath: string;
+  contradictionsPath: string;
+}): string {
+  if (input.alertType === "thesis_may_be_stale") {
+    return input.thesisPath;
+  }
+
+  if (input.alertType === "dossier_may_be_stale") {
+    return input.dossierPath;
+  }
+
+  if (input.alertType === "catalyst_tracker_needs_refresh") {
+    return input.catalystsPath;
+  }
+
+  return input.contradictionsPath;
+}
+
+function AlertRefreshAction({
+  alertType,
+}: Readonly<{
+  alertType: string;
+}>) {
+  if (alertType === "thesis_may_be_stale") {
+    return (
+      <form action={compileActiveProjectThesisAction}>
+        <button className="action-button-secondary action-button-compact">
+          Refresh Thesis
+        </button>
+      </form>
+    );
+  }
+
+  if (alertType === "dossier_may_be_stale") {
+    return (
+      <form action={compileActiveProjectDossierAction}>
+        <button className="action-button-secondary action-button-compact">
+          Refresh Dossier
+        </button>
+      </form>
+    );
+  }
+
+  if (alertType === "catalyst_tracker_needs_refresh") {
+    return (
+      <form action={compileActiveProjectCatalystsAction}>
+        <button className="action-button-secondary action-button-compact">
+          Refresh Catalysts
+        </button>
+      </form>
+    );
+  }
+
+  if (alertType === "contradictions_should_rerun") {
+    return (
+      <form action={runActiveProjectContradictionAnalysisAction}>
+        <button className="action-button-secondary action-button-compact">
+          Re-run Contradictions
+        </button>
+      </form>
+    );
+  }
+
+  return (
+    <form action={compileActiveProjectTimelineAction}>
+      <button className="action-button-secondary action-button-compact">
+        Rebuild Timeline
+      </button>
+    </form>
+  );
 }
 
 export function MonitoringView({
@@ -156,6 +240,28 @@ export function MonitoringView({
                   <p className="mt-2 text-sm leading-6 text-muted">
                     Suggested next action: {entry.alert.metadata?.suggestedAction ?? "Review freshness inputs"}
                   </p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link
+                      href={alertTargetPath({
+                        alertType: entry.alert.alertType,
+                        thesisPath,
+                        dossierPath,
+                        catalystsPath,
+                        timelinePath,
+                        contradictionsPath,
+                      })}
+                      className="action-button-secondary action-button-compact"
+                    >
+                      Inspect Surface
+                    </Link>
+                    <AlertRefreshAction alertType={entry.alert.alertType} />
+                    <Link
+                      href={sourcesPath}
+                      className="action-button-secondary action-button-compact"
+                    >
+                      Review Sources
+                    </Link>
+                  </div>
                   <div className="mt-4 grid gap-3 lg:grid-cols-5">
                     <div className="rounded-2xl border border-border bg-background/65 px-4 py-4">
                       <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
@@ -249,15 +355,14 @@ export function MonitoringView({
                       </p>
                       <div className="mt-3 space-y-2 text-sm leading-6">
                         <Link
-                          href={
-                            entry.alert.alertType === "thesis_may_be_stale"
-                              ? thesisPath
-                              : entry.alert.alertType === "dossier_may_be_stale"
-                                ? dossierPath
-                                : entry.alert.alertType === "catalyst_tracker_needs_refresh"
-                                  ? catalystsPath
-                                  : contradictionsPath
-                          }
+                          href={alertTargetPath({
+                            alertType: entry.alert.alertType,
+                            thesisPath,
+                            dossierPath,
+                            catalystsPath,
+                            timelinePath,
+                            contradictionsPath,
+                          })}
                           className="block text-foreground underline-offset-4 hover:underline"
                         >
                           Open {labelize(entry.alert.alertType)}

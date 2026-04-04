@@ -69,7 +69,7 @@ export default async function TimelinePage() {
         <div className="flex flex-wrap gap-3">
           <form action={compileActiveProjectTimelineAction}>
             <button className="action-button-primary">
-              Refresh Timeline
+              Rebuild Timeline
             </button>
           </form>
           <Link

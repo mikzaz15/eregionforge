@@ -52,13 +52,13 @@ export default async function ProjectThesisPage({
             href={`/projects/${projectId}`}
             className="action-button-secondary"
           >
-            Project Detail
+            Open Command View
           </Link>
           <Link
             href="/projects"
             className="action-button-secondary"
           >
-            Back To Projects
+            Back to Projects
           </Link>
         </div>
       }

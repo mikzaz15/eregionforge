@@ -114,7 +114,7 @@ export default async function ProjectsPage() {
                   href="/monitoring"
                   className="action-button-secondary"
                 >
-                  Open Monitoring
+                  Review Alerts
                 </Link>
               </div>
             </div>

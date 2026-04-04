@@ -50,7 +50,7 @@ What it demonstrates:
 
 ### `/thesis`
 
-Click into `Open Contradictions` and `Open Monitoring`.
+Click into `Open Contradictions` and `Review Alerts`.
 
 What it demonstrates:
 

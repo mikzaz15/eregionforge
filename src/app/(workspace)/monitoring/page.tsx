@@ -1,5 +1,7 @@
 import Link from "next/link";
 import {
+  compileActiveProjectCatalystsAction,
+  compileActiveProjectDossierAction,
   compileActiveProjectThesisAction,
   compileActiveProjectTimelineAction,
   runActiveProjectContradictionAnalysisAction,
@@ -35,7 +37,7 @@ export default async function MonitoringPage() {
         <div className="flex flex-wrap gap-3">
           <form action={runActiveProjectMonitoringAnalysisAction}>
             <button className="action-button-primary">
-              Run Monitoring
+              Refresh Alerts
             </button>
           </form>
           <form action={compileActiveProjectThesisAction}>
@@ -43,9 +45,19 @@ export default async function MonitoringPage() {
               Refresh Thesis
             </button>
           </form>
+          <form action={compileActiveProjectDossierAction}>
+            <button className="action-button-secondary">
+              Refresh Dossier
+            </button>
+          </form>
+          <form action={compileActiveProjectCatalystsAction}>
+            <button className="action-button-secondary">
+              Refresh Catalysts
+            </button>
+          </form>
           <form action={runActiveProjectContradictionAnalysisAction}>
             <button className="action-button-secondary">
-              Re-Run Contradictions
+              Re-run Contradictions
             </button>
           </form>
           <form action={compileActiveProjectTimelineAction}>

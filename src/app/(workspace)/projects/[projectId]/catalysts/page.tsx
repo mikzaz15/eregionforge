@@ -43,7 +43,7 @@ export default async function ProjectCatalystsPage({
             href={`/projects/${projectId}`}
             className="action-button-secondary"
           >
-            Project Detail
+            Open Command View
           </Link>
           <Link
             href={`/projects/${projectId}/thesis`}

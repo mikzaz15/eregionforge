@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  compileActiveProjectTimelineAction,
+  compileProjectCatalystsAction,
+  compileProjectDossierAction,
+  compileProjectThesisAction,
+  runActiveProjectContradictionAnalysisAction,
+} from "@/app/(workspace)/actions";
+import {
   MetricCard,
   PageFrame,
   SectionCard,
@@ -9,6 +16,35 @@ import {
 } from "@/components/workspace/primitives";
 import { artifactTypeLabel } from "@/lib/services/artifact-service";
 import { getActiveProjectId, getProjectDetailData } from "@/lib/services/workspace-service";
+
+type RecommendedAction =
+  | {
+      kind: "link";
+      label: string;
+      detail: string;
+      href: string;
+      secondaryHref?: string;
+      secondaryLabel?: string;
+    }
+  | {
+      kind:
+        | "refresh-thesis"
+        | "refresh-dossier"
+        | "refresh-catalysts"
+        | "rebuild-timeline"
+        | "rerun-contradictions";
+      label: string;
+      detail: string;
+      secondaryHref?: string;
+      secondaryLabel?: string;
+    };
+
+type RecentChangeRecord = {
+  title: string;
+  detail: string;
+  timestamp: string | null;
+  href: string;
+};
 
 function compileTone(status: string): StatusTone {
   if (status === "completed") {
@@ -148,6 +184,186 @@ function previewMarkdown(value: string, length = 220): string {
     : normalized;
 }
 
+function isBefore(left: string | null, right: string | null): boolean {
+  if (!left || !right) {
+    return false;
+  }
+
+  return left < right;
+}
+
+function buildRecommendedAction(input: {
+  projectId: string;
+  isActiveWorkspace: boolean;
+  projectData: NonNullable<Awaited<ReturnType<typeof getProjectDetailData>>>;
+}): RecommendedAction {
+  const openAlerts = input.projectData.monitoring.alerts.filter(
+    (entry) => entry.alert.status === "open",
+  );
+  const firstAlert = openAlerts[0] ?? null;
+
+  if (input.isActiveWorkspace && openAlerts.length > 0) {
+    return {
+      kind: "link",
+      label: "Review Alerts",
+      detail: firstAlert
+        ? `${firstAlert.alert.title}. ${firstAlert.alert.metadata?.suggestedAction ?? "Inspect the affected surface and refresh it from there."}`
+        : "Freshness alerts are open. Review the stale-to-refresh queue before refreshing downstream views.",
+      href: "/monitoring",
+      secondaryHref: "/sources",
+      secondaryLabel: "Review Sources",
+    };
+  }
+
+  if (input.projectData.summary.thesisPotentiallyStale) {
+    return {
+      kind: "refresh-thesis",
+      label: "Refresh Thesis",
+      detail: input.projectData.summary.thesisFreshnessReason,
+      secondaryHref: `/projects/${input.projectId}/thesis`,
+      secondaryLabel: "Open Thesis",
+    };
+  }
+
+  if (!input.projectData.summary.dossierReady) {
+    return {
+      kind: "refresh-dossier",
+      label: "Refresh Dossier",
+      detail: `Dossier coverage is ${input.projectData.summary.dossierSectionCoverageLabel}. Refresh the dossier to bring the structured company view back in line with current canon and thesis posture.`,
+      secondaryHref: `/projects/${input.projectId}/dossier`,
+      secondaryLabel: "Open Dossier",
+    };
+  }
+
+  if (
+    input.projectData.summary.catalystCount === 0 ||
+    isBefore(
+      input.projectData.summary.catalystsLastCompiledAt,
+      input.projectData.summary.thesisLastRefreshedAt,
+    )
+  ) {
+    return {
+      kind: "refresh-catalysts",
+      label: "Refresh Catalysts",
+      detail:
+        "Catalyst tracking should be refreshed so newer thesis, timeline, and contradiction state is reflected in the tracked catalyst set.",
+      secondaryHref: `/projects/${input.projectId}/catalysts`,
+      secondaryLabel: "Open Catalysts",
+    };
+  }
+
+  if (input.isActiveWorkspace && input.projectData.summary.timelineEventCount === 0) {
+    return {
+      kind: "rebuild-timeline",
+      label: "Rebuild Timeline",
+      detail:
+        "Chronology coverage is still thin. Rebuild the timeline so catalyst timing and contradiction posture have a stronger dated backbone.",
+      secondaryHref: "/timeline",
+      secondaryLabel: "Open Timeline",
+    };
+  }
+
+  if (input.isActiveWorkspace && input.projectData.summary.contradictionCount === 0) {
+    return {
+      kind: "rerun-contradictions",
+      label: "Re-run Contradictions",
+      detail:
+        "The disagreement map is sparse. Re-run contradiction analysis to check for newer claim, source, and timing tension.",
+      secondaryHref: "/contradictions",
+      secondaryLabel: "Open Contradictions",
+    };
+  }
+
+  return {
+    kind: "link",
+    label: "Open Thesis",
+    detail:
+      "The current stack looks coherent enough to continue from the thesis, then walk into catalysts, contradictions, and the dossier.",
+    href: `/projects/${input.projectId}/thesis`,
+    secondaryHref: `/projects/${input.projectId}/dossier`,
+    secondaryLabel: "Open Dossier",
+  };
+}
+
+function buildRecentChanges(input: {
+  projectId: string;
+  isActiveWorkspace: boolean;
+  projectData: NonNullable<Awaited<ReturnType<typeof getProjectDetailData>>>;
+}): RecentChangeRecord[] {
+  const entries: RecentChangeRecord[] = [];
+
+  if (input.projectData.thesis?.currentRevision) {
+    entries.push({
+      title: `Thesis revised to R${input.projectData.thesis.currentRevision.revision.revisionNumber}`,
+      detail:
+        input.projectData.thesis.currentRevision.revision.changeSummary ||
+        "A new thesis revision is now active.",
+      timestamp: input.projectData.thesis.currentRevision.revision.createdAt,
+      href: `/projects/${input.projectId}/thesis`,
+    });
+  }
+
+  if (input.projectData.dossier) {
+    entries.push({
+      title: "Dossier refreshed",
+      detail: `Coverage is ${input.projectData.dossier.readiness.sectionCoverageLabel} with ${input.projectData.summary.dossierConfidence ?? "not set"} confidence.`,
+      timestamp: input.projectData.dossier.dossier.updatedAt,
+      href: `/projects/${input.projectId}/dossier`,
+    });
+  }
+
+  if (input.projectData.entityAnalysisState.lastCompiledAt) {
+    entries.push({
+      title: "Entity layer refreshed",
+      detail: `${input.projectData.summary.entityCount} entity record(s) now sharpen dossier, thesis, catalysts, and contradictions.`,
+      timestamp: input.projectData.entityAnalysisState.lastCompiledAt,
+      href: input.isActiveWorkspace ? "/entities" : `/projects/${input.projectId}`,
+    });
+  }
+
+  if (input.projectData.summary.catalystsLastCompiledAt) {
+    entries.push({
+      title: "Catalysts refreshed",
+      detail: `${input.projectData.summary.catalystCount} catalyst(s), ${input.projectData.summary.upcomingCatalystCount} upcoming, ${input.projectData.summary.highImportanceCatalystCount} high importance.`,
+      timestamp: input.projectData.summary.catalystsLastCompiledAt,
+      href: `/projects/${input.projectId}/catalysts`,
+    });
+  }
+
+  if (input.projectData.summary.contradictionsLastAnalyzedAt) {
+    entries.push({
+      title: "Contradictions re-ran",
+      detail: `${input.projectData.summary.contradictionCount} contradiction record(s), ${input.projectData.summary.unresolvedContradictionCount} unresolved.`,
+      timestamp: input.projectData.summary.contradictionsLastAnalyzedAt,
+      href: "/contradictions",
+    });
+  }
+
+  if (input.projectData.summary.timelineLastCompiledAt) {
+    entries.push({
+      title: "Timeline rebuilt",
+      detail: `${input.projectData.summary.timelineEventCount} chronology event(s) currently support catalysts and thesis timing.`,
+      timestamp: input.projectData.summary.timelineLastCompiledAt,
+      href: "/timeline",
+    });
+  }
+
+  if (input.projectData.summary.monitoringLastEvaluatedAt) {
+    entries.push({
+      title: "Alert queue refreshed",
+      detail:
+        input.projectData.monitoring.alerts[0]?.alert.title ??
+        `${input.projectData.summary.freshnessAlertCount} active stale alert(s) remain open.`,
+      timestamp: input.projectData.summary.monitoringLastEvaluatedAt,
+      href: input.isActiveWorkspace ? "/monitoring" : `/projects/${input.projectId}`,
+    });
+  }
+
+  return entries
+    .sort((left, right) => (right.timestamp ?? "").localeCompare(left.timestamp ?? ""))
+    .slice(0, 5);
+}
+
 export default async function ProjectDetailPage({
   params,
 }: Readonly<{
@@ -164,6 +380,16 @@ export default async function ProjectDetailPage({
   }
 
   const isActiveWorkspace = projectData.summary.project.id === currentActiveProjectId;
+  const recommendedAction = buildRecommendedAction({
+    projectId,
+    isActiveWorkspace,
+    projectData,
+  });
+  const recentChanges = buildRecentChanges({
+    projectId,
+    isActiveWorkspace,
+    projectData,
+  });
 
   return (
     <PageFrame
@@ -195,7 +421,7 @@ export default async function ProjectDetailPage({
               href="/monitoring"
               className="action-button-secondary"
             >
-              Open Monitoring
+              Review Alerts
             </Link>
           ) : null}
           <Link
@@ -354,32 +580,119 @@ export default async function ProjectDetailPage({
                   href="/monitoring"
                   className="action-button-secondary"
                 >
-                  Open Monitoring
+                  Review Alerts
                 </Link>
               ) : null}
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              { href: `/projects/${projectId}/thesis`, title: "Thesis", detail: `Revision ${projectData.summary.thesisRevisionNumber || 0} · ${labelize(projectData.summary.thesisStance)}` },
-              { href: `/projects/${projectId}/dossier`, title: "Dossier", detail: projectData.summary.dossierSectionCoverageLabel },
-              { href: `/projects/${projectId}/catalysts`, title: "Catalysts", detail: `${projectData.summary.upcomingCatalystCount} upcoming / ${projectData.summary.highImportanceCatalystCount} high importance` },
-              { href: "/timeline", title: "Timeline", detail: `${projectData.summary.timelineEventCount} chronology events` },
-              { href: "/contradictions", title: "Contradictions", detail: `${projectData.summary.unresolvedContradictionCount} unresolved` },
-              { href: isActiveWorkspace ? "/monitoring" : `/projects/${projectId}`, title: "Monitoring", detail: `${projectData.summary.freshnessAlertCount} active stale alerts` },
-              { href: "/artifacts", title: "Artifacts", detail: `${projectData.summary.artifactCount} durable outputs` },
-              { href: "/ask", title: "Ask", detail: "Canon-first research query flow" },
-            ].map((item) => (
-              <Link
-                key={`${item.title}-${item.href}`}
-                href={item.href}
-                className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 transition hover:bg-background"
-              >
-                <p className="font-semibold tracking-tight text-foreground">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-muted">{item.detail}</p>
-              </Link>
-            ))}
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+              <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                Next best action
+              </p>
+              <p className="mt-3 text-lg font-semibold tracking-tight text-foreground">
+                {recommendedAction.label}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-muted">
+                {recommendedAction.detail}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {recommendedAction.kind === "link" ? (
+                  <Link href={recommendedAction.href} className="action-button-primary">
+                    {recommendedAction.label}
+                  </Link>
+                ) : null}
+                {recommendedAction.kind === "refresh-thesis" ? (
+                  <form action={compileProjectThesisAction}>
+                    <input type="hidden" name="projectId" value={projectId} />
+                    <input type="hidden" name="redirectTo" value={`/projects/${projectId}`} />
+                    <button className="action-button-primary">Refresh Thesis</button>
+                  </form>
+                ) : null}
+                {recommendedAction.kind === "refresh-dossier" ? (
+                  <form action={compileProjectDossierAction}>
+                    <input type="hidden" name="projectId" value={projectId} />
+                    <input type="hidden" name="redirectTo" value={`/projects/${projectId}`} />
+                    <button className="action-button-primary">Refresh Dossier</button>
+                  </form>
+                ) : null}
+                {recommendedAction.kind === "refresh-catalysts" ? (
+                  <form action={compileProjectCatalystsAction}>
+                    <input type="hidden" name="projectId" value={projectId} />
+                    <input type="hidden" name="redirectTo" value={`/projects/${projectId}`} />
+                    <button className="action-button-primary">Refresh Catalysts</button>
+                  </form>
+                ) : null}
+                {recommendedAction.kind === "rebuild-timeline" ? (
+                  <form action={compileActiveProjectTimelineAction}>
+                    <button className="action-button-primary">Rebuild Timeline</button>
+                  </form>
+                ) : null}
+                {recommendedAction.kind === "rerun-contradictions" ? (
+                  <form action={runActiveProjectContradictionAnalysisAction}>
+                    <button className="action-button-primary">Re-run Contradictions</button>
+                  </form>
+                ) : null}
+                {recommendedAction.secondaryHref ? (
+                  <Link
+                    href={recommendedAction.secondaryHref}
+                    className="action-button-secondary"
+                  >
+                    {recommendedAction.secondaryLabel}
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+              <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                Recent changes
+              </p>
+              <div className="mt-3 space-y-3">
+                {recentChanges.map((entry) => (
+                  <Link
+                    key={`${entry.title}-${entry.timestamp ?? "none"}`}
+                    href={entry.href}
+                    className="block rounded-2xl border border-border bg-background/65 px-4 py-4 transition hover:bg-background"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <p className="font-semibold tracking-tight text-foreground">
+                        {entry.title}
+                      </p>
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                        {formatDateTime(entry.timestamp)}
+                      </p>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      {entry.detail}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </div>
           </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { href: `/projects/${projectId}/thesis`, title: "Thesis", detail: `Revision ${projectData.summary.thesisRevisionNumber || 0} · ${labelize(projectData.summary.thesisStance)}` },
+            { href: `/projects/${projectId}/dossier`, title: "Dossier", detail: projectData.summary.dossierSectionCoverageLabel },
+            { href: `/projects/${projectId}/catalysts`, title: "Catalysts", detail: `${projectData.summary.upcomingCatalystCount} upcoming / ${projectData.summary.highImportanceCatalystCount} high importance` },
+            { href: "/timeline", title: "Timeline", detail: `${projectData.summary.timelineEventCount} chronology events` },
+            { href: "/contradictions", title: "Contradictions", detail: `${projectData.summary.unresolvedContradictionCount} unresolved` },
+            { href: isActiveWorkspace ? "/monitoring" : `/projects/${projectId}`, title: "Alerts", detail: `${projectData.summary.freshnessAlertCount} active stale alerts` },
+            { href: "/artifacts", title: "Artifacts", detail: `${projectData.summary.artifactCount} durable outputs` },
+            { href: "/ask", title: "Ask", detail: "Canon-first research query flow" },
+          ].map((item) => (
+            <Link
+              key={`${item.title}-${item.href}`}
+              href={item.href}
+              className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 transition hover:bg-background"
+            >
+              <p className="font-semibold tracking-tight text-foreground">{item.title}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">{item.detail}</p>
+            </Link>
+          ))}
         </div>
       </SectionCard>
 
@@ -457,7 +770,7 @@ export default async function ProjectDetailPage({
                     href="/monitoring"
                     className="action-button-secondary mt-4"
                   >
-                    Open Monitoring
+                    Review Alerts
                   </Link>
                 ) : null}
               </div>
@@ -503,6 +816,43 @@ export default async function ProjectDetailPage({
                     <p className="mt-2 text-sm leading-6 text-muted">
                       Suggested action: {entry.alert.metadata?.suggestedAction ?? "Review updated knowledge inputs"}.
                     </p>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      {isActiveWorkspace ? (
+                        <Link
+                          href="/monitoring"
+                          className="action-button-secondary action-button-compact"
+                        >
+                          Review Alerts
+                        </Link>
+                      ) : null}
+                      {entry.alert.alertType === "thesis_may_be_stale" ? (
+                        <form action={compileProjectThesisAction}>
+                          <input type="hidden" name="projectId" value={projectId} />
+                          <input type="hidden" name="redirectTo" value={`/projects/${projectId}`} />
+                          <button className="action-button-secondary action-button-compact">
+                            Refresh Thesis
+                          </button>
+                        </form>
+                      ) : null}
+                      {entry.alert.alertType === "dossier_may_be_stale" ? (
+                        <form action={compileProjectDossierAction}>
+                          <input type="hidden" name="projectId" value={projectId} />
+                          <input type="hidden" name="redirectTo" value={`/projects/${projectId}`} />
+                          <button className="action-button-secondary action-button-compact">
+                            Refresh Dossier
+                          </button>
+                        </form>
+                      ) : null}
+                      {entry.alert.alertType === "catalyst_tracker_needs_refresh" ? (
+                        <form action={compileProjectCatalystsAction}>
+                          <input type="hidden" name="projectId" value={projectId} />
+                          <input type="hidden" name="redirectTo" value={`/projects/${projectId}`} />
+                          <button className="action-button-secondary action-button-compact">
+                            Refresh Catalysts
+                          </button>
+                        </form>
+                      ) : null}
+                    </div>
                   </div>
                 ))
               ) : (
@@ -554,41 +904,6 @@ export default async function ProjectDetailPage({
           </div>
         </SectionCard>
 
-        <SectionCard
-          eyebrow="Quick Links"
-          title="Related workspace surfaces"
-          description="These top-level screens are already structured around project-owned data."
-        >
-          <div className="space-y-3">
-            {["/sources", "/wiki", "/artifacts", "/dossier", "/catalysts", "/timeline", "/contradictions", "/ask", ...(isActiveWorkspace ? ["/monitoring"] : [])].map((href) => (
-              <Link
-                key={href}
-                href={href}
-                className="block rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm font-semibold text-foreground transition hover:bg-background"
-              >
-                {href.replace("/", "").replace("-", " ")}
-              </Link>
-            ))}
-            <Link
-              href="/lint"
-              className="block rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm font-semibold text-foreground transition hover:bg-background"
-            >
-              lint
-            </Link>
-            <Link
-              href={`/projects/${projectId}/thesis`}
-              className="block rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm font-semibold text-foreground transition hover:bg-background"
-            >
-              thesis
-            </Link>
-            <Link
-              href={`/projects/${projectId}/catalysts`}
-              className="block rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm font-semibold text-foreground transition hover:bg-background"
-            >
-              catalysts
-            </Link>
-          </div>
-        </SectionCard>
       </div>
 
       <SectionCard
@@ -680,7 +995,7 @@ export default async function ProjectDetailPage({
                 href={`/projects/${projectId}/catalysts`}
                 className="action-button-secondary mt-4"
               >
-                Open Catalyst Tracker
+                Open Catalysts
               </Link>
             </div>
           </div>
@@ -803,7 +1118,7 @@ export default async function ProjectDetailPage({
                 href="/contradictions"
                 className="action-button-secondary mt-4"
               >
-                Open Contradictions Map
+                Open Contradictions
               </Link>
             </div>
           </div>

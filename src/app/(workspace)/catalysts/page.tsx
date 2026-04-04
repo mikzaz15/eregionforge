@@ -41,7 +41,7 @@ export default async function CatalystsPage() {
             href="/monitoring"
             className="action-button-secondary"
           >
-            Open Monitoring
+            Review Alerts
           </Link>
         </div>
       }

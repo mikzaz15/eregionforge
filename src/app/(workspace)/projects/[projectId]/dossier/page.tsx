@@ -42,7 +42,7 @@ export default async function ProjectDossierPage({
             href={`/projects/${projectId}`}
             className="action-button-secondary"
           >
-            Project Detail
+            Open Command View
           </Link>
           <Link
             href={`/projects/${projectId}/thesis`}

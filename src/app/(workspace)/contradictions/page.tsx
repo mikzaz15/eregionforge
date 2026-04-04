@@ -72,7 +72,7 @@ export default async function ContradictionsPage() {
         <div className="flex flex-wrap gap-3">
           <form action={runActiveProjectContradictionAnalysisAction}>
             <button className="action-button-primary">
-              Re-Run Analysis
+              Re-run Contradictions
             </button>
           </form>
           <Link
@@ -91,7 +91,7 @@ export default async function ContradictionsPage() {
             href="/monitoring"
             className="action-button-secondary"
           >
-            Open Monitoring
+            Review Alerts
           </Link>
         </div>
       }

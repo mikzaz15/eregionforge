@@ -327,14 +327,14 @@ export function ThesisView({
                                 href={monitoringPath}
                                 className="action-button-secondary action-button-compact"
                               >
-                                Open Monitoring
+                                Review Alerts
                               </Link>
                             ) : null}
                             <Link
                               href={catalystsPath}
                               className="action-button-secondary action-button-compact"
                             >
-                              Open Catalyst Tracker
+                              Open Catalysts
                             </Link>
                           </div>
                         </div>
@@ -677,7 +677,7 @@ export function ThesisView({
                   href={catalystsPath}
                   className="action-button-secondary"
                 >
-                  Open Catalyst Tracker
+                  Open Catalysts
                 </Link>
                 <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
                   <MarkdownDocument content={thesis.catalystSummaryMarkdown} />

@@ -40,7 +40,7 @@ export default async function DossierPage() {
             href="/monitoring"
             className="action-button-secondary"
           >
-            Open Monitoring
+            Review Alerts
           </Link>
           <Link
             href="/entities"

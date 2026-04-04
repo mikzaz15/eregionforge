@@ -146,6 +146,12 @@ export type ProjectDetailData = {
   wikiPages: WikiPageSummary[];
   artifacts: ArtifactSummaryRecord[];
   artifactTypeMix: Array<{ artifactType: ArtifactType; count: number }>;
+  entityAnalysisState: {
+    projectId: string;
+    lastCompiledAt: string | null;
+    entityCount: number;
+    summary: string;
+  };
   timelineEvents: TimelineReferenceRecord[];
   contradictions: ContradictionReferenceRecord[];
   catalysts: CatalystReferenceRecord[];
@@ -835,11 +841,12 @@ export async function getProjectDetailData(
     return null;
   }
 
-  const [sources, wikiPages, artifacts, timelineEvents, contradictions, catalysts, thesis, dossier, monitoring] =
+  const [sources, wikiPages, artifacts, entitySnapshot, timelineEvents, contradictions, catalysts, thesis, dossier, monitoring] =
     await Promise.all([
       sourcesRepository.listByProjectId(projectId),
       buildWikiPageSummaries(projectId),
       listProjectArtifacts({ projectId }),
+      getProjectEntitySnapshot(projectId),
       listProjectTimelineEvents(projectId),
       listProjectContradictions(projectId),
       listProjectCatalysts(projectId),
@@ -855,6 +862,7 @@ export async function getProjectDetailData(
     wikiPages: sortWikiPageSummariesByUpdatedAtDesc(wikiPages),
     artifacts,
     artifactTypeMix: buildArtifactTypeMix(artifacts),
+    entityAnalysisState: entitySnapshot.analysisState,
     timelineEvents,
     contradictions,
     catalysts,

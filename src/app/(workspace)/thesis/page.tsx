@@ -52,7 +52,7 @@ export default async function ThesisPage({
             href="/monitoring"
             className="action-button-secondary"
           >
-            Open Monitoring
+            Review Alerts
           </Link>
           <Link
             href="/catalysts"
