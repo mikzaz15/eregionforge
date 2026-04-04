@@ -40,6 +40,13 @@ import {
   type ProjectLintHealthSummary,
 } from "@/lib/services/lint-service";
 import {
+  getProjectContradictionSnapshot,
+  getProjectContradictionsPageData,
+  listProjectContradictions,
+  type ContradictionReferenceRecord,
+  type ProjectContradictionSummary,
+} from "@/lib/services/contradiction-service";
+import {
   getProjectTimelinePageData,
   listProjectTimelineEvents,
   type TimelineReferenceRecord,
@@ -60,6 +67,9 @@ export type ProjectSummary = {
   latestCompileAt: string | null;
   latestCompileSummary: string;
   timelineEventCount: number;
+  contradictionCount: number;
+  highSeverityContradictionCount: number;
+  unresolvedContradictionCount: number;
   health: ProjectLintHealthSummary;
 };
 
@@ -83,6 +93,7 @@ export type ProjectDetailData = {
   artifacts: ArtifactSummaryRecord[];
   artifactTypeMix: Array<{ artifactType: ArtifactType; count: number }>;
   timelineEvents: TimelineReferenceRecord[];
+  contradictions: ContradictionReferenceRecord[];
   latestCompile: CompileJob | null;
 };
 
@@ -97,6 +108,19 @@ export type LintIssuesPageData = {
   issues: ProjectLintIssueRecord[];
   openIssueCount: number;
   resolvedIssueCount: number;
+};
+
+export type ContradictionsPageData = {
+  summary: ProjectSummary;
+  contradictionSummary: ProjectContradictionSummary;
+  contradictions: ContradictionReferenceRecord[];
+  analysisState: {
+    projectId: string;
+    lastAnalyzedAt: string | null;
+    contradictionCount: number;
+    summary: string;
+  };
+  metrics: Array<{ label: string; value: string; note: string }>;
 };
 
 export type SourceRecordSummary = {
@@ -478,6 +502,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     evidenceLinks,
     timelineEvents,
     lintSnapshot,
+    contradictionSnapshot,
   ] =
     await Promise.all([
       sourcesRepository.listByProjectId(project.id),
@@ -488,6 +513,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       evidenceLinksRepository.listByProjectId(project.id),
       listProjectTimelineEvents(project.id),
       getProjectLintSnapshot(project.id),
+      getProjectContradictionSnapshot(project.id),
     ]);
   const generatedPageCount = pages.filter(
     (page) => page.generationMetadata?.generatedBy === "deterministic-compiler",
@@ -518,6 +544,11 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     latestCompileSummary:
       latestCompile?.summary ?? "No compile job has been run against this project yet.",
     timelineEventCount: timelineEvents.length,
+    contradictionCount: contradictionSnapshot.summary.totalContradictions,
+    highSeverityContradictionCount:
+      contradictionSnapshot.summary.highSeverityContradictions,
+    unresolvedContradictionCount:
+      contradictionSnapshot.summary.unresolvedContradictions,
     health: lintSnapshot.health,
   };
 });
@@ -657,11 +688,12 @@ export async function getProjectDetailData(
     return null;
   }
 
-  const [sources, wikiPages, artifacts, timelineEvents] = await Promise.all([
+  const [sources, wikiPages, artifacts, timelineEvents, contradictions] = await Promise.all([
     sourcesRepository.listByProjectId(projectId),
     buildWikiPageSummaries(projectId),
     listProjectArtifacts({ projectId }),
     listProjectTimelineEvents(projectId),
+    listProjectContradictions(projectId),
   ]);
   const latestCompile = await compileJobsRepository.getLatestByProjectId(projectId);
 
@@ -672,6 +704,7 @@ export async function getProjectDetailData(
     artifacts,
     artifactTypeMix: buildArtifactTypeMix(artifacts),
     timelineEvents,
+    contradictions,
     latestCompile,
   };
 }
@@ -995,6 +1028,30 @@ export async function getTimelinePageData(
     events: timelineData.events,
     compileState: timelineData.compileState,
     metrics: timelineData.metrics,
+  };
+}
+
+export async function getContradictionsPageData(
+  projectId: string,
+): Promise<ContradictionsPageData | null> {
+  const summary = await getProjectSummary(projectId);
+
+  if (!summary) {
+    return null;
+  }
+
+  const contradictionData = await getProjectContradictionsPageData(projectId);
+
+  return {
+    summary,
+    contradictionSummary: {
+      totalContradictions: summary.contradictionCount,
+      highSeverityContradictions: summary.highSeverityContradictionCount,
+      unresolvedContradictions: summary.unresolvedContradictionCount,
+    },
+    contradictions: contradictionData.contradictions,
+    analysisState: contradictionData.analysisState,
+    metrics: contradictionData.metrics,
   };
 }
 

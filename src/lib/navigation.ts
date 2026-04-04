@@ -43,6 +43,12 @@ export const workspaceNavigation: NavigationItem[] = [
     shortLabel: "TL",
   },
   {
+    href: "/contradictions",
+    label: "Contradictions",
+    description: "Compiled disagreement map across canon, sources, claims, and chronology.",
+    shortLabel: "CD",
+  },
+  {
     href: "/ask",
     label: "Ask",
     description: "Project-scoped research queries resolved against canon first.",

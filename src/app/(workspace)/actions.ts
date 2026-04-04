@@ -5,6 +5,10 @@ import { redirect } from "next/navigation";
 import type { AskAnswerMode, ArtifactType, WikiPageType } from "@/lib/domain/types";
 import { runAskSession, saveAskSessionAsArtifact } from "@/lib/services/ask-service";
 import { setArtifactWikiFilingEligibility } from "@/lib/services/artifact-service";
+import {
+  runProjectContradictionAnalysis,
+  updateContradictionStatus,
+} from "@/lib/services/contradiction-service";
 import { compileProjectTimeline } from "@/lib/services/timeline-service";
 import { getActiveProjectId } from "@/lib/services/workspace-service";
 import { compileProject } from "@/lib/services/compiler-service";
@@ -24,6 +28,7 @@ function refreshWorkspacePaths(projectId: string) {
   revalidatePath("/artifacts");
   revalidatePath("/artifacts/[artifactId]", "page");
   revalidatePath("/ask");
+  revalidatePath("/contradictions");
   revalidatePath("/timeline");
   revalidatePath("/settings");
 }
@@ -151,4 +156,29 @@ export async function compileActiveProjectTimelineAction() {
   await compileProjectTimeline(projectId);
   refreshWorkspacePaths(projectId);
   redirect("/timeline");
+}
+
+export async function runActiveProjectContradictionAnalysisAction() {
+  const projectId = await getActiveProjectId();
+  await runProjectContradictionAnalysis(projectId);
+  refreshWorkspacePaths(projectId);
+  redirect("/contradictions");
+}
+
+export async function updateContradictionStatusAction(formData: FormData) {
+  const projectId = await getActiveProjectId();
+  const contradictionId = String(formData.get("contradictionId") ?? "");
+  const status = String(formData.get("status") ?? "");
+  const redirectTo = String(formData.get("redirectTo") ?? "/contradictions");
+
+  if (!contradictionId || !status) {
+    throw new Error("Contradiction id and status are required.");
+  }
+
+  await updateContradictionStatus(
+    contradictionId,
+    status as "open" | "reviewed" | "resolved",
+  );
+  refreshWorkspacePaths(projectId);
+  redirect(redirectTo);
 }

@@ -145,6 +145,7 @@ export default async function TimelinePage() {
               data.events.map((entry) => (
                 <article
                   key={entry.event.id}
+                  id={entry.event.id}
                   className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4"
                 >
                   <div className="grid gap-4 lg:grid-cols-[170px_minmax(0,1fr)]">

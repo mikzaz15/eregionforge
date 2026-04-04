@@ -1,0 +1,761 @@
+import type {
+  Claim,
+  Contradiction,
+  ContradictionAnalysisState,
+  ContradictionDraft,
+  ContradictionSeverity,
+  RevisionConfidence,
+  Source,
+  TimelineEvent,
+  WikiPage,
+  WikiPageRevision,
+} from "@/lib/domain/types";
+import { claimsRepository } from "@/lib/repositories/claims-repository";
+import { contradictionsRepository } from "@/lib/repositories/contradictions-repository";
+import { sourcesRepository } from "@/lib/repositories/sources-repository";
+import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
+import { wikiRepository } from "@/lib/repositories/wiki-repository";
+
+type PageContradictionContext = {
+  page: WikiPage;
+  revision: WikiPageRevision | null;
+  sourceIds: string[];
+};
+
+type TextComparison = {
+  signalKind: "canon-vs-chat" | "directional" | "numeric" | "status";
+  reason: string;
+  overlap: number;
+  sharedThemes: string[];
+  sharedTokens: string[];
+};
+
+export type ContradictionReferenceRecord = {
+  contradiction: Contradiction;
+  leftClaim: Claim | null;
+  rightClaim: Claim | null;
+  relatedPages: WikiPage[];
+  relatedSources: Source[];
+  relatedTimelineEvents: TimelineEvent[];
+};
+
+export type ProjectContradictionSummary = {
+  totalContradictions: number;
+  highSeverityContradictions: number;
+  unresolvedContradictions: number;
+};
+
+export type ContradictionsPageData = {
+  contradictions: ContradictionReferenceRecord[];
+  analysisState: ContradictionAnalysisState;
+  metrics: Array<{ label: string; value: string; note: string }>;
+};
+
+const severityOrder: Record<ContradictionSeverity, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+const stopWords = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "that",
+  "this",
+  "from",
+  "into",
+  "page",
+  "source",
+  "sources",
+  "claim",
+  "claims",
+  "project",
+  "current",
+  "should",
+]);
+
+function normalizeText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9%]+/g, " ").trim();
+}
+
+function stableKey(...parts: Array<string | null | undefined>): string {
+  return parts
+    .filter((part): part is string => Boolean(part))
+    .map((part) => part.toLowerCase().replace(/[^a-z0-9]+/g, "-"))
+    .join("-");
+}
+
+function preview(value: string, length = 220): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > length
+    ? `${normalized.slice(0, length).trimEnd()}...`
+    : normalized;
+}
+
+function tokenSet(value: string): Set<string> {
+  return new Set(
+    normalizeText(value)
+      .split(/\s+/)
+      .filter((token) => token.length > 2 && !stopWords.has(token)),
+  );
+}
+
+function jaccardSimilarity(left: Set<string>, right: Set<string>): number {
+  if (left.size === 0 || right.size === 0) {
+    return 0;
+  }
+
+  let intersection = 0;
+
+  for (const token of left) {
+    if (right.has(token)) {
+      intersection += 1;
+    }
+  }
+
+  const union = new Set([...left, ...right]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function sharedTokens(left: Set<string>, right: Set<string>): string[] {
+  return Array.from(left).filter((token) => right.has(token)).slice(0, 5);
+}
+
+function detectThemes(value: string): Set<string> {
+  const normalized = normalizeText(value);
+  const themes = new Set<string>();
+
+  if (
+    ["ask", "chat", "assistant", "conversational", "canonical", "canon", "wiki", "compiled", "raw", "file", "files"]
+      .some((token) => normalized.includes(token))
+  ) {
+    themes.add("interaction-model");
+  }
+
+  if (
+    ["pricing", "margin", "asp", "mix", "returns", "utilization", "backlog", "compression", "expansion", "premium"]
+      .some((token) => normalized.includes(token))
+  ) {
+    themes.add("financial-outlook");
+  }
+
+  if (
+    ["compiled", "parsed", "failed", "pending", "draft", "active", "stale", "running", "completed"]
+      .some((token) => normalized.includes(token))
+  ) {
+    themes.add("execution-status");
+  }
+
+  return themes;
+}
+
+function extractNumbers(value: string): string[] {
+  return Array.from(
+    value.matchAll(/\b\d+(?:\.\d+)?%?\b/g),
+    (match) => match[0],
+  );
+}
+
+function hasNegation(value: string): boolean {
+  const normalized = normalizeText(value);
+  return (
+    normalized.includes(" not ") ||
+    normalized.startsWith("not ") ||
+    normalized.includes(" never ") ||
+    normalized.includes(" without ") ||
+    normalized.includes(" rather than ") ||
+    normalized.includes(" instead of ") ||
+    normalized.includes(" must not ")
+  );
+}
+
+function extractStatusTerms(value: string): string[] {
+  const normalized = normalizeText(value);
+  const statuses = [
+    "compiled",
+    "parsed",
+    "failed",
+    "pending",
+    "draft",
+    "active",
+    "stale",
+    "running",
+    "completed",
+    "archived",
+  ];
+
+  return statuses.filter((status) => normalized.includes(status));
+}
+
+function detectConflictSignal(leftText: string, rightText: string): TextComparison | null {
+  const leftTokens = tokenSet(leftText);
+  const rightTokens = tokenSet(rightText);
+  const overlap = jaccardSimilarity(leftTokens, rightTokens);
+  const commonThemes = Array.from(detectThemes(leftText)).filter((theme) =>
+    detectThemes(rightText).has(theme),
+  );
+  const commonTokens = sharedTokens(leftTokens, rightTokens);
+  const leftNormalized = normalizeText(leftText);
+  const rightNormalized = normalizeText(rightText);
+  const hasComparableContext = overlap >= 0.12 || commonThemes.length > 0 || commonTokens.length >= 2;
+
+  if (!hasComparableContext) {
+    return null;
+  }
+
+  const leftCanon = ["canonical", "canon", "wiki", "compiled"].some((token) =>
+    leftNormalized.includes(token),
+  );
+  const rightCanon = ["canonical", "canon", "wiki", "compiled"].some((token) =>
+    rightNormalized.includes(token),
+  );
+  const leftChat = ["chat", "assistant", "conversational"].some((token) =>
+    leftNormalized.includes(token),
+  );
+  const rightChat = ["chat", "assistant", "conversational"].some((token) =>
+    rightNormalized.includes(token),
+  );
+  const leftRawFirst =
+    leftNormalized.includes("raw files") ||
+    leftNormalized.includes("raw file") ||
+    leftNormalized.includes("raw sources") ||
+    leftNormalized.includes("before canonical wiki") ||
+    leftNormalized.includes("before canonical");
+  const rightRawFirst =
+    rightNormalized.includes("raw files") ||
+    rightNormalized.includes("raw file") ||
+    rightNormalized.includes("raw sources") ||
+    rightNormalized.includes("before canonical wiki") ||
+    rightNormalized.includes("before canonical");
+
+  if (
+    ((leftCanon || hasNegation(leftText)) && (rightChat || rightRawFirst)) ||
+    ((rightCanon || hasNegation(rightText)) && (leftChat || leftRawFirst))
+  ) {
+    return {
+      signalKind: "canon-vs-chat",
+      reason:
+        "One record centers canonical wiki compilation while the other argues for direct conversational retrieval from raw files or sources.",
+      overlap,
+      sharedThemes: commonThemes,
+      sharedTokens: commonTokens,
+    };
+  }
+
+  const growthTerms = [
+    "expansion",
+    "expand",
+    "improvement",
+    "improve",
+    "higher",
+    "growth",
+    "durable",
+    "premium",
+    "stable",
+    "upside",
+  ];
+  const pressureTerms = [
+    "pressure",
+    "compression",
+    "compress",
+    "lower",
+    "decline",
+    "downside",
+    "risk",
+    "normalize",
+    "normalization",
+    "failed",
+  ];
+  const leftGrowth = growthTerms.some((term) => leftNormalized.includes(term));
+  const rightGrowth = growthTerms.some((term) => rightNormalized.includes(term));
+  const leftPressure = pressureTerms.some((term) => leftNormalized.includes(term));
+  const rightPressure = pressureTerms.some((term) => rightNormalized.includes(term));
+
+  if ((leftGrowth && rightPressure) || (rightGrowth && leftPressure)) {
+    return {
+      signalKind: "directional",
+      reason:
+        "The compared records describe the same topic with materially different directional posture, mixing expansion or strength language with compression or downside language.",
+      overlap,
+      sharedThemes: commonThemes,
+      sharedTokens: commonTokens,
+    };
+  }
+
+  const leftNumbers = extractNumbers(leftText);
+  const rightNumbers = extractNumbers(rightText);
+
+  if (
+    leftNumbers.length > 0 &&
+    rightNumbers.length > 0 &&
+    leftNumbers.every((value) => !rightNumbers.includes(value)) &&
+    (overlap >= 0.16 || commonThemes.length > 0)
+  ) {
+    return {
+      signalKind: "numeric",
+      reason: `The compared records cite different numeric values (${leftNumbers[0]} vs ${rightNumbers[0]}) for an overlapping topic area.`,
+      overlap,
+      sharedThemes: commonThemes,
+      sharedTokens: commonTokens,
+    };
+  }
+
+  const leftStatuses = extractStatusTerms(leftText);
+  const rightStatuses = extractStatusTerms(rightText);
+
+  if (
+    leftStatuses.length > 0 &&
+    rightStatuses.length > 0 &&
+    leftStatuses.every((status) => !rightStatuses.includes(status))
+  ) {
+    return {
+      signalKind: "status",
+      reason: `The records describe overlapping scope with incompatible status signals (${leftStatuses[0]} vs ${rightStatuses[0]}).`,
+      overlap,
+      sharedThemes: commonThemes,
+      sharedTokens: commonTokens,
+    };
+  }
+
+  return null;
+}
+
+function severityForComparison(
+  comparison: TextComparison,
+  confidence: RevisionConfidence,
+): ContradictionSeverity {
+  if (comparison.signalKind === "numeric" || comparison.signalKind === "canon-vs-chat") {
+    return confidence === "high" ? "high" : "medium";
+  }
+
+  if (comparison.signalKind === "directional") {
+    return confidence === "high" ? "high" : "medium";
+  }
+
+  return confidence === "high" ? "medium" : "low";
+}
+
+function confidenceFromScore(score: number): RevisionConfidence {
+  if (score >= 0.45) {
+    return "high";
+  }
+
+  if (score >= 0.22) {
+    return "medium";
+  }
+
+  return "low";
+}
+
+function confidenceRank(value: RevisionConfidence | null | undefined): number {
+  if (value === "high") {
+    return 3;
+  }
+
+  if (value === "medium") {
+    return 2;
+  }
+
+  return 1;
+}
+
+function maxConfidence(
+  left: RevisionConfidence | null | undefined,
+  right: RevisionConfidence | null | undefined,
+): RevisionConfidence {
+  return confidenceRank(left) >= confidenceRank(right)
+    ? (left ?? "low")
+    : (right ?? "low");
+}
+
+function sortContradictions(contradictions: Contradiction[]): Contradiction[] {
+  const statusOrder = {
+    open: 0,
+    reviewed: 1,
+    resolved: 2,
+  } as const;
+
+  return structuredClone(contradictions).sort((left, right) => {
+    if (left.status !== right.status) {
+      return statusOrder[left.status] - statusOrder[right.status];
+    }
+
+    return (
+      severityOrder[left.severity] - severityOrder[right.severity] ||
+      right.updatedAt.localeCompare(left.updatedAt)
+    );
+  });
+}
+
+function summarizeContradictions(
+  contradictions: Contradiction[],
+): ProjectContradictionSummary {
+  return {
+    totalContradictions: contradictions.length,
+    highSeverityContradictions: contradictions.filter(
+      (contradiction) =>
+        contradiction.severity === "critical" || contradiction.severity === "high",
+    ).length,
+    unresolvedContradictions: contradictions.filter(
+      (contradiction) => contradiction.status !== "resolved",
+    ).length,
+  };
+}
+
+async function buildPageContexts(projectId: string): Promise<PageContradictionContext[]> {
+  const pages = await wikiRepository.listPagesByProjectId(projectId);
+
+  return Promise.all(
+    pages.map(async (page) => {
+      const [revision, sourceIds] = await Promise.all([
+        wikiRepository.getCurrentRevision(page.id),
+        wikiRepository.listSourceIdsForPage(page.id),
+      ]);
+
+      return {
+        page,
+        revision,
+        sourceIds,
+      };
+    }),
+  );
+}
+
+async function computeContradictionDrafts(projectId: string): Promise<ContradictionDraft[]> {
+  const [claims, sources, pageContexts, timelineEvents] = await Promise.all([
+    claimsRepository.listByProjectId(projectId),
+    sourcesRepository.listByProjectId(projectId),
+    buildPageContexts(projectId),
+    timelineEventsRepository.listByProjectId(projectId),
+  ]);
+  const issues: ContradictionDraft[] = [];
+  const pageIdsBySourceId = new Map<string, string[]>();
+
+  for (const context of pageContexts) {
+    for (const sourceId of context.sourceIds) {
+      pageIdsBySourceId.set(sourceId, [
+        ...(pageIdsBySourceId.get(sourceId) ?? []),
+        context.page.id,
+      ]);
+    }
+  }
+
+  for (let index = 0; index < claims.length; index += 1) {
+    for (let pairIndex = index + 1; pairIndex < claims.length; pairIndex += 1) {
+      const left = claims[index];
+      const right = claims[pairIndex];
+      const comparison = detectConflictSignal(left.text, right.text);
+
+      if (!comparison) {
+        continue;
+      }
+
+      const newer = left.createdAt >= right.createdAt ? left : right;
+      const older = newer.id === left.id ? right : left;
+      const contradictionType =
+        newer.createdAt !== older.createdAt
+          ? "stale_vs_newer_claim"
+          : "direct_claim_conflict";
+      const confidence = maxConfidence(left.confidence, right.confidence);
+
+      issues.push({
+        stableKey: stableKey("claim", contradictionType, left.id, right.id),
+        projectId,
+        contradictionType,
+        title: `Claim conflict between ${left.claimType} and ${right.claimType}`,
+        description: `${preview(left.text, 140)} / ${preview(right.text, 140)}`,
+        severity: severityForComparison(comparison, confidence),
+        confidence,
+        leftClaimId: left.id,
+        rightClaimId: right.id,
+        relatedPageIds: Array.from(new Set([left.wikiPageId, right.wikiPageId])),
+        relatedSourceIds: Array.from(
+          new Set([left.sourceId ?? null, right.sourceId ?? null].filter(Boolean) as string[]),
+        ),
+        relatedTimelineEventIds: [],
+        rationale: `${comparison.reason} Shared tokens: ${comparison.sharedTokens.join(", ") || "theme overlap only"}.`,
+        metadata: {
+          newerClaimId: newer.id,
+          olderClaimId: older.id,
+        },
+      });
+    }
+  }
+
+  for (let index = 0; index < sources.length; index += 1) {
+    for (let pairIndex = index + 1; pairIndex < sources.length; pairIndex += 1) {
+      const left = sources[index];
+      const right = sources[pairIndex];
+      const comparison = detectConflictSignal(
+        `${left.title}. ${left.body ?? ""}`,
+        `${right.title}. ${right.body ?? ""}`,
+      );
+
+      if (!comparison) {
+        continue;
+      }
+
+      const confidence = confidenceFromScore(comparison.overlap + comparison.sharedThemes.length * 0.16);
+
+      issues.push({
+        stableKey: stableKey("source", left.id, right.id, comparison.signalKind),
+        projectId,
+        contradictionType: "source_disagreement",
+        title: `Source disagreement: ${left.title} vs ${right.title}`,
+        description: `${preview(left.body ?? left.title, 120)} / ${preview(right.body ?? right.title, 120)}`,
+        severity: severityForComparison(comparison, confidence),
+        confidence,
+        leftClaimId: null,
+        rightClaimId: null,
+        relatedPageIds: Array.from(
+          new Set([
+            ...(pageIdsBySourceId.get(left.id) ?? []),
+            ...(pageIdsBySourceId.get(right.id) ?? []),
+          ]),
+        ),
+        relatedSourceIds: [left.id, right.id],
+        relatedTimelineEventIds: [],
+        rationale: `${comparison.reason} This pair was flagged from overlapping source narratives rather than canonical claim ids.`,
+      });
+    }
+  }
+
+  for (let index = 0; index < pageContexts.length; index += 1) {
+    for (let pairIndex = index + 1; pairIndex < pageContexts.length; pairIndex += 1) {
+      const left = pageContexts[index];
+      const right = pageContexts[pairIndex];
+      const leftText = [left.page.title, left.revision?.summary ?? "", left.revision?.markdownContent ?? ""].join(" ");
+      const rightText = [right.page.title, right.revision?.summary ?? "", right.revision?.markdownContent ?? ""].join(" ");
+      const comparison = detectConflictSignal(leftText, rightText);
+
+      if (!comparison) {
+        continue;
+      }
+
+      const confidence = confidenceFromScore(
+        comparison.overlap +
+          comparison.sharedThemes.length * 0.18 +
+          (left.revision?.confidence === "high" || right.revision?.confidence === "high"
+            ? 0.08
+            : 0),
+      );
+
+      issues.push({
+        stableKey: stableKey("page", left.page.id, right.page.id, comparison.signalKind),
+        projectId,
+        contradictionType: "overlapping_but_inconsistent_summary",
+        title: `Canonical summary tension: ${left.page.title} vs ${right.page.title}`,
+        description: `${preview(left.revision?.summary ?? leftText, 120)} / ${preview(right.revision?.summary ?? rightText, 120)}`,
+        severity: severityForComparison(comparison, confidence),
+        confidence,
+        leftClaimId: null,
+        rightClaimId: null,
+        relatedPageIds: [left.page.id, right.page.id],
+        relatedSourceIds: Array.from(new Set([...left.sourceIds, ...right.sourceIds])),
+        relatedTimelineEventIds: [],
+        rationale: `${comparison.reason} The current page summaries overlap enough to warrant review as canonical tension rather than isolated note variance.`,
+      });
+    }
+  }
+
+  for (const pageContext of pageContexts) {
+    const pageText = [
+      pageContext.page.title,
+      pageContext.revision?.summary ?? "",
+      pageContext.revision?.markdownContent ?? "",
+    ].join(" ");
+
+    for (const source of sources) {
+      const comparison = detectConflictSignal(pageText, `${source.title}. ${source.body ?? ""}`);
+
+      if (!comparison) {
+        continue;
+      }
+
+      if (
+        pageContext.sourceIds.includes(source.id) &&
+        comparison.signalKind !== "status" &&
+        comparison.signalKind !== "numeric"
+      ) {
+        continue;
+      }
+
+      const confidence = confidenceFromScore(
+        comparison.overlap + comparison.sharedThemes.length * 0.16,
+      );
+
+      issues.push({
+        stableKey: stableKey("page-source", pageContext.page.id, source.id, comparison.signalKind),
+        projectId,
+        contradictionType: "source_disagreement",
+        title: `Canonical summary disagrees with source note: ${pageContext.page.title}`,
+        description: `${preview(pageContext.revision?.summary ?? pageContext.page.title, 120)} / ${preview(source.body ?? source.title, 120)}`,
+        severity: severityForComparison(comparison, confidence),
+        confidence,
+        leftClaimId: null,
+        rightClaimId: null,
+        relatedPageIds: [pageContext.page.id],
+        relatedSourceIds: [source.id],
+        relatedTimelineEventIds: [],
+        rationale: `${comparison.reason} The contradiction was detected between canon and a project source record, not between two claims.`,
+      });
+    }
+  }
+
+  for (let index = 0; index < timelineEvents.length; index += 1) {
+    for (let pairIndex = index + 1; pairIndex < timelineEvents.length; pairIndex += 1) {
+      const left = timelineEvents[index];
+      const right = timelineEvents[pairIndex];
+      const sourceOverlap = left.sourceIds.some((sourceId) => right.sourceIds.includes(sourceId));
+      const pageOverlap = left.wikiPageIds.some((pageId) => right.wikiPageIds.includes(pageId));
+      const titleOverlap = jaccardSimilarity(tokenSet(left.title), tokenSet(right.title));
+      const dayDiff = Math.abs(
+        new Date(left.eventDate).getTime() - new Date(right.eventDate).getTime(),
+      ) / (1000 * 60 * 60 * 24);
+
+      if (!(sourceOverlap || pageOverlap || titleOverlap >= 0.28) || dayDiff < 90) {
+        continue;
+      }
+
+      const confidence = confidenceFromScore(
+        titleOverlap +
+          (left.eventDatePrecision === "exact_day" && right.eventDatePrecision === "exact_day"
+            ? 0.2
+            : 0.08),
+      );
+
+      issues.push({
+        stableKey: stableKey("timeline", left.id, right.id),
+        projectId,
+        contradictionType: "timeline_tension",
+        title: `Timeline tension between ${left.title} and ${right.title}`,
+        description: `${preview(left.description, 110)} / ${preview(right.description, 110)}`,
+        severity: dayDiff >= 365 ? "high" : "medium",
+        confidence,
+        leftClaimId: null,
+        rightClaimId: null,
+        relatedPageIds: Array.from(new Set([...left.wikiPageIds, ...right.wikiPageIds])),
+        relatedSourceIds: Array.from(new Set([...left.sourceIds, ...right.sourceIds])),
+        relatedTimelineEventIds: [left.id, right.id],
+        rationale:
+          "The timeline compiler produced overlapping events tied to related scope but placed them at materially different dates. Review chronology, date precision, and source provenance together.",
+      });
+    }
+  }
+
+  return issues;
+}
+
+export async function runProjectContradictionAnalysis(
+  projectId: string,
+): Promise<Contradiction[]> {
+  const drafts = await computeContradictionDrafts(projectId);
+  const summary = `Contradiction analysis produced ${drafts.length} record(s) across claims, sources, page summaries, and timeline events.`;
+
+  return contradictionsRepository.syncProjectContradictions(projectId, drafts, summary);
+}
+
+export async function updateContradictionStatus(
+  contradictionId: string,
+  status: Contradiction["status"],
+): Promise<Contradiction | null> {
+  return contradictionsRepository.updateStatus(contradictionId, status);
+}
+
+export async function listProjectContradictions(
+  projectId: string,
+): Promise<ContradictionReferenceRecord[]> {
+  const [contradictions, claims, sources, pages, timelineEvents] = await Promise.all([
+    contradictionsRepository.listByProjectId(projectId),
+    claimsRepository.listByProjectId(projectId),
+    sourcesRepository.listByProjectId(projectId),
+    wikiRepository.listPagesByProjectId(projectId),
+    timelineEventsRepository.listByProjectId(projectId),
+  ]);
+  const claimsById = new Map(claims.map((claim) => [claim.id, claim] as const));
+  const sourcesById = new Map(sources.map((source) => [source.id, source] as const));
+  const pagesById = new Map(pages.map((page) => [page.id, page] as const));
+  const eventsById = new Map(timelineEvents.map((event) => [event.id, event] as const));
+
+  return sortContradictions(contradictions).map((contradiction) => ({
+    contradiction,
+    leftClaim: contradiction.leftClaimId
+      ? claimsById.get(contradiction.leftClaimId) ?? null
+      : null,
+    rightClaim: contradiction.rightClaimId
+      ? claimsById.get(contradiction.rightClaimId) ?? null
+      : null,
+    relatedPages: contradiction.relatedPageIds
+      .map((pageId) => pagesById.get(pageId) ?? null)
+      .filter((page): page is WikiPage => Boolean(page)),
+    relatedSources: contradiction.relatedSourceIds
+      .map((sourceId) => sourcesById.get(sourceId) ?? null)
+      .filter((source): source is Source => Boolean(source)),
+    relatedTimelineEvents: contradiction.relatedTimelineEventIds
+      .map((eventId) => eventsById.get(eventId) ?? null)
+      .filter((event): event is TimelineEvent => Boolean(event)),
+  }));
+}
+
+export async function getProjectContradictionSnapshot(projectId: string): Promise<{
+  contradictions: Contradiction[];
+  summary: ProjectContradictionSummary;
+  analysisState: ContradictionAnalysisState;
+}> {
+  const [contradictions, analysisState] = await Promise.all([
+    contradictionsRepository.listByProjectId(projectId),
+    contradictionsRepository.getAnalysisState(projectId),
+  ]);
+
+  return {
+    contradictions: sortContradictions(contradictions),
+    summary: summarizeContradictions(contradictions),
+    analysisState,
+  };
+}
+
+export async function getProjectContradictionsPageData(
+  projectId: string,
+): Promise<ContradictionsPageData> {
+  const [contradictions, analysisState] = await Promise.all([
+    listProjectContradictions(projectId),
+    contradictionsRepository.getAnalysisState(projectId),
+  ]);
+  const summary = summarizeContradictions(contradictions.map((entry) => entry.contradiction));
+
+  return {
+    contradictions,
+    analysisState,
+    metrics: [
+      {
+        label: "Contradictions",
+        value: String(summary.totalContradictions),
+        note: "These records are compiled disagreement objects, not generic warning banners.",
+      },
+      {
+        label: "High Severity",
+        value: String(summary.highSeverityContradictions),
+        note: "High-severity contradictions should be reviewed before treating the affected canon as stable.",
+      },
+      {
+        label: "Unresolved",
+        value: String(summary.unresolvedContradictions),
+        note: "Reviewed and open items remain active integrity work until explicitly resolved.",
+      },
+      {
+        label: "Last Analysis",
+        value: analysisState.lastAnalyzedAt
+          ? new Intl.DateTimeFormat("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }).format(new Date(analysisState.lastAnalyzedAt))
+          : "Not analyzed",
+        note: analysisState.summary,
+      },
+    ],
+  };
+}

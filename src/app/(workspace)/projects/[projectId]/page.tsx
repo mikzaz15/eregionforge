@@ -62,6 +62,18 @@ function severityTone(status: string): StatusTone {
   return "neutral";
 }
 
+function contradictionStatusTone(status: string): StatusTone {
+  if (status === "resolved") {
+    return "success";
+  }
+
+  if (status === "reviewed") {
+    return "accent";
+  }
+
+  return "neutral";
+}
+
 function timelineConfidenceTone(confidence: string): StatusTone {
   if (confidence === "high") {
     return "success";
@@ -80,6 +92,10 @@ function formatTimelineDate(date: string): string {
     day: "numeric",
     year: "numeric",
   }).format(new Date(date));
+}
+
+function formatContradictionType(value: string): string {
+  return value.replaceAll("_", " ");
 }
 
 export default async function ProjectDetailPage({
@@ -117,6 +133,12 @@ export default async function ProjectDetailPage({
             className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
           >
             Open Lint
+          </Link>
+          <Link
+            href="/contradictions"
+            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+          >
+            Open Contradictions
           </Link>
           <StatusPill tone={compileTone(projectData.summary.latestCompileStatus)}>
             {projectData.summary.latestCompileStatus}
@@ -159,6 +181,11 @@ export default async function ProjectDetailPage({
           label="Timeline"
           value={String(projectData.summary.timelineEventCount)}
           note="Compiled chronology records turn dated source and canon signals into a durable project timeline."
+        />
+        <MetricCard
+          label="Contradictions"
+          value={String(projectData.summary.contradictionCount)}
+          note="Contradiction analysis makes disagreement and tension reviewable instead of implicit."
         />
       </div>
 
@@ -249,7 +276,7 @@ export default async function ProjectDetailPage({
           description="These top-level screens are already structured around project-owned data."
         >
           <div className="space-y-3">
-            {["/sources", "/wiki", "/artifacts", "/timeline", "/ask"].map((href) => (
+            {["/sources", "/wiki", "/artifacts", "/timeline", "/contradictions", "/ask"].map((href) => (
               <Link
                 key={href}
                 href={href}
@@ -267,6 +294,66 @@ export default async function ProjectDetailPage({
           </div>
         </SectionCard>
       </div>
+
+      <SectionCard
+        eyebrow="Contradictions"
+        title="Disagreement map"
+        description="Contradictions compile conflicting or materially inconsistent knowledge into an operator-facing integrity surface."
+      >
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
+              <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                Contradictions
+              </p>
+              <p className="mt-3 text-4xl font-semibold tracking-tight text-foreground">
+                {projectData.summary.contradictionCount}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-muted">
+                High severity: {projectData.summary.highSeverityContradictionCount}. Unresolved: {projectData.summary.unresolvedContradictionCount}.
+              </p>
+              <Link
+                href="/contradictions"
+                className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+              >
+                Open Contradictions Map
+              </Link>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {projectData.contradictions.length > 0 ? (
+              projectData.contradictions.slice(0, 3).map((entry) => (
+                <div
+                  key={entry.contradiction.id}
+                  className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold tracking-tight text-foreground">
+                      {entry.contradiction.title}
+                    </p>
+                    <StatusPill tone={severityTone(entry.contradiction.severity)}>
+                      {entry.contradiction.severity}
+                    </StatusPill>
+                    <StatusPill tone={contradictionStatusTone(entry.contradiction.status)}>
+                      {entry.contradiction.status}
+                    </StatusPill>
+                  </div>
+                  <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                    {formatContradictionType(entry.contradiction.contradictionType)}
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-foreground">
+                    {entry.contradiction.rationale}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm leading-6 text-muted">
+                No contradiction records exist yet for this project. Run contradiction analysis to establish the disagreement map.
+              </div>
+            )}
+          </div>
+        </div>
+      </SectionCard>
 
       <SectionCard
         eyebrow="Timeline"

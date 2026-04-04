@@ -78,6 +78,14 @@ export type TimelineEventProvenance =
   | "claim-extraction"
   | "wiki-extraction"
   | "object-timestamp-fallback";
+export type ContradictionType =
+  | "direct_claim_conflict"
+  | "timeline_tension"
+  | "source_disagreement"
+  | "stale_vs_newer_claim"
+  | "overlapping_but_inconsistent_summary";
+export type ContradictionSeverity = "critical" | "high" | "medium" | "low";
+export type ContradictionStatus = "open" | "reviewed" | "resolved";
 export type LintIssueType =
   | "unsupported_claims"
   | "weakly_supported_page"
@@ -287,6 +295,41 @@ export interface TimelineCompileState {
   projectId: string;
   lastCompiledAt: Timestamp | null;
   eventCount: number;
+  summary: string;
+}
+
+export interface Contradiction {
+  id: string;
+  projectId: string;
+  contradictionType: ContradictionType;
+  title: string;
+  description: string;
+  severity: ContradictionSeverity;
+  status: ContradictionStatus;
+  confidence: RevisionConfidence;
+  leftClaimId?: string | null;
+  rightClaimId?: string | null;
+  relatedPageIds: string[];
+  relatedSourceIds: string[];
+  relatedTimelineEventIds: string[];
+  rationale: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  metadata?: StringMetadata;
+}
+
+export type ContradictionDraft = Omit<
+  Contradiction,
+  "id" | "status" | "createdAt" | "updatedAt"
+> & {
+  stableKey: string;
+  status?: ContradictionStatus;
+};
+
+export interface ContradictionAnalysisState {
+  projectId: string;
+  lastAnalyzedAt: Timestamp | null;
+  contradictionCount: number;
   summary: string;
 }
 

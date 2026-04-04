@@ -3,6 +3,7 @@ import type {
   AskSession,
   Claim,
   CompileJob,
+  Contradiction,
   EvidenceLink,
   Project,
   Source,
@@ -128,6 +129,20 @@ export const seedSources: Source[] = [
     status: "parsed",
     provenance: { label: "docs/sprints/00-master-roadmap.md", kind: "repo-file" },
     metadata: { layer: "delivery", format: "markdown" },
+    createdAt: "2026-04-03T00:00:00Z",
+    updatedAt: "2026-04-03T00:00:00Z",
+  },
+  {
+    id: "source-ef-ask-direction-note",
+    projectId: "project-eregionforge",
+    sourceType: "markdown",
+    title: "Early Ask Direction Note",
+    body: "An early proposal suggested EregionForge should act as a broad conversational assistant over raw files before canonical wiki compilation exists.",
+    url: null,
+    filePath: "docs/product/ask-direction-note.md",
+    status: "parsed",
+    provenance: { label: "docs/product/ask-direction-note.md", kind: "repo-file" },
+    metadata: { layer: "product", format: "markdown", status: "superseded-note" },
     createdAt: "2026-04-03T00:00:00Z",
     updatedAt: "2026-04-03T00:00:00Z",
   },
@@ -603,6 +618,7 @@ export const seedArtifacts: Artifact[] = [
 
 export const seedAskSessions: AskSession[] = [];
 export const seedTimelineEvents: TimelineEvent[] = [];
+export const seedContradictions: Contradiction[] = [];
 
 export const seedCompileJobs: CompileJob[] = [
   {
@@ -620,7 +636,7 @@ export const seedCompileJobs: CompileJob[] = [
       "page-ef-roadmap",
       "page-ef-open-questions",
     ],
-    sourceCount: 7,
+    sourceCount: 8,
     metadata: { trigger: "seeded from repo docs" },
     startedAt: "2026-04-03T00:01:00Z",
     completedAt: "2026-04-03T00:07:00Z",
