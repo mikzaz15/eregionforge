@@ -68,7 +68,7 @@ If the current project fingerprint differs from the stored thesis input signatur
 
 ## Current Limitations
 
-- Revisions are persisted in-memory only.
+- Revisions now persist to the local durable path rather than resetting on restart.
 - Change attribution is heuristic and timestamp-driven, not semantic-causal.
 - Section comparison is content-level, not sentence diffing.
 - A new thesis revision is created on each refresh, even if the thesis content barely changes.

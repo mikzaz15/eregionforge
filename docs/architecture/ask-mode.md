@@ -34,7 +34,7 @@ Ask sessions currently store:
 - `updatedAt`
 - optional `metadata`
 
-This is currently backed by an in-memory repository with async signatures so database persistence can replace it later without changing the route layer.
+Ask sessions now sit on the first durable path and persist to the local SQLite store. The same repository seam still isolates the route layer from the storage adapter.
 
 ## Current Retrieval Heuristics
 

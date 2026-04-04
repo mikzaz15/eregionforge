@@ -85,7 +85,27 @@ The app uses a clean service and repository split:
 - services compile and aggregate domain objects
 - route components render project-scoped view data
 
-Current repositories are in-memory, but the interfaces are structured so database-backed adapters can replace them later without rewriting the route layer.
+Current repositories run in a hybrid mode.
+
+Durable now:
+
+- projects
+- sources
+- source fragments
+- wiki pages
+- wiki revisions
+- claims
+- evidence links
+- artifacts
+- ask sessions
+- thesis records and thesis revisions
+- monitoring records and stale alerts
+
+Still in-memory:
+
+- higher-order derived intelligence that still sits above canon, including timeline, contradictions, catalysts, dossier, compile jobs, and lint issues
+
+That split is intentional. The compiled canon is now durable, while the more volatile analysis projections can migrate next without changing the route contracts.
 
 ## How The Major Views Fit Together
 

@@ -59,6 +59,20 @@ Production build:
 npm run build
 ```
 
+## Local Persistence
+
+The first durable repository path now writes to:
+
+```text
+data/eregionforge.sqlite
+```
+
+Useful options:
+
+- Keep the file to preserve local artifacts, ask sessions, thesis revisions, and monitoring state.
+- Delete the file if you want to reset back to a fresh seeded bootstrap.
+- Set `EREGIONFORGE_PERSISTENCE=memory` if you explicitly want the old in-memory mode for debugging.
+
 ## Best Local Entry Point
 
 After starting the dev server, open:
@@ -71,7 +85,7 @@ The root route redirects there, and that is the intended showcase starting point
 
 ## Seeded Demo Data
 
-The seeded demo project and most in-memory domain state live in:
+The seeded demo project and bootstrap domain state live in:
 
 - [src/lib/domain/seed-data.ts](../../src/lib/domain/seed-data.ts)
 
@@ -95,6 +109,6 @@ That file contains:
 
 ## Notes
 
-- Persistence is currently in-memory by design.
-- The current repo is optimized for local exploration and showcase quality, not production deployment.
-- If local behavior looks inconsistent after code changes, restart `npm run dev` before debugging deeper because the in-memory state resets with the process.
+- The current repo is still optimized for local exploration and showcase quality, not production deployment.
+- The durable path is local SQLite, not a production multi-user database yet.
+- If local behavior looks inconsistent after code or schema changes, restart `npm run dev`. If needed, remove `data/eregionforge.sqlite` to rebuild from the seeded bootstrap.

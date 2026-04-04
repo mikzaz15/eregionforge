@@ -153,13 +153,14 @@ Sources
   -> durable artifacts
 ```
 
-The route layer reads project-scoped view data from services. The current persistence adapter is in-memory, but the repository seams are already structured for later database-backed implementations.
+The route layer reads project-scoped view data from services. The current repo runs in a hybrid mode: the first durable path now persists to a local SQLite store, while the remaining showcase-first intelligence objects still use seeded or in-memory adapters behind the same repository seam.
 
-For the concise architecture overview, see [docs/architecture/overview.md](docs/architecture/overview.md).
+For the concise architecture overview, see [docs/architecture/overview.md](docs/architecture/overview.md). For the current migration path, see [docs/architecture/persistence-plan.md](docs/architecture/persistence-plan.md).
 
 ## Docs Map
 
 - [docs/architecture/overview.md](docs/architecture/overview.md)
+- [docs/architecture/persistence-plan.md](docs/architecture/persistence-plan.md)
 - [docs/setup/local-development.md](docs/setup/local-development.md)
 - [docs/product/demo-flow.md](docs/product/demo-flow.md)
 - [docs/product/demo-script.md](docs/product/demo-script.md)

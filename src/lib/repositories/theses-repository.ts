@@ -1,5 +1,10 @@
 import { seedTheses } from "@/lib/domain/seed-data";
 import type { Thesis } from "@/lib/domain/types";
+import {
+  getPersistedRecord,
+  getPersistenceMode,
+  upsertThesisRecord,
+} from "@/lib/persistence/database";
 
 const thesesStore: Thesis[] = structuredClone(seedTheses);
 
@@ -73,4 +78,59 @@ class InMemoryThesesRepository implements ThesesRepository {
   }
 }
 
-export const thesesRepository: ThesesRepository = new InMemoryThesesRepository();
+class SqliteThesesRepository implements ThesesRepository {
+  async getByProjectId(projectId: string): Promise<Thesis | null> {
+    return getPersistedRecord<Thesis>(
+      "SELECT payload FROM theses_store WHERE project_id = ?",
+      projectId,
+    );
+  }
+
+  async upsertForProject(
+    input: Omit<Thesis, "id" | "createdAt" | "updatedAt">,
+  ): Promise<Thesis> {
+    const existing = await this.getByProjectId(input.projectId);
+    const now = new Date().toISOString();
+
+    const thesis: Thesis = existing
+      ? {
+          ...existing,
+          ...input,
+          supportBySection: structuredClone(input.supportBySection),
+          metadata: input.metadata ? structuredClone(input.metadata) : {},
+          updatedAt: now,
+        }
+      : {
+          id: `thesis-${input.projectId}`,
+          projectId: input.projectId,
+          currentRevisionId: input.currentRevisionId,
+          revisionCount: input.revisionCount,
+          title: input.title,
+          subjectName: input.subjectName,
+          ticker: input.ticker,
+          status: input.status,
+          overallStance: input.overallStance,
+          summary: input.summary,
+          bullCaseMarkdown: input.bullCaseMarkdown,
+          bearCaseMarkdown: input.bearCaseMarkdown,
+          variantViewMarkdown: input.variantViewMarkdown,
+          keyRisksMarkdown: input.keyRisksMarkdown,
+          keyUnknownsMarkdown: input.keyUnknownsMarkdown,
+          catalystSummaryMarkdown: input.catalystSummaryMarkdown,
+          confidence: input.confidence,
+          supportBySection: structuredClone(input.supportBySection),
+          latestInputSignature: input.latestInputSignature,
+          metadata: input.metadata ? structuredClone(input.metadata) : {},
+          createdAt: now,
+          updatedAt: now,
+        };
+
+    upsertThesisRecord(thesis);
+    return structuredClone(thesis);
+  }
+}
+
+export const thesesRepository: ThesesRepository =
+  getPersistenceMode() === "sqlite"
+    ? new SqliteThesesRepository()
+    : new InMemoryThesesRepository();

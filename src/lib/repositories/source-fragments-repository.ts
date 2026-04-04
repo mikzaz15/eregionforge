@@ -3,6 +3,12 @@ import type {
   SourceFragment,
   SourceFragmentPayload,
 } from "@/lib/domain/types";
+import {
+  getPersistenceDatabase,
+  getPersistenceMode,
+  listPersistedRecords,
+  replaceSourceFragmentRecords,
+} from "@/lib/persistence/database";
 
 const sourceFragmentsStore: SourceFragment[] = structuredClone(seedSourceFragments);
 
@@ -66,5 +72,64 @@ class InMemorySourceFragmentsRepository implements SourceFragmentsRepository {
   }
 }
 
+class SqliteSourceFragmentsRepository implements SourceFragmentsRepository {
+  async listBySourceId(sourceId: string): Promise<SourceFragment[]> {
+    return listPersistedRecords<SourceFragment>(
+      "source_fragments_store",
+      "SELECT payload FROM source_fragments_store WHERE source_id = ? ORDER BY fragment_index ASC",
+      sourceId,
+    );
+  }
+
+  async listByProjectId(projectId: string): Promise<SourceFragment[]> {
+    return listPersistedRecords<SourceFragment>(
+      "source_fragments_store",
+      "SELECT payload FROM source_fragments_store WHERE project_id = ? ORDER BY source_id ASC, fragment_index ASC",
+      projectId,
+    );
+  }
+
+  async replaceForSource(
+    sourceId: string,
+    fragments: SourceFragmentPayload[],
+  ): Promise<SourceFragment[]> {
+    const now = new Date().toISOString();
+    const stored = fragments
+      .sort((left, right) => left.index - right.index)
+      .map((fragment) => ({
+        ...fragment,
+        id: crypto.randomUUID(),
+        createdAt: now,
+        updatedAt: now,
+      }));
+
+    const projectId = stored[0]?.projectId ?? fragments[0]?.projectId ?? null;
+
+    if (projectId) {
+      replaceSourceFragmentRecords(sourceId, projectId, stored);
+    }
+
+    return structuredClone(stored);
+  }
+
+  async countBySourceId(sourceId: string): Promise<number> {
+    const database = getPersistenceDatabase();
+
+    if (!database) {
+      return 0;
+    }
+
+    const row = database
+      .prepare(
+        "SELECT COUNT(*) AS fragmentCount FROM source_fragments_store WHERE source_id = ?",
+      )
+      .get(sourceId);
+
+    return typeof row?.fragmentCount === "number" ? row.fragmentCount : 0;
+  }
+}
+
 export const sourceFragmentsRepository: SourceFragmentsRepository =
-  new InMemorySourceFragmentsRepository();
+  getPersistenceMode() === "sqlite"
+    ? new SqliteSourceFragmentsRepository()
+    : new InMemorySourceFragmentsRepository();

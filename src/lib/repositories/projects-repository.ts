@@ -1,5 +1,11 @@
 import { activeProjectId, seedProjects } from "@/lib/domain/seed-data";
 import type { Project } from "@/lib/domain/types";
+import {
+  getPersistedRecord,
+  getPersistedSetting,
+  getPersistenceMode,
+  listPersistedRecords,
+} from "@/lib/persistence/database";
 
 export interface ProjectsRepository {
   list(): Promise<Project[]>;
@@ -22,5 +28,27 @@ class InMemoryProjectsRepository implements ProjectsRepository {
   }
 }
 
+class SqliteProjectsRepository implements ProjectsRepository {
+  async list(): Promise<Project[]> {
+    return listPersistedRecords<Project>(
+      "projects_store",
+      "SELECT payload FROM projects_store ORDER BY created_at ASC, name ASC",
+    );
+  }
+
+  async getById(projectId: string): Promise<Project | null> {
+    return getPersistedRecord<Project>(
+      "SELECT payload FROM projects_store WHERE id = ?",
+      projectId,
+    );
+  }
+
+  async getActiveProjectId(): Promise<string> {
+    return getPersistedSetting("active_project_id") ?? activeProjectId;
+  }
+}
+
 export const projectsRepository: ProjectsRepository =
-  new InMemoryProjectsRepository();
+  getPersistenceMode() === "sqlite"
+    ? new SqliteProjectsRepository()
+    : new InMemoryProjectsRepository();

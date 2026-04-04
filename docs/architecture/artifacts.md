@@ -74,7 +74,7 @@ The artifact service currently handles:
 - get artifact detail with references
 - mark wiki-filing eligibility
 
-Persistence is still in-memory, but the shape is already aligned with later database-backed adapters.
+Artifacts now persist on the local durable path. The repository shape remains the same so a later production adapter can replace the local store cleanly.
 
 ## Save From Ask
 

@@ -10,6 +10,15 @@ import type {
   StaleAlert,
   StaleAlertDraft,
 } from "@/lib/domain/types";
+import {
+  deleteRecordsByIds,
+  getPersistedRecord,
+  getPersistenceMode,
+  listPersistedRecords,
+  upsertMonitoringAnalysisStateRecord,
+  upsertMonitoringRecord,
+  upsertStaleAlertRecord,
+} from "@/lib/persistence/database";
 
 const sourceMonitoringStore: SourceMonitoringRecord[] = structuredClone(
   seedSourceMonitoringRecords,
@@ -204,5 +213,144 @@ class InMemorySourceMonitoringRepository implements SourceMonitoringRepository {
   }
 }
 
+class SqliteSourceMonitoringRepository implements SourceMonitoringRepository {
+  async listRecordsByProjectId(projectId: string): Promise<SourceMonitoringRecord[]> {
+    return listPersistedRecords<SourceMonitoringRecord>(
+      "source_monitoring_records_store",
+      `SELECT payload
+       FROM source_monitoring_records_store
+       WHERE project_id = ?
+       ORDER BY updated_at DESC`,
+      projectId,
+    );
+  }
+
+  async listAlertsByProjectId(projectId: string): Promise<StaleAlert[]> {
+    return listPersistedRecords<StaleAlert>(
+      "stale_alerts_store",
+      `SELECT payload
+       FROM stale_alerts_store
+       WHERE project_id = ?
+       ORDER BY updated_at DESC`,
+      projectId,
+    );
+  }
+
+  async syncProjectState(input: {
+    projectId: string;
+    sourceMonitoringDrafts: SourceMonitoringDraft[];
+    staleAlertDrafts: StaleAlertDraft[];
+    summary: string;
+  }): Promise<{
+    records: SourceMonitoringRecord[];
+    alerts: StaleAlert[];
+    analysisState: MonitoringAnalysisState;
+  }> {
+    const now = new Date().toISOString();
+    const existingRecords = await this.listRecordsByProjectId(input.projectId);
+    const existingRecordsById = new Map(
+      existingRecords.map((record) => [record.id, record] as const),
+    );
+    const nextRecords = input.sourceMonitoringDrafts.map<SourceMonitoringRecord>((draft) => {
+      const id = sourceMonitoringId(input.projectId, draft.stableKey);
+      const existing = existingRecordsById.get(id);
+      const record: SourceMonitoringRecord = {
+        id,
+        projectId: input.projectId,
+        sourceId: draft.sourceId,
+        lastSeenAt: draft.lastSeenAt,
+        lastCompiledAt: draft.lastCompiledAt ?? null,
+        freshnessStatus: draft.freshnessStatus,
+        possibleImpactLevel: draft.possibleImpactLevel,
+        staleReason: draft.staleReason,
+        metadata: draft.metadata ? structuredClone(draft.metadata) : {},
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      };
+
+      upsertMonitoringRecord(record);
+      return structuredClone(record);
+    });
+
+    const nextRecordIds = new Set(nextRecords.map((record) => record.id));
+    deleteRecordsByIds(
+      "source_monitoring_records_store",
+      existingRecords
+        .filter((record) => !nextRecordIds.has(record.id))
+        .map((record) => record.id),
+    );
+
+    const existingAlerts = await this.listAlertsByProjectId(input.projectId);
+    const existingAlertsById = new Map(
+      existingAlerts.map((alert) => [alert.id, alert] as const),
+    );
+    const nextAlerts = input.staleAlertDrafts.map<StaleAlert>((draft) => {
+      const id = staleAlertId(input.projectId, draft.stableKey);
+      const existing = existingAlertsById.get(id);
+      const alert: StaleAlert = {
+        id,
+        projectId: input.projectId,
+        alertType: draft.alertType,
+        title: draft.title,
+        description: draft.description,
+        severity: draft.severity,
+        status: existing?.status ?? draft.status ?? "open",
+        relatedSourceIds: structuredClone(draft.relatedSourceIds),
+        relatedThesisId: draft.relatedThesisId ?? null,
+        relatedDossierId: draft.relatedDossierId ?? null,
+        relatedCatalystIds: structuredClone(draft.relatedCatalystIds),
+        relatedTimelineIds: structuredClone(draft.relatedTimelineIds),
+        metadata: draft.metadata ? structuredClone(draft.metadata) : {},
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      };
+
+      upsertStaleAlertRecord(alert);
+      return structuredClone(alert);
+    });
+
+    const nextAlertIds = new Set(nextAlerts.map((alert) => alert.id));
+    deleteRecordsByIds(
+      "stale_alerts_store",
+      existingAlerts
+        .filter((alert) => !nextAlertIds.has(alert.id))
+        .map((alert) => alert.id),
+    );
+
+    const analysisState: MonitoringAnalysisState = {
+      projectId: input.projectId,
+      lastEvaluatedAt: now,
+      sourceRecordCount: nextRecords.length,
+      alertCount: nextAlerts.length,
+      summary: input.summary,
+    };
+
+    upsertMonitoringAnalysisStateRecord(analysisState);
+
+    return {
+      records: structuredClone(nextRecords),
+      alerts: structuredClone(nextAlerts),
+      analysisState: structuredClone(analysisState),
+    };
+  }
+
+  async getAnalysisState(projectId: string): Promise<MonitoringAnalysisState> {
+    return (
+      getPersistedRecord<MonitoringAnalysisState>(
+        "SELECT payload FROM monitoring_analysis_states_store WHERE project_id = ?",
+        projectId,
+      ) ?? {
+        projectId,
+        lastEvaluatedAt: null,
+        sourceRecordCount: 0,
+        alertCount: 0,
+        summary: "Source monitoring has not been evaluated for this project yet.",
+      }
+    );
+  }
+}
+
 export const sourceMonitoringRepository: SourceMonitoringRepository =
-  new InMemorySourceMonitoringRepository();
+  getPersistenceMode() === "sqlite"
+    ? new SqliteSourceMonitoringRepository()
+    : new InMemorySourceMonitoringRepository();

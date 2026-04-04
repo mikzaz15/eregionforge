@@ -1,5 +1,11 @@
 import { seedAskSessions } from "@/lib/domain/seed-data";
 import type { AskSession, AskSessionPayload } from "@/lib/domain/types";
+import {
+  getPersistedRecord,
+  getPersistenceMode,
+  listPersistedRecords,
+  upsertAskSessionRecord,
+} from "@/lib/persistence/database";
 
 const askSessionsStore: AskSession[] = structuredClone(seedAskSessions);
 
@@ -41,5 +47,44 @@ class InMemoryAskSessionsRepository implements AskSessionsRepository {
   }
 }
 
+class SqliteAskSessionsRepository implements AskSessionsRepository {
+  async listByProjectId(projectId: string): Promise<AskSession[]> {
+    return listPersistedRecords<AskSession>(
+      "ask_sessions_store",
+      `SELECT payload
+       FROM ask_sessions_store
+       WHERE project_id = ?
+       ORDER BY created_at DESC, updated_at DESC`,
+      projectId,
+    );
+  }
+
+  async getById(sessionId: string): Promise<AskSession | null> {
+    return getPersistedRecord<AskSession>(
+      "SELECT payload FROM ask_sessions_store WHERE id = ?",
+      sessionId,
+    );
+  }
+
+  async create(input: AskSessionPayload): Promise<AskSession> {
+    const now = new Date().toISOString();
+    const session: AskSession = {
+      ...input,
+      id: crypto.randomUUID(),
+      consultedWikiPageIds: structuredClone(input.consultedWikiPageIds),
+      consultedClaimIds: structuredClone(input.consultedClaimIds),
+      consultedSourceIds: structuredClone(input.consultedSourceIds),
+      metadata: input.metadata ? structuredClone(input.metadata) : {},
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    upsertAskSessionRecord(session);
+    return structuredClone(session);
+  }
+}
+
 export const askSessionsRepository: AskSessionsRepository =
-  new InMemoryAskSessionsRepository();
+  getPersistenceMode() === "sqlite"
+    ? new SqliteAskSessionsRepository()
+    : new InMemoryAskSessionsRepository();

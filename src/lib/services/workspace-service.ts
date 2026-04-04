@@ -316,24 +316,24 @@ export type SettingsGroup = {
 
 export const executionLane = [
   {
-    title: "Connect the domain layer to Supabase",
+    title: "Expand the durable repository layer",
     detail:
-      "Swap the in-memory repositories for Supabase-backed adapters without changing route components or shell composition.",
+      "The core durable path now runs through local SQLite-backed repositories with the same async interfaces the route layer already expects.",
   },
   {
     title: "Persist project-scoped source creation",
     detail:
-      "Make pasted text and markdown ingestion create real source records under a chosen project boundary.",
+      "Projects, sources, ask sessions, artifacts, theses, thesis revisions, and monitoring state should survive restarts without changing the current product flow.",
   },
   {
-    title: "Compile canonical wiki pages from stored records",
+    title: "Persist the canonical research base",
     detail:
-      "Generate page revisions and compile job state from persisted projects, sources, and page inputs.",
+      "Wiki pages, revisions, claims, and evidence links now survive restarts and act as the stable base for the rest of the intelligence stack.",
   },
   {
-    title: "Add evidence links and ask orchestration",
+    title: "Promote the same seam to production storage later",
     detail:
-      "Only after canonical pages exist should ask mode traverse claims, evidence, and source fragments.",
+      "The repository interfaces are still the product seam, so a later Postgres-backed adapter can replace the local store without reworking the route layer.",
   },
 ] as const;
 
@@ -392,11 +392,11 @@ export const settingsGroups: SettingsGroup[] = [
     items: [
       {
         label: "Current adapter",
-        value: "In-memory repositories with async method signatures that mirror future database reads.",
+        value: "Hybrid repository layer: local SQLite for core durable objects, with in-memory adapters remaining only for higher-order compiled analysis.",
       },
       {
         label: "Next adapter",
-        value: "Supabase-backed repository implementations should replace the in-memory adapters without changing UI code.",
+        value: "Promote timeline, contradictions, catalysts, dossiers, compile jobs, and lint history next, then add a production database adapter behind the same interfaces.",
       },
       {
         label: "Guiding rule",
@@ -1342,13 +1342,13 @@ export async function getSettingsPageData(projectId: string) {
         metrics: [
           {
             label: "Storage Plan",
-            value: "Supabase",
-            note: "The repository layer is structured so Postgres-backed adapters can replace in-memory data without a route refactor.",
+            value: "Local SQLite",
+            note: "The durable path now persists to a local database file, and the same repository seam can later target Postgres without a route refactor.",
           },
           {
             label: "Repository Mode",
-            value: "In memory",
-            note: "Async interfaces already match the shape of future persistence-backed reads.",
+            value: "Hybrid",
+            note: "Projects, sources, source fragments, canon pages, claims, evidence, artifacts, ask sessions, thesis records, thesis revisions, and monitoring state now persist locally while the remaining analysis objects stay in-memory.",
           },
           {
             label: "Domain Center",
