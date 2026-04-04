@@ -21,6 +21,8 @@ class InMemoryThesesRepository implements ThesesRepository {
     const now = new Date().toISOString();
 
     if (existing) {
+      existing.currentRevisionId = input.currentRevisionId;
+      existing.revisionCount = input.revisionCount;
       existing.title = input.title;
       existing.subjectName = input.subjectName;
       existing.ticker = input.ticker;
@@ -35,6 +37,7 @@ class InMemoryThesesRepository implements ThesesRepository {
       existing.catalystSummaryMarkdown = input.catalystSummaryMarkdown;
       existing.confidence = input.confidence;
       existing.supportBySection = structuredClone(input.supportBySection);
+      existing.latestInputSignature = input.latestInputSignature;
       existing.metadata = input.metadata ? structuredClone(input.metadata) : {};
       existing.updatedAt = now;
       return structuredClone(existing);
@@ -43,6 +46,8 @@ class InMemoryThesesRepository implements ThesesRepository {
     const created: Thesis = {
       id: `thesis-${input.projectId}`,
       projectId: input.projectId,
+      currentRevisionId: input.currentRevisionId,
+      revisionCount: input.revisionCount,
       title: input.title,
       subjectName: input.subjectName,
       ticker: input.ticker,
@@ -57,6 +62,7 @@ class InMemoryThesesRepository implements ThesesRepository {
       catalystSummaryMarkdown: input.catalystSummaryMarkdown,
       confidence: input.confidence,
       supportBySection: structuredClone(input.supportBySection),
+      latestInputSignature: input.latestInputSignature,
       metadata: input.metadata ? structuredClone(input.metadata) : {},
       createdAt: now,
       updatedAt: now,

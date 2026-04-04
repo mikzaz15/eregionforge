@@ -54,6 +54,14 @@ export type ArtifactProvenance =
   | "research-synthesis";
 export type ThesisStatus = "draft" | "active" | "stale";
 export type ThesisStance = "bullish" | "bearish" | "mixed" | "monitor";
+export type ThesisChangedSection =
+  | "summary"
+  | "bullCase"
+  | "bearCase"
+  | "variantView"
+  | "keyRisks"
+  | "keyUnknowns"
+  | "catalystSummary";
 export type RevisionConfidence = "low" | "medium" | "high";
 export type CompileJobStatus = "pending" | "running" | "completed" | "failed";
 export type AskAnswerMode =
@@ -253,6 +261,8 @@ export interface ThesisSectionSupportMap {
 export interface Thesis {
   id: string;
   projectId: string;
+  currentRevisionId: string | null;
+  revisionCount: number;
   title: string;
   subjectName: string;
   ticker: string | null;
@@ -267,8 +277,30 @@ export interface Thesis {
   catalystSummaryMarkdown: string;
   confidence: RevisionConfidence;
   supportBySection: ThesisSectionSupportMap;
+  latestInputSignature: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  metadata?: StringMetadata;
+}
+
+export interface ThesisRevision {
+  id: string;
+  thesisId: string;
+  projectId: string;
+  revisionNumber: number;
+  status: ThesisStatus;
+  stance: ThesisStance;
+  confidence: RevisionConfidence;
+  summary: string;
+  bullCaseMarkdown: string;
+  bearCaseMarkdown: string;
+  variantViewMarkdown: string;
+  keyRisksMarkdown: string;
+  keyUnknownsMarkdown: string;
+  catalystSummaryMarkdown: string;
+  changeSummary: string;
+  supportBySection: ThesisSectionSupportMap;
+  createdAt: Timestamp;
   metadata?: StringMetadata;
 }
 

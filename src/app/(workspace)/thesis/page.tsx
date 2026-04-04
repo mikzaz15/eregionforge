@@ -3,9 +3,18 @@ import { compileActiveProjectThesisAction } from "@/app/(workspace)/actions";
 import { ThesisView } from "@/components/workspace/thesis-view";
 import { getActiveProjectId, getThesisPageData } from "@/lib/services/workspace-service";
 
-export default async function ThesisPage() {
+function getRevisionId(value: string | string[] | undefined): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+export default async function ThesisPage({
+  searchParams,
+}: Readonly<{
+  searchParams: Promise<{ revisionId?: string | string[] }>;
+}>) {
   const projectId = await getActiveProjectId();
-  const data = await getThesisPageData(projectId);
+  const { revisionId } = await searchParams;
+  const data = await getThesisPageData(projectId, getRevisionId(revisionId));
 
   if (!data) {
     throw new Error("Active project thesis data is unavailable.");
@@ -17,6 +26,7 @@ export default async function ThesisPage() {
       eyebrow="Thesis Layer"
       title="Investment Thesis"
       description={`The thesis tracker compiles a source-grounded thesis for ${data.summary.project.name} from canon, claims, timeline state, contradictions, and durable research outputs.`}
+      basePath="/thesis"
       actions={
         <div className="flex flex-wrap gap-3">
           <form action={compileActiveProjectThesisAction}>

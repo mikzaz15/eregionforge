@@ -122,6 +122,20 @@ function labelize(value: string | null): string {
   return value.replace(/([A-Z])/g, " $1").replaceAll("-", " ");
 }
 
+function formatDateTime(date: string | null): string {
+  if (!date) {
+    return "Not available";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(date));
+}
+
 export default async function ProjectDetailPage({
   params,
 }: Readonly<{
@@ -345,7 +359,7 @@ export default async function ProjectDetailPage({
           <div className="space-y-3">
             <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
               <div className="flex flex-wrap gap-2">
-                <StatusPill tone={projectData.summary.thesisStatus === "active" ? "success" : projectData.summary.thesisStatus === "draft" ? "accent" : "neutral"}>
+                <StatusPill tone={projectData.summary.thesisStatus === "active" ? "success" : projectData.summary.thesisStatus === "draft" ? "accent" : projectData.summary.thesisStatus === "stale" ? "danger" : "neutral"}>
                   {projectData.summary.thesisStatus ?? "not compiled"}
                 </StatusPill>
                 <StatusPill tone={thesisStanceTone(projectData.summary.thesisStance)}>
@@ -354,12 +368,23 @@ export default async function ProjectDetailPage({
                 <StatusPill tone={timelineConfidenceTone(projectData.summary.thesisConfidence ?? "low")}>
                   {projectData.summary.thesisConfidence ?? "not set"}
                 </StatusPill>
+                {projectData.summary.thesisRevisionNumber > 0 ? (
+                  <StatusPill tone="neutral">
+                    Revision {projectData.summary.thesisRevisionNumber}
+                  </StatusPill>
+                ) : null}
               </div>
               <p className="mt-4 text-sm leading-6 text-foreground">
                 Catalysts: {projectData.summary.thesisCatalystCount}
               </p>
               <p className="mt-2 text-sm leading-6 text-foreground">
                 Unresolved contradictions: {projectData.summary.unresolvedContradictionCount}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-foreground">
+                Last refreshed: {formatDateTime(projectData.summary.thesisLastRefreshedAt)}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {projectData.summary.thesisFreshnessReason}
               </p>
               <Link
                 href={`/projects/${projectId}/thesis`}

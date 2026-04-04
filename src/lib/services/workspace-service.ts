@@ -54,8 +54,8 @@ import {
 } from "@/lib/services/timeline-service";
 import {
   getProjectThesisDetail,
-  getStoredProjectThesis,
   type ThesisDetailRecord,
+  getProjectThesisSnapshot,
 } from "@/lib/services/thesis-service";
 
 export type ProjectSummary = {
@@ -80,6 +80,10 @@ export type ProjectSummary = {
   thesisStance: Thesis["overallStance"] | null;
   thesisConfidence: Thesis["confidence"] | null;
   thesisCatalystCount: number;
+  thesisRevisionNumber: number;
+  thesisLastRefreshedAt: string | null;
+  thesisPotentiallyStale: boolean;
+  thesisFreshnessReason: string;
   health: ProjectLintHealthSummary;
 };
 
@@ -218,6 +222,7 @@ export type TimelinePageData = {
 export type ThesisPageData = {
   summary: ProjectSummary;
   thesis: ThesisDetailRecord | null;
+  selectedRevisionId: string | null;
   metrics: Array<{ label: string; value: string; note: string }>;
 };
 
@@ -520,7 +525,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     timelineEvents,
     lintSnapshot,
     contradictionSnapshot,
-    thesis,
+    thesisSnapshot,
   ] =
     await Promise.all([
       sourcesRepository.listByProjectId(project.id),
@@ -532,7 +537,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       listProjectTimelineEvents(project.id),
       getProjectLintSnapshot(project.id),
       getProjectContradictionSnapshot(project.id),
-      getStoredProjectThesis(project.id),
+      getProjectThesisSnapshot(project.id),
     ]);
   const generatedPageCount = pages.filter(
     (page) => page.generationMetadata?.generatedBy === "deterministic-compiler",
@@ -546,6 +551,8 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       .filter((claim) => evidenceClaimIds.has(claim.id))
       .map((claim) => claim.wikiPageId),
   ).size;
+
+  const thesis = thesisSnapshot.thesis;
 
   return {
     project,
@@ -568,10 +575,18 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       contradictionSnapshot.summary.highSeverityContradictions,
     unresolvedContradictionCount:
       contradictionSnapshot.summary.unresolvedContradictions,
-    thesisStatus: thesis?.status ?? null,
+    thesisStatus: thesis
+      ? thesisSnapshot.freshness.potentiallyStale
+        ? "stale"
+        : thesis.status
+      : null,
     thesisStance: thesis?.overallStance ?? null,
     thesisConfidence: thesis?.confidence ?? null,
     thesisCatalystCount: Number(thesis?.metadata?.catalystCount ?? "0"),
+    thesisRevisionNumber: thesisSnapshot.revisionCount,
+    thesisLastRefreshedAt: thesisSnapshot.freshness.lastRefreshedAt,
+    thesisPotentiallyStale: thesisSnapshot.freshness.potentiallyStale,
+    thesisFreshnessReason: thesisSnapshot.freshness.reason,
     health: lintSnapshot.health,
   };
 });
@@ -1080,10 +1095,13 @@ export async function getContradictionsPageData(
   };
 }
 
-export async function getThesisPageData(projectId: string): Promise<ThesisPageData | null> {
+export async function getThesisPageData(
+  projectId: string,
+  selectedRevisionId?: string | null,
+): Promise<ThesisPageData | null> {
   const [summary, thesisDetail] = await Promise.all([
     getProjectSummary(projectId),
-    getProjectThesisDetail(projectId),
+    getProjectThesisDetail(projectId, selectedRevisionId),
   ]);
 
   if (!summary) {
@@ -1093,6 +1111,7 @@ export async function getThesisPageData(projectId: string): Promise<ThesisPageDa
   return {
     summary,
     thesis: thesisDetail,
+    selectedRevisionId: selectedRevisionId ?? null,
     metrics: [
       {
         label: "Thesis Status",
@@ -1113,6 +1132,16 @@ export async function getThesisPageData(projectId: string): Promise<ThesisPageDa
         label: "Catalysts",
         value: String(summary.thesisCatalystCount),
         note: "Catalysts are currently sourced from compiled timeline events and related knowledge objects.",
+      },
+      {
+        label: "Revision",
+        value: summary.thesisRevisionNumber > 0 ? `R${summary.thesisRevisionNumber}` : "None",
+        note: "Each thesis refresh creates a durable revision instead of overwriting the prior thesis state.",
+      },
+      {
+        label: "Freshness",
+        value: summary.thesisPotentiallyStale ? "Attention" : "Current",
+        note: summary.thesisFreshnessReason,
       },
     ],
   };

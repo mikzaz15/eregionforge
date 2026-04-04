@@ -8,10 +8,8 @@ import {
   StatusPill,
   type StatusTone,
 } from "@/components/workspace/primitives";
-import type {
-  ThesisPageData,
-} from "@/lib/services/workspace-service";
 import type { ThesisSupportRecord } from "@/lib/services/thesis-service";
+import type { ThesisPageData } from "@/lib/services/workspace-service";
 
 function stanceTone(stance: string | null): StatusTone {
   if (stance === "bullish") {
@@ -63,6 +61,24 @@ function labelize(value: string | null): string {
   }
 
   return value.replace(/([A-Z])/g, " $1").replaceAll("-", " ");
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) {
+    return "Not available";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function buildRevisionHref(basePath: string, revisionId: string): string {
+  return `${basePath}?revisionId=${encodeURIComponent(revisionId)}`;
 }
 
 function ReferencePanel({
@@ -181,23 +197,20 @@ export function ThesisView({
   eyebrow,
   title,
   description,
+  basePath,
   actions,
 }: Readonly<{
   data: ThesisPageData;
   eyebrow: string;
   title: string;
   description: string;
+  basePath: string;
   actions?: ReactNode;
 }>) {
   const thesisDetail = data.thesis;
   const thesis = thesisDetail?.thesis ?? null;
-  const compiledThesis =
-    thesis && thesisDetail
-      ? {
-          thesis,
-          supportBySection: thesisDetail.supportBySection,
-        }
-      : null;
+  const currentRevision = thesisDetail?.currentRevision ?? null;
+  const comparison = thesisDetail?.comparison ?? null;
 
   return (
     <PageFrame
@@ -206,61 +219,330 @@ export function ThesisView({
       description={description}
       actions={actions}
     >
-      <div className="grid gap-4 xl:grid-cols-4">
+      <div className="grid gap-4 xl:grid-cols-6">
         {data.metrics.map((metric) => (
           <MetricCard key={metric.label} {...metric} />
         ))}
       </div>
 
-      {compiledThesis ? (
+      {thesis && thesisDetail && currentRevision ? (
         <>
           <SectionCard
             eyebrow="Overview"
-            title={compiledThesis.thesis.title}
-            description="The thesis is compiled from the project knowledge base rather than maintained as a detached investment memo."
+            title={thesis.title}
+            description="The thesis remains compiled from project canon, then preserved as a living revision history rather than overwritten in place."
           >
             <div className="flex flex-wrap gap-2">
-              <StatusPill tone={thesisStatusTone(compiledThesis.thesis.status)}>{compiledThesis.thesis.status}</StatusPill>
-              <StatusPill tone={stanceTone(compiledThesis.thesis.overallStance)}>
-                {labelize(compiledThesis.thesis.overallStance)}
+              <StatusPill tone={thesisStatusTone(data.summary.thesisStatus)}>
+                {data.summary.thesisStatus}
               </StatusPill>
-              <StatusPill tone={confidenceTone(compiledThesis.thesis.confidence)}>
-                {compiledThesis.thesis.confidence}
+              <StatusPill tone={stanceTone(thesis.overallStance)}>
+                {labelize(thesis.overallStance)}
               </StatusPill>
-              {compiledThesis.thesis.ticker ? <StatusPill tone="neutral">{compiledThesis.thesis.ticker}</StatusPill> : null}
+              <StatusPill tone={confidenceTone(thesis.confidence)}>
+                {thesis.confidence}
+              </StatusPill>
+              <StatusPill tone="neutral">Revision {thesis.revisionCount}</StatusPill>
+              {thesis.ticker ? <StatusPill tone="neutral">{thesis.ticker}</StatusPill> : null}
             </div>
-            <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_280px]">
+            <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_320px]">
               <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
-                <MarkdownDocument content={compiledThesis.thesis.summary} />
+                <MarkdownDocument content={thesis.summary} />
               </div>
-              <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
-                <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-                  Thesis posture
-                </p>
-                <p className="mt-3 text-sm leading-6 text-foreground">
-                  Subject: {compiledThesis.thesis.subjectName}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-foreground">
-                  Unresolved contradictions: {data.summary.unresolvedContradictionCount}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-foreground">
-                  Catalyst count: {data.summary.thesisCatalystCount}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  Last refreshed {new Intl.DateTimeFormat("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                  }).format(new Date(compiledThesis.thesis.updatedAt))}
-                </p>
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                  <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                    Thesis posture
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-foreground">
+                    Subject: {thesis.subjectName}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-foreground">
+                    Unresolved contradictions: {data.summary.unresolvedContradictionCount}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-foreground">
+                    Catalyst count: {data.summary.thesisCatalystCount}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    Last refreshed {formatDateTime(thesisDetail.freshness.lastRefreshedAt)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                      Freshness
+                    </p>
+                    <StatusPill
+                      tone={thesisDetail.freshness.potentiallyStale ? "danger" : "success"}
+                    >
+                      {thesisDetail.freshness.potentiallyStale ? "attention" : "current"}
+                    </StatusPill>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-foreground">
+                    {thesisDetail.freshness.reason}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    Latest knowledge update {formatDateTime(thesisDetail.freshness.latestKnowledgeUpdateAt)}
+                  </p>
+                </div>
               </div>
             </div>
             <div className="mt-4">
-              <ReferencePanel support={compiledThesis.supportBySection.summary} />
+              <ReferencePanel support={currentRevision.supportBySection.summary} />
             </div>
           </SectionCard>
+
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <SectionCard
+              eyebrow="Refresh Intelligence"
+              title={`Revision ${currentRevision.revision.revisionNumber}`}
+              description="Each thesis refresh records what changed and which newer knowledge objects likely drove the update."
+            >
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4 text-sm leading-6 text-foreground">
+                  {currentRevision.revision.changeSummary}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                    <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                      Changed sections
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-foreground">
+                      {currentRevision.intelligence.changedSections.length > 0
+                        ? currentRevision.intelligence.changedSections
+                            .map((section) => labelize(section))
+                            .join(", ")
+                        : "None"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                    <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                      Confidence shift
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-foreground">
+                      {currentRevision.intelligence.confidenceShift === 0
+                        ? "No change"
+                        : currentRevision.intelligence.confidenceShift > 0
+                          ? `Up ${currentRevision.intelligence.confidenceShift}`
+                          : `Down ${Math.abs(currentRevision.intelligence.confidenceShift)}`}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                    <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                      Delta
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-foreground">
+                      Catalysts {currentRevision.intelligence.catalystCountShift >= 0 ? "+" : ""}
+                      {currentRevision.intelligence.catalystCountShift}
+                      <br />
+                      Contradictions {currentRevision.intelligence.contradictionCountShift >= 0 ? "+" : ""}
+                      {currentRevision.intelligence.contradictionCountShift}
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                  <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                    Likely drivers
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-foreground">
+                    {currentRevision.intelligence.likelyDriverSummary ?? "No likely drivers isolated."}
+                  </p>
+                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                    <div className="space-y-2 text-sm leading-6">
+                      <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                        Wiki and claims
+                      </p>
+                      {currentRevision.intelligence.likelyDrivers.pages.map((page) => (
+                        <Link
+                          key={page.id}
+                          href={`/wiki/${page.id}`}
+                          className="block text-foreground underline-offset-4 hover:underline"
+                        >
+                          {page.title}
+                        </Link>
+                      ))}
+                      {currentRevision.intelligence.likelyDrivers.claims.map((claim) => (
+                        <Link
+                          key={claim.id}
+                          href={`/wiki/${claim.wikiPageId}#claim-${claim.id}`}
+                          className="block text-foreground underline-offset-4 hover:underline"
+                        >
+                          {claim.text}
+                        </Link>
+                      ))}
+                      {currentRevision.intelligence.likelyDrivers.pages.length === 0 &&
+                      currentRevision.intelligence.likelyDrivers.claims.length === 0 ? (
+                        <p className="text-muted">None isolated</p>
+                      ) : null}
+                    </div>
+                    <div className="space-y-2 text-sm leading-6">
+                      <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                        Sources and timeline
+                      </p>
+                      {currentRevision.intelligence.likelyDrivers.sources.map((source) => (
+                        <Link
+                          key={source.id}
+                          href={`/sources#${source.id}`}
+                          className="block text-foreground underline-offset-4 hover:underline"
+                        >
+                          {source.title}
+                        </Link>
+                      ))}
+                      {currentRevision.intelligence.likelyDrivers.timelineEvents.map((event) => (
+                        <Link
+                          key={event.id}
+                          href={`/timeline#${event.id}`}
+                          className="block text-foreground underline-offset-4 hover:underline"
+                        >
+                          {event.title}
+                        </Link>
+                      ))}
+                      {currentRevision.intelligence.likelyDrivers.sources.length === 0 &&
+                      currentRevision.intelligence.likelyDrivers.timelineEvents.length === 0 ? (
+                        <p className="text-muted">None isolated</p>
+                      ) : null}
+                    </div>
+                    <div className="space-y-2 text-sm leading-6">
+                      <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                        Contradictions and artifacts
+                      </p>
+                      {currentRevision.intelligence.likelyDrivers.contradictions.map(
+                        (contradiction) => (
+                          <Link
+                            key={contradiction.id}
+                            href={`/contradictions#${contradiction.id}`}
+                            className="block text-foreground underline-offset-4 hover:underline"
+                          >
+                            {contradiction.title}
+                          </Link>
+                        ),
+                      )}
+                      {currentRevision.intelligence.likelyDrivers.artifacts.map((artifact) => (
+                        <Link
+                          key={artifact.id}
+                          href={`/artifacts/${artifact.id}`}
+                          className="block text-foreground underline-offset-4 hover:underline"
+                        >
+                          {artifact.title}
+                        </Link>
+                      ))}
+                      {currentRevision.intelligence.likelyDrivers.contradictions.length === 0 &&
+                      currentRevision.intelligence.likelyDrivers.artifacts.length === 0 ? (
+                        <p className="text-muted">None isolated</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              eyebrow="Revision History"
+              title="Prior thesis revisions"
+              description="Revision history tracks how the thesis evolved and supports side-by-side inspection against the current view."
+            >
+              <div className="space-y-3">
+                <Link
+                  href={basePath}
+                  className="inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                >
+                  View Current Thesis
+                </Link>
+                {thesisDetail.revisions.map((entry) => {
+                  const isCurrent = entry.revision.id === thesis.currentRevisionId;
+                  const isSelected = entry.revision.id === data.selectedRevisionId;
+
+                  return (
+                    <div
+                      key={entry.revision.id}
+                      className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold tracking-tight text-foreground">
+                          Revision {entry.revision.revisionNumber}
+                        </p>
+                        <StatusPill tone={isCurrent ? "success" : "neutral"}>
+                          {isCurrent ? "current" : "prior"}
+                        </StatusPill>
+                        {isSelected ? <StatusPill tone="accent">selected</StatusPill> : null}
+                        <StatusPill tone={stanceTone(entry.revision.stance)}>
+                          {labelize(entry.revision.stance)}
+                        </StatusPill>
+                        <StatusPill tone={confidenceTone(entry.revision.confidence)}>
+                          {entry.revision.confidence}
+                        </StatusPill>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-muted">
+                        {formatDateTime(entry.revision.createdAt)}
+                      </p>
+                      <p className="mt-3 text-sm leading-6 text-foreground">
+                        {entry.revision.changeSummary}
+                      </p>
+                      {!isCurrent ? (
+                        <Link
+                          href={buildRevisionHref(basePath, entry.revision.id)}
+                          className="mt-4 inline-flex rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+                        >
+                          Compare To Current
+                        </Link>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </SectionCard>
+          </div>
+
+          {comparison ? (
+            <SectionCard
+              eyebrow="Revision Comparison"
+              title={`Current Revision vs Revision ${comparison.baseRevision.revision.revisionNumber}`}
+              description="Comparison highlights the sections that materially changed between the selected prior revision and the current thesis."
+            >
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4 text-sm leading-6 text-foreground">
+                  {comparison.changeSummary}
+                </div>
+                {comparison.sections.length > 0 ? (
+                  comparison.sections.map((section) => (
+                    <div
+                      key={section.key}
+                      className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold tracking-tight text-foreground">
+                          {section.title}
+                        </p>
+                        <StatusPill tone="accent">changed</StatusPill>
+                      </div>
+                      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                        <div className="rounded-2xl border border-border bg-background/65 px-4 py-4">
+                          <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                            Previous
+                          </p>
+                          <div className="mt-3">
+                            <MarkdownDocument content={section.previousContent} />
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
+                          <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                            Current
+                          </p>
+                          <div className="mt-3">
+                            <MarkdownDocument content={section.currentContent} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 text-sm leading-6 text-muted">
+                    No thesis sections changed materially between the selected prior revision and the current revision.
+                  </div>
+                )}
+              </div>
+            </SectionCard>
+          ) : null}
 
           <div className="grid gap-4 xl:grid-cols-2">
             <SectionCard
@@ -270,9 +552,9 @@ export function ThesisView({
             >
               <div className="space-y-4">
                 <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
-                  <MarkdownDocument content={compiledThesis.thesis.bullCaseMarkdown} />
+                  <MarkdownDocument content={thesis.bullCaseMarkdown} />
                 </div>
-                <ReferencePanel support={compiledThesis.supportBySection.bullCase} />
+                <ReferencePanel support={currentRevision.supportBySection.bullCase} />
               </div>
             </SectionCard>
 
@@ -283,9 +565,9 @@ export function ThesisView({
             >
               <div className="space-y-4">
                 <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
-                  <MarkdownDocument content={compiledThesis.thesis.bearCaseMarkdown} />
+                  <MarkdownDocument content={thesis.bearCaseMarkdown} />
                 </div>
-                <ReferencePanel support={compiledThesis.supportBySection.bearCase} />
+                <ReferencePanel support={currentRevision.supportBySection.bearCase} />
               </div>
             </SectionCard>
 
@@ -296,9 +578,9 @@ export function ThesisView({
             >
               <div className="space-y-4">
                 <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
-                  <MarkdownDocument content={compiledThesis.thesis.variantViewMarkdown} />
+                  <MarkdownDocument content={thesis.variantViewMarkdown} />
                 </div>
-                <ReferencePanel support={compiledThesis.supportBySection.variantView} />
+                <ReferencePanel support={currentRevision.supportBySection.variantView} />
               </div>
             </SectionCard>
 
@@ -309,9 +591,9 @@ export function ThesisView({
             >
               <div className="space-y-4">
                 <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
-                  <MarkdownDocument content={compiledThesis.thesis.keyRisksMarkdown} />
+                  <MarkdownDocument content={thesis.keyRisksMarkdown} />
                 </div>
-                <ReferencePanel support={compiledThesis.supportBySection.keyRisks} />
+                <ReferencePanel support={currentRevision.supportBySection.keyRisks} />
               </div>
             </SectionCard>
 
@@ -322,9 +604,9 @@ export function ThesisView({
             >
               <div className="space-y-4">
                 <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
-                  <MarkdownDocument content={compiledThesis.thesis.keyUnknownsMarkdown} />
+                  <MarkdownDocument content={thesis.keyUnknownsMarkdown} />
                 </div>
-                <ReferencePanel support={compiledThesis.supportBySection.keyUnknowns} />
+                <ReferencePanel support={currentRevision.supportBySection.keyUnknowns} />
               </div>
             </SectionCard>
 
@@ -335,9 +617,9 @@ export function ThesisView({
             >
               <div className="space-y-4">
                 <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
-                  <MarkdownDocument content={compiledThesis.thesis.catalystSummaryMarkdown} />
+                  <MarkdownDocument content={thesis.catalystSummaryMarkdown} />
                 </div>
-                <ReferencePanel support={compiledThesis.supportBySection.catalystSummary} />
+                <ReferencePanel support={currentRevision.supportBySection.catalystSummary} />
               </div>
             </SectionCard>
           </div>
