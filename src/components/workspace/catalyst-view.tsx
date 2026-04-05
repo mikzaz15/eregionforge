@@ -10,6 +10,7 @@ import {
   type StatusTone,
 } from "@/components/workspace/primitives";
 import { parseConfidenceFactors } from "@/lib/services/confidence-model-v2";
+import { buildFragmentSnippet } from "@/lib/services/evidence-lineage-v3";
 import type { CatalystsPageData } from "@/lib/services/workspace-service";
 
 function confidenceTone(confidence: string): StatusTone {
@@ -211,7 +212,7 @@ export function CatalystView({
                       Review note: {entry.catalyst.reviewNote}
                     </p>
                   ) : null}
-                  <div className="mt-4 grid gap-3 lg:grid-cols-6">
+                  <div className="mt-4 grid gap-3 lg:grid-cols-7">
                     <div className="rounded-2xl border border-border bg-background/65 px-4 py-4">
                       <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
                         Thesis
@@ -326,6 +327,36 @@ export function CatalystView({
                           ))
                         ) : (
                           <p className="text-muted">None linked</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-background/65 px-4 py-4">
+                      <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                        Evidence
+                      </p>
+                      <div className="mt-3 space-y-3 text-sm leading-6">
+                        {entry.evidenceHighlights.length > 0 ? (
+                          entry.evidenceHighlights.map((highlight) => (
+                            <Link
+                              key={highlight.fragment.id}
+                              href={`/sources#${highlight.fragment.sourceId}`}
+                              className="block rounded-2xl border border-border bg-background/60 px-3 py-3 transition hover:bg-background"
+                            >
+                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                                {highlight.source?.title ?? "Source fragment"}
+                              </p>
+                              {highlight.claim ? (
+                                <p className="mt-2 text-xs leading-5 text-muted">
+                                  Claim: {highlight.claim.text}
+                                </p>
+                              ) : null}
+                              <p className="mt-2 text-sm leading-6 text-foreground">
+                                {buildFragmentSnippet(highlight.fragment)}
+                              </p>
+                            </Link>
+                          ))
+                        ) : (
+                          <p className="text-muted">No fragment-level support linked</p>
                         )}
                       </div>
                     </div>

@@ -11,6 +11,7 @@ import {
 } from "@/components/workspace/primitives";
 import type { DossierSupportRecord } from "@/lib/services/company-dossier-service";
 import { parseConfidenceFactors } from "@/lib/services/confidence-model-v2";
+import { buildFragmentSnippet } from "@/lib/services/evidence-lineage-v3";
 import type { DossierPageData } from "@/lib/services/workspace-service";
 
 function confidenceTone(confidence: string | null): StatusTone {
@@ -60,8 +61,10 @@ function ReferencePanel({
 }: Readonly<{
   support: DossierSupportRecord;
 }>) {
+  const sourcesById = new Map(support.sources.map((source) => [source.id, source] as const));
+
   return (
-    <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-5">
+    <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-6">
       <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
         <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
           Pages
@@ -160,6 +163,32 @@ function ReferencePanel({
           ) : (
             <p className="text-muted">None linked</p>
           )}
+        </div>
+      </div>
+      <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+        <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+          Evidence
+        </p>
+        <div className="mt-3 space-y-2 text-sm leading-6">
+          {support.sourceFragments.length > 0 ? (
+            support.sourceFragments.slice(0, 3).map((fragment) => (
+              <Link
+                key={fragment.id}
+                href={`/sources#${fragment.sourceId}`}
+                className="block text-foreground underline-offset-4 hover:underline"
+              >
+                {(sourcesById.get(fragment.sourceId)?.title ?? "Source fragment")}:{" "}
+                {buildFragmentSnippet(fragment)}
+              </Link>
+            ))
+          ) : (
+            <p className="text-muted">No localized evidence isolated</p>
+          )}
+          {support.evidenceLinks.length > 0 ? (
+            <p className="text-xs leading-5 text-muted">
+              Evidence links: {support.evidenceLinks.length}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

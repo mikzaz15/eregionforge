@@ -335,6 +335,7 @@ export default async function AskPage({
                     <span>Wiki pages: {currentSession.consultedPages.length}</span>
                     <span>Claims: {currentSession.consultedClaims.length}</span>
                     <span>Sources: {currentSession.consultedSources.length}</span>
+                    <span>Evidence: {currentSession.consultedEvidenceHighlights.length}</span>
                     <span>Confidence: {currentSession.session.confidence}</span>
                   </div>
                 </div>
@@ -362,6 +363,11 @@ export default async function AskPage({
                   {currentSession.session.metadata?.lineageSummary ? (
                     <p className="text-sm leading-6 text-muted">
                       {currentSession.session.metadata.lineageSummary}
+                    </p>
+                  ) : null}
+                  {currentSession.session.metadata?.evidenceLineageSummary ? (
+                    <p className="text-sm leading-6 text-muted">
+                      {currentSession.session.metadata.evidenceLineageSummary}
                     </p>
                   ) : null}
                 </div>
@@ -439,6 +445,38 @@ export default async function AskPage({
                       </div>
                     </div>
                   </div>
+                </div>
+                <div className="space-y-3">
+                  <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                    Evidence Fragments
+                  </p>
+                  {currentSession.consultedEvidenceHighlights.length > 0 ? (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {currentSession.consultedEvidenceHighlights.map((entry) => (
+                        <Link
+                          key={entry.fragment.id}
+                          href={`/sources#${entry.fragment.sourceId}`}
+                          className="block rounded-2xl border border-border bg-surface-strong/75 px-4 py-4 transition hover:bg-background"
+                        >
+                          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                            {entry.source?.title ?? "Source fragment"}
+                          </p>
+                          {entry.claim ? (
+                            <p className="mt-2 text-xs leading-5 text-muted">
+                              Claim: {entry.claim.text}
+                            </p>
+                          ) : null}
+                          <p className="mt-3 text-sm leading-6 text-foreground">
+                            {entry.snippet}
+                          </p>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-6 text-muted">
+                      No specific evidence fragments were isolated for this ask session.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-3">
                   <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">

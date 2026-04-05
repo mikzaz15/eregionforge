@@ -3,9 +3,11 @@ import type {
   Catalyst,
   Claim,
   Contradiction,
+  EvidenceLink,
   ResearchEntity,
   RevisionConfidence,
   Source,
+  SourceFragment,
   StringMetadata,
   Thesis,
   ThesisChangedSection,
@@ -21,7 +23,9 @@ import { artifactsRepository } from "@/lib/repositories/artifacts-repository";
 import { catalystsRepository } from "@/lib/repositories/catalysts-repository";
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { contradictionsRepository } from "@/lib/repositories/contradictions-repository";
+import { evidenceLinksRepository } from "@/lib/repositories/evidence-links-repository";
 import { projectsRepository } from "@/lib/repositories/projects-repository";
+import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { thesisRevisionsRepository } from "@/lib/repositories/thesis-revisions-repository";
 import { thesesRepository } from "@/lib/repositories/theses-repository";
@@ -54,6 +58,12 @@ import {
   buildConfidenceAssessment,
   serializeConfidenceFactors,
 } from "@/lib/services/confidence-model-v2";
+import {
+  attachEvidenceLineage,
+  buildEvidenceLineageLookup,
+  hydrateEvidenceLinks,
+  hydrateSourceFragments,
+} from "@/lib/services/evidence-lineage-v3";
 import {
   safeRatio,
 } from "@/lib/services/semantic-intelligence-v1";
@@ -129,6 +139,8 @@ export type ThesisSupportRecord = {
   pages: WikiPage[];
   claims: Claim[];
   sources: Source[];
+  evidenceLinks: EvidenceLink[];
+  sourceFragments: SourceFragment[];
   entities: ResearchEntity[];
   catalysts: Catalyst[];
   timelineEvents: TimelineEvent[];
@@ -146,6 +158,8 @@ export type ThesisRevisionIntelligence = {
     pages: WikiPage[];
     claims: Claim[];
     sources: Source[];
+    evidenceLinks: EvidenceLink[];
+    sourceFragments: SourceFragment[];
     catalysts: Catalyst[];
     timelineEvents: TimelineEvent[];
     contradictions: Contradiction[];
@@ -261,6 +275,8 @@ function emptyReferences(): ThesisSectionReferences {
     catalystIds: [],
     timelineEventIds: [],
     contradictionIds: [],
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -281,6 +297,12 @@ function mergeReferences(
       ),
       contradictionIds: Array.from(
         new Set([...accumulator.contradictionIds, ...refs.contradictionIds]),
+      ),
+      evidenceLinkIds: Array.from(
+        new Set([...(accumulator.evidenceLinkIds ?? []), ...(refs.evidenceLinkIds ?? [])]),
+      ),
+      sourceFragmentIds: Array.from(
+        new Set([...(accumulator.sourceFragmentIds ?? []), ...(refs.sourceFragmentIds ?? [])]),
       ),
     }),
     emptyReferences(),
@@ -331,6 +353,8 @@ function referencesFromClaim(claim: Claim): ThesisSectionReferences {
     catalystIds: [],
     timelineEventIds: [],
     contradictionIds: [],
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -343,6 +367,8 @@ function referencesFromPage(context: PageContext): ThesisSectionReferences {
     catalystIds: [],
     timelineEventIds: [],
     contradictionIds: [],
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -355,6 +381,8 @@ function referencesFromTimeline(entry: TimelineReferenceRecord): ThesisSectionRe
     catalystIds: [],
     timelineEventIds: [entry.event.id],
     contradictionIds: [],
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -367,6 +395,8 @@ function referencesFromCatalyst(entry: CatalystReferenceRecord): ThesisSectionRe
     catalystIds: [entry.catalyst.id],
     timelineEventIds: entry.relatedTimelineEvents.map((event) => event.id),
     contradictionIds: entry.relatedContradictions.map((contradiction) => contradiction.id),
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -384,6 +414,8 @@ function referencesFromContradiction(
     catalystIds: [],
     timelineEventIds: entry.relatedTimelineEvents.map((event) => event.id),
     contradictionIds: [entry.contradiction.id],
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -396,6 +428,8 @@ function referencesFromEntity(entity: ResearchEntity): ThesisSectionReferences {
     catalystIds: [],
     timelineEventIds: [],
     contradictionIds: [],
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -426,6 +460,8 @@ function supportRecordFromRefs(
     pagesById: Map<string, WikiPage>;
     claimsById: Map<string, Claim>;
     sourcesById: Map<string, Source>;
+    evidenceLinksById: Map<string, EvidenceLink>;
+    fragmentsById: Map<string, SourceFragment>;
     entitiesById: Map<string, ResearchEntity>;
     catalystsById: Map<string, Catalyst>;
     timelineById: Map<string, TimelineEvent>;
@@ -442,6 +478,18 @@ function supportRecordFromRefs(
     sources: refs.sourceIds
       .map((id) => lookup.sourcesById.get(id) ?? null)
       .filter((value): value is Source => Boolean(value)),
+    evidenceLinks: hydrateEvidenceLinks(refs.evidenceLinkIds, {
+      evidenceByClaimId: new Map(),
+      evidenceById: lookup.evidenceLinksById,
+      fragmentsById: lookup.fragmentsById,
+      fragmentsBySourceId: new Map(),
+    }),
+    sourceFragments: hydrateSourceFragments(refs.sourceFragmentIds, {
+      evidenceByClaimId: new Map(),
+      evidenceById: lookup.evidenceLinksById,
+      fragmentsById: lookup.fragmentsById,
+      fragmentsBySourceId: new Map(),
+    }),
     entities: (refs.entityIds ?? [])
       .map((id) => lookup.entitiesById.get(id) ?? null)
       .filter((value): value is ResearchEntity => Boolean(value)),
@@ -1434,6 +1482,8 @@ function buildRevisionLookup(input: {
   pages: WikiPage[];
   claims: Claim[];
   sources: Source[];
+  evidenceLinks: EvidenceLink[];
+  sourceFragments: SourceFragment[];
   entities: ResearchEntity[];
   catalysts: Catalyst[];
   timelineEvents: TimelineEvent[];
@@ -1444,6 +1494,10 @@ function buildRevisionLookup(input: {
     pagesById: new Map(input.pages.map((page) => [page.id, page] as const)),
     claimsById: new Map(input.claims.map((claim) => [claim.id, claim] as const)),
     sourcesById: new Map(input.sources.map((source) => [source.id, source] as const)),
+    evidenceLinksById: new Map(input.evidenceLinks.map((link) => [link.id, link] as const)),
+    fragmentsById: new Map(
+      input.sourceFragments.map((fragment) => [fragment.id, fragment] as const),
+    ),
     entitiesById: new Map(input.entities.map((entity) => [entity.id, entity] as const)),
     catalystsById: new Map(input.catalysts.map((catalyst) => [catalyst.id, catalyst] as const)),
     timelineById: new Map(
@@ -1486,6 +1540,12 @@ function hydrateIntelligence(
       sources: parseJsonArray(metadata?.driverSourceIds)
         .map((id) => lookup.sourcesById.get(id) ?? null)
         .filter((value): value is Source => Boolean(value)),
+      evidenceLinks: parseJsonArray(metadata?.driverEvidenceLinkIds)
+        .map((id) => lookup.evidenceLinksById.get(id) ?? null)
+        .filter((value): value is EvidenceLink => Boolean(value)),
+      sourceFragments: parseJsonArray(metadata?.driverSourceFragmentIds)
+        .map((id) => lookup.fragmentsById.get(id) ?? null)
+        .filter((value): value is SourceFragment => Boolean(value)),
       catalysts: parseJsonArray(metadata?.driverCatalystIds)
         .map((id) => lookup.catalystsById.get(id) ?? null)
         .filter((value): value is Catalyst => Boolean(value)),
@@ -1578,6 +1638,14 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
       thesisRevisionsRepository.listByProjectId(projectId),
       compileProjectEntities(projectId),
     ]);
+    const [evidenceLinks, sourceFragments] = await Promise.all([
+      evidenceLinksRepository.listByProjectId(projectId),
+      sourceFragmentsRepository.listByProjectId(projectId),
+    ]);
+    const evidenceLookup = buildEvidenceLineageLookup({
+      evidenceLinks,
+      fragments: sourceFragments,
+    });
     const previousRevision = existingThesis?.currentRevisionId
       ? (await thesisRevisionsRepository.getById(existingThesis.currentRevisionId)) ??
         existingRevisions[0] ??
@@ -1620,6 +1688,27 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
       contradictionCountShift,
       catalystCountShift,
     });
+    const supportBySection = Object.fromEntries(
+      Object.entries(candidate.supportBySection).map(([key, refs]) => [
+        key,
+        attachEvidenceLineage(refs, evidenceLookup),
+      ]),
+    ) as ThesisSectionSupportMap;
+    const driverEvidenceLinkIds = Array.from(
+      new Set(
+        likelyDrivers.ids.claimIds.flatMap(
+          (claimId) =>
+            evidenceLookup.evidenceByClaimId.get(claimId)?.map((link) => link.id) ?? [],
+        ),
+      ),
+    );
+    const driverSourceFragmentIds = Array.from(
+      new Set(
+        driverEvidenceLinkIds
+          .map((id) => evidenceLookup.evidenceById.get(id)?.sourceFragmentId ?? null)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
     const revisionNumber = (existingThesis?.revisionCount ?? existingRevisions.length) + 1;
     const thesisId = existingThesis?.id ?? `thesis-${projectId}`;
     const revision = await thesisRevisionsRepository.create({
@@ -1637,7 +1726,7 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
       keyUnknownsMarkdown: candidate.keyUnknownsMarkdown,
       catalystSummaryMarkdown: candidate.catalystSummaryMarkdown,
       changeSummary,
-      supportBySection: candidate.supportBySection,
+      supportBySection,
       metadata: {
         ...candidate.metadata,
         changedSections: JSON.stringify(changedSections),
@@ -1653,6 +1742,8 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
         driverTimelineEventIds: JSON.stringify(likelyDrivers.ids.timelineEventIds),
         driverContradictionIds: JSON.stringify(likelyDrivers.ids.contradictionIds),
         driverArtifactIds: JSON.stringify(likelyDrivers.ids.artifactIds),
+        driverEvidenceLinkIds: JSON.stringify(driverEvidenceLinkIds),
+        driverSourceFragmentIds: JSON.stringify(driverSourceFragmentIds),
       },
     });
 
@@ -1673,7 +1764,7 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
       keyUnknownsMarkdown: candidate.keyUnknownsMarkdown,
       catalystSummaryMarkdown: candidate.catalystSummaryMarkdown,
       confidence: candidate.confidence,
-      supportBySection: candidate.supportBySection,
+      supportBySection,
       latestInputSignature: candidate.latestInputSignature,
       metadata: {
         ...candidate.metadata,
@@ -1844,6 +1935,8 @@ export async function getProjectThesisDetail(
     pages,
     claims,
     sources,
+    evidenceLinks,
+    sourceFragments,
     entityCompileResult,
     catalysts,
     timelineEvents,
@@ -1857,6 +1950,8 @@ export async function getProjectThesisDetail(
       wikiRepository.listPagesByProjectId(projectId),
       claimsRepository.listByProjectId(projectId),
       sourcesRepository.listByProjectId(projectId),
+      evidenceLinksRepository.listByProjectId(projectId),
+      sourceFragmentsRepository.listByProjectId(projectId),
       compileProjectEntities(projectId),
       catalystsRepository.listByProjectId(projectId),
       timelineEventsRepository.listByProjectId(projectId),
@@ -1873,6 +1968,8 @@ export async function getProjectThesisDetail(
     pages,
     claims,
     sources,
+    evidenceLinks,
+    sourceFragments,
     entities: entityCompileResult.entities,
     catalysts,
     timelineEvents,

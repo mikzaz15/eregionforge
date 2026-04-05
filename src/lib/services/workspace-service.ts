@@ -87,6 +87,11 @@ import type { ConfidenceFactor } from "@/lib/services/confidence-model-v2";
 import {
   buildConfidenceAssessment,
 } from "@/lib/services/confidence-model-v2";
+import {
+  buildEvidenceLineageLookup,
+  collectEvidenceHighlights,
+  type EvidenceHighlight,
+} from "@/lib/services/evidence-lineage-v3";
 
 export type ProjectSummary = {
   project: Project;
@@ -260,6 +265,7 @@ export type AskSessionDetail = {
   consultedPages: WikiPageSummary[];
   consultedClaims: AskConsultedClaim[];
   consultedSources: LinkedSourceDetail[];
+  consultedEvidenceHighlights: EvidenceHighlight[];
   relatedEntities: EntityReferenceRecord[];
   relatedCatalysts: CatalystReferenceRecord[];
   relatedContradictions: ContradictionReferenceRecord[];
@@ -1388,6 +1394,9 @@ export async function getAskPageDataWithSession(
 
   if (currentSessionRecord) {
     const [
+      allSources,
+      allEvidenceLinks,
+      allSourceFragments,
       consultedSources,
       catalystRecords,
       contradictionRecords,
@@ -1395,6 +1404,9 @@ export async function getAskPageDataWithSession(
       entityPageData,
       monitoringSnapshot,
     ] = await Promise.all([
+      sourcesRepository.listByProjectId(projectId),
+      evidenceLinksRepository.listByProjectId(projectId),
+      sourceFragmentsRepository.listByProjectId(projectId),
       Promise.all(
         currentSessionRecord.consultedSourceIds.map((sourceId) =>
           buildLinkedSourceDetail(sourceId),
@@ -1421,6 +1433,25 @@ export async function getAskPageDataWithSession(
     const relatedAlertIds = new Set(
       parseJsonArray(currentSessionRecord.metadata?.consultedAlertIds),
     );
+    const consultedEvidenceHighlights = collectEvidenceHighlights(
+      {
+        claimIds: currentSessionRecord.consultedClaimIds,
+        sourceIds: currentSessionRecord.consultedSourceIds,
+        evidenceLinkIds: parseJsonArray(
+          currentSessionRecord.metadata?.consultedEvidenceLinkIds,
+        ),
+        sourceFragmentIds: parseJsonArray(
+          currentSessionRecord.metadata?.consultedSourceFragmentIds,
+        ),
+        limit: 6,
+      },
+      buildEvidenceLineageLookup({
+        evidenceLinks: allEvidenceLinks,
+        fragments: allSourceFragments,
+        claimsById: claimsById,
+        sourcesById: new Map(allSources.map((source) => [source.id, source] as const)),
+      }),
+    );
 
     currentSession = {
       session: currentSessionRecord,
@@ -1441,6 +1472,7 @@ export async function getAskPageDataWithSession(
       consultedSources: consultedSources.filter(
         (source): source is LinkedSourceDetail => Boolean(source),
       ),
+      consultedEvidenceHighlights,
       relatedEntities: entityPageData.entities.filter((entry) =>
         relatedEntityIds.has(entry.entity.id),
       ),

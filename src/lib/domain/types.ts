@@ -326,6 +326,8 @@ export interface DossierSectionReferences {
   sourceIds: string[];
   artifactIds: string[];
   entityIds: string[];
+  evidenceLinkIds: string[];
+  sourceFragmentIds: string[];
 }
 
 export interface DossierSectionSupportMap {
@@ -475,6 +477,8 @@ export interface ThesisSectionReferences {
   catalystIds: string[];
   timelineEventIds: string[];
   contradictionIds: string[];
+  evidenceLinkIds: string[];
+  sourceFragmentIds: string[];
 }
 
 export interface ThesisSectionSupportMap {

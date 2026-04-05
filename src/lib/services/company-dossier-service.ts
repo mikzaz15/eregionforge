@@ -4,9 +4,11 @@ import type {
   CompanyDossier,
   DossierSectionReferences,
   DossierSectionSupportMap,
+  EvidenceLink,
   ResearchEntity,
   RevisionConfidence,
   Source,
+  SourceFragment,
   Thesis,
   WikiPage,
   WikiPageRevision,
@@ -15,7 +17,9 @@ import { artifactsRepository } from "@/lib/repositories/artifacts-repository";
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { companyDossiersRepository } from "@/lib/repositories/company-dossiers-repository";
 import { contradictionsRepository } from "@/lib/repositories/contradictions-repository";
+import { evidenceLinksRepository } from "@/lib/repositories/evidence-links-repository";
 import { projectsRepository } from "@/lib/repositories/projects-repository";
+import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { thesesRepository } from "@/lib/repositories/theses-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
@@ -24,6 +28,12 @@ import {
   entityInfluenceSummary,
   entityPriority,
 } from "@/lib/services/entity-intelligence-service";
+import {
+  attachEvidenceLineage,
+  buildEvidenceLineageLookup,
+  hydrateEvidenceLinks,
+  hydrateSourceFragments,
+} from "@/lib/services/evidence-lineage-v3";
 import {
   completeOperationalJob,
   failOperationalJob,
@@ -56,6 +66,8 @@ export type DossierSupportRecord = {
   sources: Source[];
   artifacts: Artifact[];
   entities: ResearchEntity[];
+  evidenceLinks: EvidenceLink[];
+  sourceFragments: SourceFragment[];
 };
 
 export type CompanyDossierDetailRecord = {
@@ -82,6 +94,8 @@ function emptyReferences(): DossierSectionReferences {
     sourceIds: [],
     artifactIds: [],
     entityIds: [],
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -95,6 +109,12 @@ function mergeReferences(
       sourceIds: Array.from(new Set([...accumulator.sourceIds, ...refs.sourceIds])),
       artifactIds: Array.from(new Set([...accumulator.artifactIds, ...refs.artifactIds])),
       entityIds: Array.from(new Set([...(accumulator.entityIds ?? []), ...(refs.entityIds ?? [])])),
+      evidenceLinkIds: Array.from(
+        new Set([...(accumulator.evidenceLinkIds ?? []), ...(refs.evidenceLinkIds ?? [])]),
+      ),
+      sourceFragmentIds: Array.from(
+        new Set([...(accumulator.sourceFragmentIds ?? []), ...(refs.sourceFragmentIds ?? [])]),
+      ),
     }),
     emptyReferences(),
   );
@@ -138,6 +158,8 @@ function pageReferences(context: PageContext): DossierSectionReferences {
     sourceIds: context.sourceIds,
     artifactIds: [],
     entityIds: [],
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -148,6 +170,8 @@ function claimReferences(claim: Claim): DossierSectionReferences {
     sourceIds: claim.sourceId ? [claim.sourceId] : [],
     artifactIds: [],
     entityIds: [],
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -158,6 +182,8 @@ function artifactReferences(artifact: Artifact): DossierSectionReferences {
     sourceIds: artifact.referencedSourceIds,
     artifactIds: [artifact.id],
     entityIds: [],
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -168,6 +194,8 @@ function entityReferences(entity: ResearchEntity): DossierSectionReferences {
     sourceIds: entity.relatedSourceIds,
     artifactIds: [],
     entityIds: [entity.id],
+    evidenceLinkIds: [],
+    sourceFragmentIds: [],
   };
 }
 
@@ -338,6 +366,8 @@ function buildBusinessOverviewBullets(input: {
             sourceIds: input.thesis.supportBySection.summary.sourceIds,
             artifactIds: [],
             entityIds: input.thesis.supportBySection.summary.entityIds,
+            evidenceLinkIds: input.thesis.supportBySection.summary.evidenceLinkIds,
+            sourceFragmentIds: input.thesis.supportBySection.summary.sourceFragmentIds,
           },
           score: 4 + confidenceRank(input.thesis.confidence),
         } satisfies DossierBullet,
@@ -388,6 +418,8 @@ function buildProductsBullets(input: {
         sourceIds: [source.id],
         artifactIds: [],
         entityIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       score: 1,
     }));
@@ -439,6 +471,8 @@ function buildManagementBullets(input: {
         sourceIds: [source.id],
         artifactIds: [],
         entityIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       score: 1,
     }));
@@ -487,6 +521,8 @@ function buildMarketBullets(input: {
         sourceIds: [source.id],
         artifactIds: [],
         entityIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       score: 1,
     }));
@@ -531,6 +567,8 @@ function buildMetricsBullets(input: {
       sourceIds: [source.id],
       artifactIds: [],
       entityIds: [],
+      evidenceLinkIds: [],
+      sourceFragmentIds: [],
     },
     score: 1,
   }));
@@ -544,6 +582,8 @@ function buildMetricsBullets(input: {
             sourceIds: input.thesis.supportBySection.summary.sourceIds,
             artifactIds: [],
             entityIds: input.thesis.supportBySection.summary.entityIds,
+            evidenceLinkIds: input.thesis.supportBySection.summary.evidenceLinkIds,
+            sourceFragmentIds: input.thesis.supportBySection.summary.sourceFragmentIds,
           },
           score: 2,
         } satisfies DossierBullet,
@@ -591,6 +631,8 @@ function buildCoverageBullets(input: {
         sourceIds: input.sources.map((source) => source.id),
         artifactIds: [],
         entityIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       score: 4,
     },
@@ -605,6 +647,8 @@ function supportRecordFromRefs(
     sourcesById: Map<string, Source>;
     artifactsById: Map<string, Artifact>;
     entitiesById: Map<string, ResearchEntity>;
+    evidenceLinksById: Map<string, EvidenceLink>;
+    fragmentsById: Map<string, SourceFragment>;
   },
 ): DossierSupportRecord {
   return {
@@ -623,6 +667,18 @@ function supportRecordFromRefs(
     entities: (refs.entityIds ?? [])
       .map((id) => lookup.entitiesById.get(id) ?? null)
       .filter((value): value is ResearchEntity => Boolean(value)),
+    evidenceLinks: hydrateEvidenceLinks(refs.evidenceLinkIds, {
+      evidenceByClaimId: new Map(),
+      evidenceById: lookup.evidenceLinksById,
+      fragmentsById: lookup.fragmentsById,
+      fragmentsBySourceId: new Map(),
+    }),
+    sourceFragments: hydrateSourceFragments(refs.sourceFragmentIds, {
+      evidenceByClaimId: new Map(),
+      evidenceById: lookup.evidenceLinksById,
+      fragmentsById: lookup.fragmentsById,
+      fragmentsBySourceId: new Map(),
+    }),
   };
 }
 
@@ -645,17 +701,32 @@ export async function compileProjectCompanyDossier(
   });
 
   try {
-    const [pageContexts, claims, sources, artifacts, thesis, contradictions, entityCompileResult] =
-      await Promise.all([
-        buildPageContexts(projectId),
-        claimsRepository.listByProjectId(projectId),
-        sourcesRepository.listByProjectId(projectId),
-        artifactsRepository.listByProjectId(projectId),
-        thesesRepository.getByProjectId(projectId),
-        contradictionsRepository.listByProjectId(projectId),
-        compileProjectEntities(projectId),
-      ]);
+    const [
+      pageContexts,
+      claims,
+      sources,
+      artifacts,
+      thesis,
+      contradictions,
+      entityCompileResult,
+      evidenceLinks,
+      sourceFragments,
+    ] = await Promise.all([
+      buildPageContexts(projectId),
+      claimsRepository.listByProjectId(projectId),
+      sourcesRepository.listByProjectId(projectId),
+      artifactsRepository.listByProjectId(projectId),
+      thesesRepository.getByProjectId(projectId),
+      contradictionsRepository.listByProjectId(projectId),
+      compileProjectEntities(projectId),
+      evidenceLinksRepository.listByProjectId(projectId),
+      sourceFragmentsRepository.listByProjectId(projectId),
+    ]);
     const entities = entityCompileResult.entities;
+    const evidenceLookup = buildEvidenceLineageLookup({
+      evidenceLinks,
+      fragments: sourceFragments,
+    });
 
     const companyName = detectCompanyName(project.name, sources, entities);
     const ticker = detectTicker(sources, entities);
@@ -719,6 +790,12 @@ export async function compileProjectCompanyDossier(
         ...coverageBullets.map((bullet) => bullet.references),
       ),
     };
+    const enrichedSupportBySection = Object.fromEntries(
+      Object.entries(supportBySection).map(([key, refs]) => [
+        key,
+        attachEvidenceLineage(refs, evidenceLookup),
+      ]),
+    ) as DossierSectionSupportMap;
     const coveredSections = Object.values(supportBySection).filter(
       (refs) =>
         refs.wikiPageIds.length > 0 ||
@@ -730,7 +807,7 @@ export async function compileProjectCompanyDossier(
       (claim) => claim.supportStatus === "supported",
     ).length;
     const sourceDiversityCount = new Set(
-      Object.values(supportBySection).flatMap((refs) => refs.sourceIds),
+      Object.values(enrichedSupportBySection).flatMap((refs) => refs.sourceIds),
     ).size;
     const openContradictions = contradictions.filter(
       (entry) => entry.status !== "resolved",
@@ -796,7 +873,7 @@ export async function compileProjectCompanyDossier(
         "Source coverage is still sparse and should be expanded before heavier diligence.",
       ),
       confidence,
-      supportBySection,
+      supportBySection: enrichedSupportBySection,
       metadata: {
         coveredSections: String(coveredSections),
         totalSections: "6",
@@ -864,13 +941,24 @@ export async function getStoredProjectCompanyDossier(
 export async function getProjectCompanyDossierDetail(
   projectId: string,
 ): Promise<CompanyDossierDetailRecord | null> {
-  const [dossier, pages, claims, sources, artifacts, entityCompileResult] = await Promise.all([
+  const [
+    dossier,
+    pages,
+    claims,
+    sources,
+    artifacts,
+    entityCompileResult,
+    evidenceLinks,
+    sourceFragments,
+  ] = await Promise.all([
     companyDossiersRepository.getByProjectId(projectId),
     wikiRepository.listPagesByProjectId(projectId),
     claimsRepository.listByProjectId(projectId),
     sourcesRepository.listByProjectId(projectId),
     artifactsRepository.listByProjectId(projectId),
     compileProjectEntities(projectId),
+    evidenceLinksRepository.listByProjectId(projectId),
+    sourceFragmentsRepository.listByProjectId(projectId),
   ]);
 
   if (!dossier) {
@@ -884,6 +972,10 @@ export async function getProjectCompanyDossierDetail(
     artifactsById: new Map(artifacts.map((artifact) => [artifact.id, artifact] as const)),
     entitiesById: new Map(
       entityCompileResult.entities.map((entity) => [entity.id, entity] as const),
+    ),
+    evidenceLinksById: new Map(evidenceLinks.map((link) => [link.id, link] as const)),
+    fragmentsById: new Map(
+      sourceFragments.map((fragment) => [fragment.id, fragment] as const),
     ),
   };
 

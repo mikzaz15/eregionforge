@@ -13,6 +13,8 @@ import type {
 } from "@/lib/domain/types";
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { contradictionsRepository } from "@/lib/repositories/contradictions-repository";
+import { evidenceLinksRepository } from "@/lib/repositories/evidence-links-repository";
+import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
@@ -31,6 +33,11 @@ import {
   buildConfidenceAssessment,
   serializeConfidenceFactors,
 } from "@/lib/services/confidence-model-v2";
+import {
+  buildEvidenceLineageLookup,
+  collectEvidenceHighlights,
+  type EvidenceHighlight,
+} from "@/lib/services/evidence-lineage-v3";
 import {
   buildSemanticProfile,
   dominantConflictTheme,
@@ -65,6 +72,7 @@ export type ContradictionReferenceRecord = {
   relatedPages: WikiPage[];
   relatedSources: Source[];
   relatedTimelineEvents: TimelineEvent[];
+  evidenceHighlights: EvidenceHighlight[];
 };
 
 export type ProjectContradictionSummary = {
@@ -1019,17 +1027,26 @@ export async function updateContradictionStatus(
 export async function listProjectContradictions(
   projectId: string,
 ): Promise<ContradictionReferenceRecord[]> {
-  const [contradictions, claims, sources, pages, timelineEvents] = await Promise.all([
+  const [contradictions, claims, sources, pages, timelineEvents, evidenceLinks, sourceFragments] =
+    await Promise.all([
     contradictionsRepository.listByProjectId(projectId),
     claimsRepository.listByProjectId(projectId),
     sourcesRepository.listByProjectId(projectId),
     wikiRepository.listPagesByProjectId(projectId),
     timelineEventsRepository.listByProjectId(projectId),
+    evidenceLinksRepository.listByProjectId(projectId),
+    sourceFragmentsRepository.listByProjectId(projectId),
   ]);
   const claimsById = new Map(claims.map((claim) => [claim.id, claim] as const));
   const sourcesById = new Map(sources.map((source) => [source.id, source] as const));
   const pagesById = new Map(pages.map((page) => [page.id, page] as const));
   const eventsById = new Map(timelineEvents.map((event) => [event.id, event] as const));
+  const evidenceLookup = buildEvidenceLineageLookup({
+    evidenceLinks,
+    fragments: sourceFragments,
+    claimsById,
+    sourcesById,
+  });
 
   return sortContradictions(contradictions).map((contradiction) => ({
     contradiction,
@@ -1048,6 +1065,17 @@ export async function listProjectContradictions(
     relatedTimelineEvents: contradiction.relatedTimelineEventIds
       .map((eventId) => eventsById.get(eventId) ?? null)
       .filter((event): event is TimelineEvent => Boolean(event)),
+    evidenceHighlights: collectEvidenceHighlights(
+      {
+        claimIds: [
+          contradiction.leftClaimId ?? null,
+          contradiction.rightClaimId ?? null,
+        ].filter((value): value is string => Boolean(value)),
+        sourceIds: contradiction.relatedSourceIds,
+        limit: 3,
+      },
+      evidenceLookup,
+    ),
   }));
 }
 

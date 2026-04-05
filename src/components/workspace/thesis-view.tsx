@@ -12,6 +12,7 @@ import {
 import type { ThesisSupportRecord } from "@/lib/services/thesis-service";
 import type { ThesisPageData } from "@/lib/services/workspace-service";
 import { parseConfidenceFactors } from "@/lib/services/confidence-model-v2";
+import { buildFragmentSnippet } from "@/lib/services/evidence-lineage-v3";
 
 function stanceTone(stance: string | null): StatusTone {
   if (stance === "bullish") {
@@ -112,8 +113,10 @@ function ReferencePanel({
 }: Readonly<{
   support: ThesisSupportRecord;
 }>) {
+  const sourcesById = new Map(support.sources.map((source) => [source.id, source] as const));
+
   return (
-    <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+    <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
       <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
         <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
           Pages
@@ -252,6 +255,32 @@ function ReferencePanel({
           ) : (
             <p className="text-muted">None linked</p>
           )}
+        </div>
+      </div>
+      <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+        <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+          Evidence
+        </p>
+        <div className="mt-3 space-y-2 text-sm leading-6">
+          {support.sourceFragments.length > 0 ? (
+            support.sourceFragments.slice(0, 3).map((fragment) => (
+              <Link
+                key={fragment.id}
+                href={`/sources#${fragment.sourceId}`}
+                className="block text-foreground underline-offset-4 hover:underline"
+              >
+                {(sourcesById.get(fragment.sourceId)?.title ?? "Source fragment")}:{" "}
+                {buildFragmentSnippet(fragment)}
+              </Link>
+            ))
+          ) : (
+            <p className="text-muted">No localized evidence isolated</p>
+          )}
+          {support.evidenceLinks.length > 0 ? (
+            <p className="text-xs leading-5 text-muted">
+              Evidence links: {support.evidenceLinks.length}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>
@@ -496,7 +525,7 @@ export function ThesisView({
                   <p className="mt-3 text-sm leading-6 text-foreground">
                     {currentRevision.intelligence.likelyDriverSummary ?? "No likely drivers isolated."}
                   </p>
-                  <div className="mt-4 grid gap-3 lg:grid-cols-4">
+                  <div className="mt-4 grid gap-3 lg:grid-cols-5">
                     <div className="space-y-2 text-sm leading-6">
                       <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
                         Wiki and claims
@@ -566,6 +595,39 @@ export function ThesisView({
                       ))}
                       {currentRevision.intelligence.likelyDrivers.sources.length === 0 ? (
                         <p className="text-muted">None isolated</p>
+                      ) : null}
+                    </div>
+                    <div className="space-y-2 text-sm leading-6">
+                      <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                        Evidence
+                      </p>
+                      {currentRevision.intelligence.likelyDrivers.sourceFragments.map((fragment) => {
+                        const source = currentRevision.intelligence.likelyDrivers.sources.find(
+                          (entry) => entry.id === fragment.sourceId,
+                        );
+
+                        return (
+                          <Link
+                            key={fragment.id}
+                            href={`/sources#${fragment.sourceId}`}
+                            className="block rounded-2xl border border-border bg-background/55 px-3 py-3 transition hover:bg-background"
+                          >
+                            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                              {source?.title ?? "Source fragment"}
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-foreground">
+                              {buildFragmentSnippet(fragment)}
+                            </p>
+                          </Link>
+                        );
+                      })}
+                      {currentRevision.intelligence.likelyDrivers.sourceFragments.length === 0 ? (
+                        <p className="text-muted">No fragment drivers isolated</p>
+                      ) : null}
+                      {currentRevision.intelligence.likelyDrivers.evidenceLinks.length > 0 ? (
+                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                          Evidence links: {currentRevision.intelligence.likelyDrivers.evidenceLinks.length}
+                        </p>
                       ) : null}
                     </div>
                     <div className="space-y-2 text-sm leading-6">

@@ -12,6 +12,7 @@ import {
   artifactProvenanceLabel,
   artifactTypeLabel,
 } from "@/lib/services/artifact-service";
+import { buildFragmentSnippet } from "@/lib/services/evidence-lineage-v3";
 import {
   getActiveProjectId,
   getArtifactDetailPageData,
@@ -122,6 +123,11 @@ export default async function ArtifactDetailPage({
           <p className="text-sm leading-6 text-muted">
             Pages {artifact.referencedWikiPageIds.length} · Claims {artifact.referencedClaimIds.length} · Sources {artifact.referencedSourceIds.length}
           </p>
+          {data.artifact.evidenceHighlights.length > 0 ? (
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Evidence fragments {data.artifact.evidenceHighlights.length}
+            </p>
+          ) : null}
         </SectionCard>
         <SectionCard
           eyebrow="Wiki Filing"
@@ -181,6 +187,34 @@ export default async function ArtifactDetailPage({
             description="These references show what this asset points back to inside the project."
           >
             <div className="space-y-4">
+              <div className="space-y-3">
+                <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                  Evidence
+                </p>
+                {data.artifact.evidenceHighlights.length > 0 ? (
+                  data.artifact.evidenceHighlights.map((highlight) => (
+                    <Link
+                      key={highlight.fragment.id}
+                      href={`/sources#${highlight.fragment.sourceId}`}
+                      className="block rounded-2xl border border-border bg-surface-strong/75 px-4 py-4 transition hover:bg-background"
+                    >
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                        {highlight.source?.title ?? "Source fragment"}
+                      </p>
+                      {highlight.claim ? (
+                        <p className="mt-2 text-xs leading-5 text-muted">
+                          Claim: {highlight.claim.text}
+                        </p>
+                      ) : null}
+                      <p className="mt-3 text-sm leading-6 text-foreground">
+                        {buildFragmentSnippet(highlight.fragment)}
+                      </p>
+                    </Link>
+                  ))
+                ) : (
+                  <p className="text-sm leading-6 text-muted">No evidence fragments referenced.</p>
+                )}
+              </div>
               <div className="space-y-3">
                 <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
                   Wiki Pages

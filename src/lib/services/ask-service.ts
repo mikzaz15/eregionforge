@@ -34,6 +34,10 @@ import {
   buildConfidenceAssessment,
 } from "@/lib/services/confidence-model-v2";
 import {
+  buildEvidenceLineageLookup,
+  collectEvidenceHighlights,
+} from "@/lib/services/evidence-lineage-v3";
+import {
   listProjectContradictions,
   type ContradictionReferenceRecord,
 } from "@/lib/services/contradiction-service";
@@ -1261,6 +1265,9 @@ function artifactMarkdownFromSession(session: AskSession): string {
     ...(session.metadata?.lineageSummary
       ? [`- Lineage summary: ${session.metadata.lineageSummary}`]
       : []),
+    ...(session.metadata?.evidenceLineageSummary
+      ? [`- Evidence focus: ${session.metadata.evidenceLineageSummary}`]
+      : []),
   ];
 
   return [session.answer, "", ...provenanceLines].join("\n");
@@ -1306,6 +1313,47 @@ export async function runAskSession(input: {
     derived,
     trust,
   });
+  const [allSources, evidenceLinks, sourceFragments] = await Promise.all([
+    sourcesRepository.listByProjectId(input.projectId),
+    evidenceLinksRepository.listByProjectId(input.projectId),
+    sourceFragmentsRepository.listByProjectId(input.projectId),
+  ]);
+  const evidenceLookup = buildEvidenceLineageLookup({
+    evidenceLinks,
+    fragments: sourceFragments,
+    claimsById: new Map(claims.map((candidate) => [candidate.claim.id, candidate.claim] as const)),
+    sourcesById: new Map(allSources.map((source) => [source.id, source] as const)),
+  });
+  const consultedEvidenceHighlights = collectEvidenceHighlights(
+    {
+      claimIds: claims.map((candidate) => candidate.claim.id),
+      sourceIds: sources.map((candidate) => candidate.source.id),
+      limit: 6,
+    },
+    evidenceLookup,
+  );
+  const consultedEvidenceLinkIds = Array.from(
+    new Set(
+      consultedEvidenceHighlights
+        .map((entry) => entry.evidenceLink?.id ?? null)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+  const consultedSourceFragmentIds = Array.from(
+    new Set(consultedEvidenceHighlights.map((entry) => entry.fragment.id)),
+  );
+  const evidenceLineageSummary =
+    consultedEvidenceHighlights.length > 0
+      ? `Primary support fragments came from ${Array.from(
+          new Set(
+            consultedEvidenceHighlights.map(
+              (entry) => entry.source?.title ?? "linked source evidence",
+            ),
+          ),
+        )
+          .slice(0, 3)
+          .join(", ")}.`
+      : "No specific evidence fragments were isolated beyond the consulted object set.";
 
   return askSessionsRepository.create({
     projectId: input.projectId,
@@ -1346,10 +1394,13 @@ export async function runAskSession(input: {
       consultedAlertIds: JSON.stringify(
         derived.freshnessAlerts.map((entry) => entry.alert.id),
       ),
+      consultedEvidenceLinkIds: JSON.stringify(consultedEvidenceLinkIds),
+      consultedSourceFragmentIds: JSON.stringify(consultedSourceFragmentIds),
       contradictionCount: String(derived.contradictions.length),
       catalystCount: String(derived.catalysts.length),
       timelineCount: String(derived.timelineEntries.length),
       freshnessAlertCount: String(derived.freshnessAlerts.length),
+      evidenceLineageSummary,
       artifactTitle: trust.artifactTitle,
       artifactProvenance:
         "Ask mode synthesis over canon, contradictions, catalysts, timeline, entities, and freshness state.",
@@ -1399,7 +1450,10 @@ export async function saveAskSessionAsArtifact(input: {
       consultedContradictionIds: session.metadata?.consultedContradictionIds ?? "[]",
       consultedTimelineEventIds: session.metadata?.consultedTimelineEventIds ?? "[]",
       consultedAlertIds: session.metadata?.consultedAlertIds ?? "[]",
+      consultedEvidenceLinkIds: session.metadata?.consultedEvidenceLinkIds ?? "[]",
+      consultedSourceFragmentIds: session.metadata?.consultedSourceFragmentIds ?? "[]",
       consultedObjectSummary: session.metadata?.consultedObjectSummary ?? "",
+      evidenceLineageSummary: session.metadata?.evidenceLineageSummary ?? "",
       provenanceNote:
         session.metadata?.artifactProvenance ??
         "Ask mode synthesis over compiled canon and adjacent research state.",

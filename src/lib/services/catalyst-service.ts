@@ -19,6 +19,8 @@ import type {
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { contradictionsRepository } from "@/lib/repositories/contradictions-repository";
 import { catalystsRepository } from "@/lib/repositories/catalysts-repository";
+import { evidenceLinksRepository } from "@/lib/repositories/evidence-links-repository";
+import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { thesesRepository } from "@/lib/repositories/theses-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
@@ -40,6 +42,11 @@ import {
   serializeConfidenceFactors,
 } from "@/lib/services/confidence-model-v2";
 import {
+  buildEvidenceLineageLookup,
+  collectEvidenceHighlights,
+  type EvidenceHighlight,
+} from "@/lib/services/evidence-lineage-v3";
+import {
   buildSemanticProfile,
   summarizeThemeList,
   type SemanticTheme,
@@ -53,6 +60,7 @@ export type CatalystReferenceRecord = {
   relatedSources: Source[];
   relatedContradictions: Contradiction[];
   relatedPages: WikiPage[];
+  evidenceHighlights: EvidenceHighlight[];
 };
 
 export type CatalystPageData = {
@@ -963,7 +971,17 @@ export async function compileProjectCatalysts(projectId: string): Promise<Cataly
 export async function listProjectCatalysts(
   projectId: string,
 ): Promise<CatalystReferenceRecord[]> {
-  const [catalysts, thesis, timelineEvents, claims, sources, contradictions, pages] =
+  const [
+    catalysts,
+    thesis,
+    timelineEvents,
+    claims,
+    sources,
+    contradictions,
+    pages,
+    evidenceLinks,
+    sourceFragments,
+  ] =
     await Promise.all([
       catalystsRepository.listByProjectId(projectId),
       thesesRepository.getByProjectId(projectId),
@@ -972,6 +990,8 @@ export async function listProjectCatalysts(
       sourcesRepository.listByProjectId(projectId),
       contradictionsRepository.listByProjectId(projectId),
       wikiRepository.listPagesByProjectId(projectId),
+      evidenceLinksRepository.listByProjectId(projectId),
+      sourceFragmentsRepository.listByProjectId(projectId),
     ]);
 
   const timelineById = new Map(timelineEvents.map((event) => [event.id, event] as const));
@@ -981,6 +1001,12 @@ export async function listProjectCatalysts(
     contradictions.map((entry) => [entry.id, entry] as const),
   );
   const pagesById = new Map(pages.map((page) => [page.id, page] as const));
+  const evidenceLookup = buildEvidenceLineageLookup({
+    evidenceLinks,
+    fragments: sourceFragments,
+    claimsById,
+    sourcesById,
+  });
 
   return catalysts.map((catalyst) => {
     const relatedClaims = catalyst.linkedClaimIds
@@ -1012,6 +1038,14 @@ export async function listProjectCatalysts(
       relatedSources,
       relatedContradictions,
       relatedPages,
+      evidenceHighlights: collectEvidenceHighlights(
+        {
+          claimIds: catalyst.linkedClaimIds,
+          sourceIds: catalyst.linkedSourceIds,
+          limit: 3,
+        },
+        evidenceLookup,
+      ),
     };
   });
 }

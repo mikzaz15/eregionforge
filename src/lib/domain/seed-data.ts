@@ -1126,6 +1126,8 @@ export const seedCompanyDossiers: CompanyDossier[] = [
         sourceIds: ["source-ns-investor-day", "source-ns-channel-checks"],
         artifactIds: ["artifact-ns-diligence-memo"],
         entityIds: ["entity-ns-company", "entity-ns-auto-modules"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       productsAndSegments: {
         wikiPageIds: ["page-ns-dossier", "page-ns-market"],
@@ -1133,6 +1135,8 @@ export const seedCompanyDossiers: CompanyDossier[] = [
         sourceIds: ["source-ns-investor-day", "source-ns-pricing-table"],
         artifactIds: ["artifact-ns-comparison"],
         entityIds: ["entity-ns-auto-modules", "entity-ns-gen4-platform"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       managementAndOperators: {
         wikiPageIds: ["page-ns-thesis", "page-ns-risks"],
@@ -1140,6 +1144,8 @@ export const seedCompanyDossiers: CompanyDossier[] = [
         sourceIds: ["source-ns-earnings-call", "source-ns-channel-checks"],
         artifactIds: ["artifact-ns-diligence-memo"],
         entityIds: ["entity-ns-management", "entity-ns-company"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       marketAndCompetition: {
         wikiPageIds: ["page-ns-market", "page-ns-risks"],
@@ -1147,6 +1153,8 @@ export const seedCompanyDossiers: CompanyDossier[] = [
         sourceIds: ["source-ns-industry-note", "source-ns-pricing-table"],
         artifactIds: ["artifact-ns-comparison"],
         entityIds: ["entity-ns-market-vendors", "entity-ns-pricing-pressure"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       keyMetricsAndFacts: {
         wikiPageIds: ["page-ns-thesis", "page-ns-market"],
@@ -1154,6 +1162,8 @@ export const seedCompanyDossiers: CompanyDossier[] = [
         sourceIds: ["source-ns-investor-day", "source-ns-industry-note"],
         artifactIds: ["artifact-ns-diligence-memo"],
         entityIds: ["entity-ns-gross-margin", "entity-ns-gen4-platform"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       sourceCoverageSummary: {
         wikiPageIds: ["page-ns-dossier", "page-ns-open-questions"],
@@ -1167,6 +1177,8 @@ export const seedCompanyDossiers: CompanyDossier[] = [
         ],
         artifactIds: ["artifact-ns-follow-ups"],
         entityIds: ["entity-ns-company", "entity-ns-pricing-pressure"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
     },
     metadata: {
@@ -1224,6 +1236,8 @@ export const seedTheses: Thesis[] = [
         catalystIds: ["catalyst-ns-q1-results", "catalyst-ns-asp-watch"],
         timelineEventIds: ["event-ns-investor-day", "event-ns-q1-results"],
         contradictionIds: ["contradiction-ns-pricing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       bullCase: {
         wikiPageIds: ["page-ns-thesis", "page-ns-dossier"],
@@ -1240,6 +1254,8 @@ export const seedTheses: Thesis[] = [
         catalystIds: ["catalyst-ns-gen4-ramp"],
         timelineEventIds: ["event-ns-investor-day", "event-ns-gen4-ramp"],
         contradictionIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       bearCase: {
         wikiPageIds: ["page-ns-market", "page-ns-risks"],
@@ -1257,6 +1273,8 @@ export const seedTheses: Thesis[] = [
         catalystIds: ["catalyst-ns-asp-watch"],
         timelineEventIds: ["event-ns-q1-results", "event-ns-asp-pressure"],
         contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       variantView: {
         wikiPageIds: ["page-ns-thesis", "page-ns-open-questions"],
@@ -1266,6 +1284,8 @@ export const seedTheses: Thesis[] = [
         catalystIds: ["catalyst-ns-q1-results"],
         timelineEventIds: ["event-ns-q1-results", "event-ns-asp-pressure"],
         contradictionIds: ["contradiction-ns-timing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       keyRisks: {
         wikiPageIds: ["page-ns-risks", "page-ns-market"],
@@ -1282,6 +1302,8 @@ export const seedTheses: Thesis[] = [
         catalystIds: ["catalyst-ns-asp-watch", "catalyst-ns-gen4-ramp"],
         timelineEventIds: ["event-ns-asp-pressure"],
         contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       keyUnknowns: {
         wikiPageIds: ["page-ns-open-questions"],
@@ -1291,6 +1313,8 @@ export const seedTheses: Thesis[] = [
         catalystIds: ["catalyst-ns-q1-results"],
         timelineEventIds: ["event-ns-q1-results"],
         contradictionIds: ["contradiction-ns-pricing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       catalystSummary: {
         wikiPageIds: ["page-ns-thesis", "page-ns-market"],
@@ -1316,6 +1340,8 @@ export const seedTheses: Thesis[] = [
           "event-ns-asp-pressure",
         ],
         contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
     },
     latestInputSignature: "ns-demo-fingerprint-r2",
@@ -1365,6 +1391,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: [],
         timelineEventIds: ["event-ns-investor-day"],
         contradictionIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       bullCase: {
         wikiPageIds: ["page-ns-thesis"],
@@ -1378,6 +1406,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: ["catalyst-ns-gen4-ramp"],
         timelineEventIds: ["event-ns-investor-day", "event-ns-gen4-ramp"],
         contradictionIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       bearCase: {
         wikiPageIds: ["page-ns-risks"],
@@ -1387,6 +1417,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: ["catalyst-ns-q1-results"],
         timelineEventIds: ["event-ns-q4-results"],
         contradictionIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       variantView: {
         wikiPageIds: ["page-ns-open-questions"],
@@ -1396,6 +1428,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: [],
         timelineEventIds: ["event-ns-q1-results"],
         contradictionIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       keyRisks: {
         wikiPageIds: ["page-ns-risks"],
@@ -1405,6 +1439,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: ["catalyst-ns-q1-results"],
         timelineEventIds: ["event-ns-q4-results"],
         contradictionIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       keyUnknowns: {
         wikiPageIds: ["page-ns-open-questions"],
@@ -1414,6 +1450,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: [],
         timelineEventIds: ["event-ns-q1-results"],
         contradictionIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       catalystSummary: {
         wikiPageIds: ["page-ns-thesis"],
@@ -1423,6 +1461,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: ["catalyst-ns-q1-results", "catalyst-ns-gen4-ramp"],
         timelineEventIds: ["event-ns-q1-results", "event-ns-gen4-ramp"],
         contradictionIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
     },
     metadata: {
@@ -1481,6 +1521,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: ["catalyst-ns-q1-results", "catalyst-ns-asp-watch"],
         timelineEventIds: ["event-ns-investor-day", "event-ns-q1-results"],
         contradictionIds: ["contradiction-ns-pricing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       bullCase: {
         wikiPageIds: ["page-ns-thesis"],
@@ -1494,6 +1536,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: ["catalyst-ns-gen4-ramp"],
         timelineEventIds: ["event-ns-investor-day", "event-ns-gen4-ramp"],
         contradictionIds: [],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       bearCase: {
         wikiPageIds: ["page-ns-market", "page-ns-risks"],
@@ -1511,6 +1555,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: ["catalyst-ns-asp-watch"],
         timelineEventIds: ["event-ns-q1-results", "event-ns-asp-pressure"],
         contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       variantView: {
         wikiPageIds: ["page-ns-open-questions"],
@@ -1520,6 +1566,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: ["catalyst-ns-q1-results"],
         timelineEventIds: ["event-ns-q1-results", "event-ns-asp-pressure"],
         contradictionIds: ["contradiction-ns-timing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       keyRisks: {
         wikiPageIds: ["page-ns-risks"],
@@ -1533,6 +1581,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: ["catalyst-ns-asp-watch", "catalyst-ns-gen4-ramp"],
         timelineEventIds: ["event-ns-q1-results", "event-ns-asp-pressure"],
         contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       keyUnknowns: {
         wikiPageIds: ["page-ns-open-questions"],
@@ -1542,6 +1592,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
         catalystIds: ["catalyst-ns-q1-results"],
         timelineEventIds: ["event-ns-q1-results"],
         contradictionIds: ["contradiction-ns-pricing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
       catalystSummary: {
         wikiPageIds: ["page-ns-thesis", "page-ns-market"],
@@ -1567,6 +1619,8 @@ export const seedThesisRevisions: ThesisRevision[] = [
           "event-ns-asp-pressure",
         ],
         contradictionIds: ["contradiction-ns-pricing", "contradiction-ns-timing"],
+        evidenceLinkIds: [],
+        sourceFragmentIds: [],
       },
     },
     metadata: {

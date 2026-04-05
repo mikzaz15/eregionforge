@@ -10,8 +10,15 @@ import type {
 import { artifactsRepository } from "@/lib/repositories/artifacts-repository";
 import { askSessionsRepository } from "@/lib/repositories/ask-sessions-repository";
 import { claimsRepository } from "@/lib/repositories/claims-repository";
+import { evidenceLinksRepository } from "@/lib/repositories/evidence-links-repository";
+import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import {
+  buildEvidenceLineageLookup,
+  collectEvidenceHighlights,
+  type EvidenceHighlight,
+} from "@/lib/services/evidence-lineage-v3";
 
 export type ArtifactTypeOption = {
   value: ArtifactType;
@@ -31,6 +38,7 @@ export type ArtifactDetailRecord = {
   referencedPages: WikiPage[];
   referencedSources: Source[];
   referencedClaims: Claim[];
+  evidenceHighlights: EvidenceHighlight[];
 };
 
 export const artifactTypeOptions: ArtifactTypeOption[] = [
@@ -68,6 +76,19 @@ function previewText(markdownContent: string, length = 180): string {
   return normalized.length > length
     ? `${normalized.slice(0, length).trimEnd()}...`
     : normalized;
+}
+
+function parseJsonArray(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 export function artifactTitleFromAskSession(session: AskSession): string {
@@ -143,29 +164,48 @@ export async function getArtifactDetail(
     return null;
   }
 
-  const [askSession, referencedPages, referencedSources, allClaims] = await Promise.all([
+  const [askSession, referencedPages, allSources, allClaims, evidenceLinks, sourceFragments] =
+    await Promise.all([
     artifact.derivedFromAskSessionId
       ? askSessionsRepository.getById(artifact.derivedFromAskSessionId)
       : Promise.resolve(null),
     Promise.all(
       artifact.referencedWikiPageIds.map((pageId) => wikiRepository.getPageById(pageId)),
     ),
-    Promise.all(
-      artifact.referencedSourceIds.map((sourceId) => sourcesRepository.getById(sourceId)),
-    ),
+    sourcesRepository.listByProjectId(artifact.projectId),
     claimsRepository.listByProjectId(artifact.projectId),
+    evidenceLinksRepository.listByProjectId(artifact.projectId),
+    sourceFragmentsRepository.listByProjectId(artifact.projectId),
   ]);
+  const referencedSources = allSources.filter((source) =>
+    artifact.referencedSourceIds.includes(source.id),
+  );
+  const referencedClaims = allClaims.filter((claim) =>
+    artifact.referencedClaimIds.includes(claim.id),
+  );
+  const evidenceHighlights = collectEvidenceHighlights(
+    {
+      claimIds: artifact.referencedClaimIds,
+      sourceIds: artifact.referencedSourceIds,
+      evidenceLinkIds: parseJsonArray(artifact.metadata.consultedEvidenceLinkIds),
+      sourceFragmentIds: parseJsonArray(artifact.metadata.consultedSourceFragmentIds),
+      limit: 6,
+    },
+    buildEvidenceLineageLookup({
+      evidenceLinks,
+      fragments: sourceFragments,
+      claimsById: new Map(allClaims.map((claim) => [claim.id, claim] as const)),
+      sourcesById: new Map(allSources.map((source) => [source.id, source] as const)),
+    }),
+  );
 
   return {
     artifact,
     askSession,
     referencedPages: referencedPages.filter((page): page is WikiPage => Boolean(page)),
-    referencedSources: referencedSources.filter(
-      (source): source is Source => Boolean(source),
-    ),
-    referencedClaims: allClaims.filter((claim) =>
-      artifact.referencedClaimIds.includes(claim.id),
-    ),
+    referencedSources,
+    referencedClaims,
+    evidenceHighlights,
   };
 }
 
