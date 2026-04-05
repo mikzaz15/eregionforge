@@ -38,6 +38,8 @@ import {
   type ContradictionReferenceRecord,
 } from "@/lib/services/contradiction-service";
 import {
+  entityInfluenceSummary,
+  entityPriority,
   listProjectEntities,
   matchEntitiesToText,
 } from "@/lib/services/entity-intelligence-service";
@@ -294,7 +296,13 @@ function buildPromptEntitySet(
     "market_or_competitor",
     "metric",
     "risk_theme",
-  ]).slice(0, 5);
+  ])
+    .sort(
+      (left, right) =>
+        entityPriority(right) - entityPriority(left) ||
+        left.canonicalName.localeCompare(right.canonicalName),
+    )
+    .slice(0, 5);
 }
 
 function relatedEntityMatches(
@@ -990,9 +998,17 @@ function timelineLines(derived: AskDerivedContext): string[] {
 }
 
 function entityLines(derived: AskDerivedContext): string[] {
-  return derived.selectedEntities.slice(0, 4).map((entity) => {
-    return `${entityLink(entity)} (${entity.entityType}, ${entity.confidence}): ${entity.description}`;
-  });
+  return derived.selectedEntities
+    .slice()
+    .sort(
+      (left, right) =>
+        entityPriority(right) - entityPriority(left) ||
+        left.canonicalName.localeCompare(right.canonicalName),
+    )
+    .slice(0, 4)
+    .map((entity) => {
+      return `${entityLink(entity)} (${entity.entityType}, ${entity.confidence}): ${entityInfluenceSummary(entity)} ${entity.description}`;
+    });
 }
 
 function pageLines(pages: PageCandidate[]): string[] {

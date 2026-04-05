@@ -18,6 +18,7 @@ import { timelineEventsRepository } from "@/lib/repositories/timeline-events-rep
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
 import {
   compileProjectEntities,
+  entityPriority,
   matchEntitiesToText,
 } from "@/lib/services/entity-intelligence-service";
 import {
@@ -122,8 +123,22 @@ function entitySummary(sharedEntities: ResearchEntity[]): string | null {
   }
 
   return sharedEntities
+    .slice()
+    .sort(
+      (left, right) =>
+        entityPriority(right) - entityPriority(left) ||
+        left.canonicalName.localeCompare(right.canonicalName),
+    )
     .slice(0, 2)
-    .map((entity) => entity.canonicalName)
+    .map((entity) => {
+      const role = entity.metadata?.role;
+
+      return role === "peer-group"
+        ? `${entity.canonicalName} (peer group)`
+        : role === "management"
+          ? `${entity.canonicalName} (operator)`
+          : entity.canonicalName;
+    })
     .join(", ");
 }
 

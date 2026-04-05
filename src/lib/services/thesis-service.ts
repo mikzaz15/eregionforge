@@ -37,7 +37,11 @@ import {
   recordOperationalAuditEvent,
   startOperationalJob,
 } from "@/lib/services/operational-history-service";
-import { compileProjectEntities } from "@/lib/services/entity-intelligence-service";
+import {
+  compileProjectEntities,
+  entityInfluenceSummary,
+  entityPriority,
+} from "@/lib/services/entity-intelligence-service";
 import {
   listProjectContradictions,
   type ContradictionReferenceRecord,
@@ -1038,12 +1042,18 @@ function buildCompiledThesisCandidate(
     }));
   const positiveEntityBullets = entities
     .filter((entity) => ["company", "product_or_segment", "metric"].includes(entity.entityType))
+    .sort(
+      (left, right) =>
+        entityPriority(right) - entityPriority(left) ||
+        left.canonicalName.localeCompare(right.canonicalName),
+    )
     .map<Bullet>((entity) => ({
-      text: `${entity.canonicalName}: ${entity.description}`,
+      text: `${entity.canonicalName}: ${entityInfluenceSummary(entity)} ${entity.description}`,
       references: referencesFromEntity(entity),
       score:
         2 +
         confidenceRank(entity.confidence) +
+        Math.min(entityPriority(entity), 4) +
         (entity.entityType === "company" ? 1 : 0),
     }));
   const negativePageBullets = state.pageContexts
@@ -1067,19 +1077,29 @@ function buildCompiledThesisCandidate(
     }));
   const riskEntityBullets = entities
     .filter((entity) => entity.entityType === "risk_theme")
+    .sort(
+      (left, right) =>
+        entityPriority(right) - entityPriority(left) ||
+        left.canonicalName.localeCompare(right.canonicalName),
+    )
     .map<Bullet>((entity) => ({
-      text: `${entity.canonicalName}: ${entity.description}`,
+      text: `${entity.canonicalName}: ${entityInfluenceSummary(entity)} ${entity.description}`,
       references: referencesFromEntity(entity),
-      score: 2 + confidenceRank(entity.confidence),
+      score: 2 + confidenceRank(entity.confidence) + Math.min(entityPriority(entity), 3),
     }));
   const variantEntityBullets = entities
     .filter((entity) =>
       ["market_or_competitor", "operator", "product_or_segment"].includes(entity.entityType),
     )
+    .sort(
+      (left, right) =>
+        entityPriority(right) - entityPriority(left) ||
+        left.canonicalName.localeCompare(right.canonicalName),
+    )
     .map<Bullet>((entity) => ({
-      text: `${entity.canonicalName}: ${entity.description}`,
+      text: `${entity.canonicalName}: ${entityInfluenceSummary(entity)} ${entity.description}`,
       references: referencesFromEntity(entity),
-      score: 1 + confidenceRank(entity.confidence),
+      score: 1 + confidenceRank(entity.confidence) + Math.min(entityPriority(entity), 3),
     }));
   const positiveClaimBullets = positiveClaims.map<Bullet>((claim) => ({
     text: claim.text,
@@ -1370,11 +1390,41 @@ function buildCompiledThesisCandidate(
       bestNextAction,
       operatorPostureSummary,
       companyEntityName: companyEntity?.canonicalName ?? "",
-      productSummary: formatList(productEntities.slice(0, 3).map((entity) => entity.canonicalName)),
-      operatorSummary: formatList(operatorEntities.slice(0, 2).map((entity) => entity.canonicalName)),
-      marketSummary: formatList(marketEntities.slice(0, 2).map((entity) => entity.canonicalName)),
-      metricSummary: formatList(metricEntities.slice(0, 3).map((entity) => entity.canonicalName)),
-      riskThemeSummary: formatList(riskEntities.slice(0, 3).map((entity) => entity.canonicalName)),
+      productSummary: formatList(
+        productEntities
+          .slice()
+          .sort((left, right) => entityPriority(right) - entityPriority(left))
+          .slice(0, 3)
+          .map((entity) => entity.canonicalName),
+      ),
+      operatorSummary: formatList(
+        operatorEntities
+          .slice()
+          .sort((left, right) => entityPriority(right) - entityPriority(left))
+          .slice(0, 2)
+          .map((entity) => entity.canonicalName),
+      ),
+      marketSummary: formatList(
+        marketEntities
+          .slice()
+          .sort((left, right) => entityPriority(right) - entityPriority(left))
+          .slice(0, 2)
+          .map((entity) => entity.canonicalName),
+      ),
+      metricSummary: formatList(
+        metricEntities
+          .slice()
+          .sort((left, right) => entityPriority(right) - entityPriority(left))
+          .slice(0, 3)
+          .map((entity) => entity.canonicalName),
+      ),
+      riskThemeSummary: formatList(
+        riskEntities
+          .slice()
+          .sort((left, right) => entityPriority(right) - entityPriority(left))
+          .slice(0, 3)
+          .map((entity) => entity.canonicalName),
+      ),
       latestKnowledgeUpdateAt: fingerprint.latestKnowledgeUpdateAt ?? "",
     },
   };

@@ -25,6 +25,8 @@ import { timelineEventsRepository } from "@/lib/repositories/timeline-events-rep
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
 import {
   compileProjectEntities,
+  entityInfluenceSummary,
+  entityPriority,
   matchEntitiesToText,
 } from "@/lib/services/entity-intelligence-service";
 import {
@@ -98,15 +100,21 @@ function primaryEntityForText(
   text: string,
   entities: ResearchEntity[],
 ): ResearchEntity | null {
-  return (
-    matchEntitiesToText(text ? entities : [], text, [
+  const matches = matchEntitiesToText(text ? entities : [], text, [
       "company",
       "product_or_segment",
       "metric",
       "market_or_competitor",
       "risk_theme",
       "operator",
-    ])[0] ?? null
+    ]);
+
+  return (
+    matches.sort(
+      (left, right) =>
+        entityPriority(right) - entityPriority(left) ||
+        left.canonicalName.localeCompare(right.canonicalName),
+    )[0] ?? null
   );
 }
 
@@ -270,7 +278,7 @@ function buildCatalystLineageSummary(input: {
   derivedFrom: string;
 }): { anchorSummary: string; thesisSummary: string; lineageSummary: string } {
   const anchorSummary = input.primaryEntity
-    ? `Primary anchor: ${input.primaryEntity.canonicalName}.`
+    ? `Primary anchor: ${input.primaryEntity.canonicalName}. ${entityInfluenceSummary(input.primaryEntity)}`
     : `Primary anchor remains ${input.derivedFrom.replaceAll("_", " ")} scope rather than a stabilized entity.`;
   const thesisSummary = input.thesisLinked
     ? "This catalyst is linked back into the current thesis posture."

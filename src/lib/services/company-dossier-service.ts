@@ -19,7 +19,11 @@ import { projectsRepository } from "@/lib/repositories/projects-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { thesesRepository } from "@/lib/repositories/theses-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
-import { compileProjectEntities } from "@/lib/services/entity-intelligence-service";
+import {
+  compileProjectEntities,
+  entityInfluenceSummary,
+  entityPriority,
+} from "@/lib/services/entity-intelligence-service";
 import {
   completeOperationalJob,
   failOperationalJob,
@@ -215,6 +219,14 @@ function detectCompanyName(
 }
 
 function detectTicker(sources: Source[], entities: ResearchEntity[]): string | null {
+  const companyMetadataTicker = entities.find(
+    (entity) => entity.entityType === "company" && entity.metadata?.ticker,
+  )?.metadata?.ticker;
+
+  if (companyMetadataTicker) {
+    return companyMetadataTicker.toUpperCase();
+  }
+
   const entityTicker = entities.find((entity) => entity.entityType === "company")?.aliases.find(
     (alias) => /^[A-Z]{1,6}$/.test(alias.toUpperCase()),
   );
@@ -239,10 +251,15 @@ function buildEntityBullets(
 ): DossierBullet[] {
   return entities
     .filter((entity) => entityTypes.includes(entity.entityType))
+    .sort(
+      (left, right) =>
+        entityPriority(right) - entityPriority(left) ||
+        left.canonicalName.localeCompare(right.canonicalName),
+    )
     .map<DossierBullet>((entity) => ({
-      text: `${entity.canonicalName}: ${entity.description}`,
+      text: `${entity.canonicalName}: ${entityInfluenceSummary(entity)} ${entity.description}`,
       references: entityReferences(entity),
-      score: baseScore + confidenceRank(entity.confidence),
+      score: baseScore + confidenceRank(entity.confidence) + Math.min(entityPriority(entity), 4),
     }));
 }
 

@@ -37,6 +37,14 @@ function labelize(value: string): string {
   return value.replaceAll("_", " ");
 }
 
+function roleLabel(entryRole: string | undefined): string | null {
+  if (!entryRole) {
+    return null;
+  }
+
+  return entryRole.replaceAll("-", " ");
+}
+
 export default async function EntitiesPage() {
   const projectId = await getActiveProjectId();
   const data = await getEntitiesPageData(projectId);
@@ -117,6 +125,11 @@ export default async function EntitiesPage() {
                       Aliases: {entry.entity.aliases.join(", ")}
                     </p>
                   ) : null}
+                  {roleLabel(entry.entity.metadata?.role ?? entry.entity.entityType) ? (
+                    <p className="text-sm leading-6 text-muted">
+                      Role: {roleLabel(entry.entity.metadata?.role ?? entry.entity.entityType)}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="text-right text-sm leading-6 text-muted">
                   <p>Claims: {entry.relatedClaims.length}</p>
@@ -127,6 +140,12 @@ export default async function EntitiesPage() {
 
               <p className="mt-4 text-sm leading-6 text-foreground">
                 {entry.entity.description}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {entry.influenceSummary}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {entry.whereItMatters}
               </p>
 
               <div className="mt-4 grid gap-3 xl:grid-cols-2">
@@ -189,14 +208,34 @@ export default async function EntitiesPage() {
                     </p>
                     <p>
                       Catalysts:{" "}
-                      {entry.appearances.catalystTitles.length > 0
-                        ? entry.appearances.catalystTitles.slice(0, 2).join(" | ")
+                      {entry.appearances.catalystLinks.length > 0
+                        ? entry.appearances.catalystLinks.slice(0, 2).map((catalyst, index) => (
+                            <span key={catalyst.id}>
+                              {index > 0 ? " | " : null}
+                              <Link
+                                href={`/catalysts#${catalyst.id}`}
+                                className="underline-offset-4 hover:underline"
+                              >
+                                {catalyst.title}
+                              </Link>
+                            </span>
+                          ))
                         : "No linked catalyst yet"}
                     </p>
                     <p>
                       Contradictions:{" "}
-                      {entry.appearances.contradictionTitles.length > 0
-                        ? entry.appearances.contradictionTitles.slice(0, 2).join(" | ")
+                      {entry.appearances.contradictionLinks.length > 0
+                        ? entry.appearances.contradictionLinks.slice(0, 2).map((contradiction, index) => (
+                            <span key={contradiction.id}>
+                              {index > 0 ? " | " : null}
+                              <Link
+                                href={`/contradictions#${contradiction.id}`}
+                                className="underline-offset-4 hover:underline"
+                              >
+                                {contradiction.title}
+                              </Link>
+                            </span>
+                          ))
                         : "No linked contradiction yet"}
                     </p>
                   </div>
