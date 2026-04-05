@@ -1485,9 +1485,10 @@ export async function getThesisPageData(
 export async function getDossierPageData(
   projectId: string,
 ): Promise<DossierPageData | null> {
-  const [summary, dossier] = await Promise.all([
+  const [summary, dossier, monitoringSnapshot] = await Promise.all([
     getProjectSummary(projectId),
     getProjectCompanyDossierDetail(projectId),
+    getProjectMonitoringSnapshot(projectId),
   ]);
 
   if (!summary) {
@@ -1517,6 +1518,27 @@ export async function getDossierPageData(
         label: "Readiness",
         value: summary.dossierReady ? "Research-ready" : "In progress",
         note: "Readiness stays tied to compiled section coverage rather than a generic completeness flag.",
+      },
+      {
+        label: "Freshness",
+        value: monitoringSnapshot.alerts.some(
+          (entry) =>
+            entry.alert.status === "open" &&
+            (entry.alert.alertType === "dossier_may_be_stale" ||
+              entry.relatedDossier?.id === dossier?.dossier.id),
+        )
+          ? "Attention"
+          : "Current",
+        note: monitoringSnapshot.alerts
+          .filter(
+            (entry) =>
+              entry.alert.status === "open" &&
+              (entry.alert.alertType === "dossier_may_be_stale" ||
+                entry.relatedDossier?.id === dossier?.dossier.id),
+          )
+          .map((entry) => entry.alert.metadata?.driverSummary || entry.alert.description)
+          .slice(0, 1)[0] ??
+          "Current dossier appears aligned with the latest monitored knowledge inputs.",
       },
     ],
   };

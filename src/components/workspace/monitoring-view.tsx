@@ -267,6 +267,11 @@ export function MonitoringView({
                   <p className="mt-2 text-sm leading-6 text-muted">
                     Suggested next action: {entry.alert.metadata?.suggestedAction ?? "Review freshness inputs"}
                   </p>
+                  {entry.alert.metadata?.driverSummary ? (
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      Likely drivers: {entry.alert.metadata.driverSummary}
+                    </p>
+                  ) : null}
                   <div className="mt-4 flex flex-wrap gap-3">
                     <Link
                       href={alertTargetPath({

@@ -321,6 +321,11 @@ export function ThesisView({
                           <p className="mt-3 text-sm leading-6 text-foreground">
                             {entry.alert.description}
                           </p>
+                          {entry.alert.metadata?.driverSummary ? (
+                            <p className="mt-2 text-sm leading-6 text-muted">
+                              Likely drivers: {entry.alert.metadata.driverSummary}
+                            </p>
+                          ) : null}
                           <div className="mt-3 flex flex-wrap gap-2">
                             {monitoringPath ? (
                               <Link

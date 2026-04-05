@@ -1374,6 +1374,8 @@ export async function getProjectThesisSnapshot(
       .map((claim) => claim.sourceId ?? null)
       .filter((value): value is string => Boolean(value)),
   ).size;
+  const currentSupportDensity =
+    currentSupportedClaimCount / Math.max(state.claims.length, 1);
   const currentHighSeverityContradictions = state.contradictionEntries.filter(
     (entry) =>
       entry.contradiction.status !== "resolved" &&
@@ -1399,20 +1401,30 @@ export async function getProjectThesisSnapshot(
     ? currentPreciseTimelineCount -
       parseInteger(thesis.metadata?.preciseTimelineCount)
     : 0;
+  const supportDensityDelta = thesis
+    ? currentSupportDensity - Number.parseFloat(thesis.metadata?.supportDensity ?? "0")
+    : 0;
   const freshnessReasonSegments = [
-    supportDelta > 0
-      ? `${supportDelta} additional supported claim(s)`
+    supportDelta !== 0
+      ? `${Math.abs(supportDelta)} ${supportDelta > 0 ? "more" : "fewer"} supported claim(s)`
       : null,
-    diversityDelta > 0
-      ? `${diversityDelta} additional source input(s)`
+    supportDensityDelta !== 0
+      ? `support density ${supportDensityDelta > 0 ? "up" : "down"} ${Math.abs(
+          Math.round(supportDensityDelta * 100),
+        )} pts`
+      : null,
+    diversityDelta !== 0
+      ? `${Math.abs(diversityDelta)} ${diversityDelta > 0 ? "more" : "fewer"} source input(s)`
       : null,
     contradictionDelta !== 0
       ? `${Math.abs(contradictionDelta)} ${
           contradictionDelta > 0 ? "more" : "fewer"
         } high-severity contradiction(s)`
       : null,
-    preciseTimelineDelta > 0
-      ? `${preciseTimelineDelta} more exact-date timeline signal(s)`
+    preciseTimelineDelta !== 0
+      ? `${Math.abs(preciseTimelineDelta)} ${
+          preciseTimelineDelta > 0 ? "more" : "fewer"
+        } exact-date timeline signal(s)`
       : null,
   ].filter((value): value is string => Boolean(value));
 
@@ -1427,8 +1439,8 @@ export async function getProjectThesisSnapshot(
       reason: thesis
         ? potentiallyStale
           ? freshnessReasonSegments.length > 0
-            ? `New or updated project knowledge appears to postdate the current thesis revision: ${freshnessReasonSegments.join(", ")}.`
-            : "New or updated project knowledge appears to postdate the current thesis revision."
+            ? `New or updated project knowledge appears to postdate the current thesis revision. Likely freshness drivers: ${freshnessReasonSegments.join("; ")}.`
+            : "New or updated project knowledge appears to postdate the current thesis revision, but no single driver dominated the freshness delta."
           : "Current thesis matches the latest compiled project knowledge fingerprint."
         : "No thesis has been compiled for this project yet.",
     },

@@ -141,6 +141,31 @@ function formatThemeSummary(themes: SemanticTheme[]): string {
   return themes.length > 0 ? summarizeThemeList(themes) : "general research posture";
 }
 
+function uniqueThemesFromRecords(records: SourceMonitoringDraft[]): SemanticTheme[] {
+  return Array.from(
+    new Set(
+      records.flatMap((record) =>
+        (record.metadata?.semanticThemes ?? "")
+          .split(",")
+          .map((theme) => theme.trim())
+          .filter(Boolean),
+      ),
+    ),
+  ) as SemanticTheme[];
+}
+
+function formatDriverList(drivers: Array<string | null | undefined>): string {
+  return drivers.filter((driver): driver is string => Boolean(driver)).join("; ");
+}
+
+function supportDensity(
+  claims: Claim[],
+): number {
+  const supported = claims.filter((claim) => claim.supportStatus === "supported").length;
+  const denominator = Math.max(claims.length, 1);
+  return supported / denominator;
+}
+
 function buildImpactSourceSet(input: {
   thesis: Thesis | null;
   dossier: CompanyDossier | null;
@@ -285,16 +310,7 @@ function buildThesisAlert(input: {
     input.thesis.updatedAt,
     "medium",
   );
-  const changedThemes = Array.from(
-    new Set(
-      changedSources.flatMap((record) =>
-        (record.metadata?.semanticThemes ?? "")
-          .split(",")
-          .map((theme) => theme.trim())
-          .filter(Boolean),
-      ),
-    ),
-  );
+  const changedThemes = uniqueThemesFromRecords(changedSources);
   const newerTimelineEvents = input.timelineEvents.filter(
     (event) => event.updatedAt > input.thesis!.updatedAt,
   );
@@ -313,6 +329,15 @@ function buildThesisAlert(input: {
   const preciseTimelineDelta =
     input.timelineEvents.filter((event) => event.eventDatePrecision === "exact_day").length -
     Number.parseInt(input.thesis.metadata?.preciseTimelineCount ?? "0", 10);
+  const supportDensityDelta = input.thesis
+    ? supportDensity(input.claims) -
+      Number.parseFloat(input.thesis.metadata?.supportDensity ?? "0")
+    : 0;
+  const currentHighImpactThemes = changedThemes.filter((theme) =>
+    ["pricing", "margin", "demand", "timing", "guidance", "earnings", "product", "regulatory", "customer"].includes(
+      theme,
+    ),
+  );
   const catalystCountDelta =
     input.catalysts.length -
     Number.parseInt(input.thesis.metadata?.catalystCount ?? "0", 10);
@@ -333,17 +358,19 @@ function buildThesisAlert(input: {
   }
 
   const severity: StaleAlert["severity"] =
-    changedSources.some((record) => record.possibleImpactLevel === "high") ||
+    currentHighImpactThemes.length > 0 ||
     contradictionCountDelta > 0 ||
-    catalystCountDelta > 0 ||
-    supportedClaimDelta > 0
+    supportDensityDelta < 0 ||
+    sourceDiversityDelta < 0
       ? "high"
-      : "medium";
-  const driverSummary = [
+      : changedSources.length > 0 || catalystCountDelta !== 0 || supportedClaimDelta !== 0
+        ? "medium"
+        : "low";
+  const driverSummary = formatDriverList([
     changedThemes.length > 0
-      ? `theme shift: ${changedThemes
-          .slice(0, 3)
-          .map((theme) => formatThemeLabel(theme as SemanticTheme))
+      ? `new themes: ${changedThemes
+          .slice(0, 4)
+          .map((theme) => formatThemeLabel(theme))
           .join(", ")}`
       : null,
     contradictionCountDelta !== 0
@@ -352,6 +379,11 @@ function buildThesisAlert(input: {
     catalystCountDelta !== 0
       ? `catalyst posture ${catalystCountDelta > 0 ? "up" : "down"} ${Math.abs(catalystCountDelta)}`
       : null,
+    supportDensityDelta !== 0
+      ? `support density ${supportDensityDelta > 0 ? "up" : "down"} ${Math.abs(
+          Math.round(supportDensityDelta * 100),
+        )} pts`
+      : null,
     supportedClaimDelta !== 0
       ? `supported claims ${supportedClaimDelta > 0 ? "up" : "down"} ${Math.abs(supportedClaimDelta)}`
       : null,
@@ -359,16 +391,14 @@ function buildThesisAlert(input: {
       ? `source diversity ${sourceDiversityDelta > 0 ? "up" : "down"} ${Math.abs(sourceDiversityDelta)}`
       : null,
     preciseTimelineDelta > 0 ? `${preciseTimelineDelta} more exact-date event(s)` : null,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join("; ");
+  ]);
 
   return {
     stableKey: stableKey("thesis", input.thesis.id),
     projectId: input.projectId,
     alertType: "thesis_may_be_stale",
     title: "Thesis may be stale",
-    description: `The thesis predates newer project inputs. ${changedSources.length} relevant source change(s), ${newerTimelineEvents.length} newer timeline event(s), contradiction delta ${contradictionCountDelta}, catalyst delta ${catalystCountDelta}. ${driverSummary ? `Likely drivers: ${driverSummary}. ` : ""}Suggested next action: refresh the thesis after reviewing new sources and updated analysis layers.`,
+    description: `The thesis predates newer project inputs. ${changedSources.length} relevant source change(s) and ${newerTimelineEvents.length} newer timeline event(s) postdate the current thesis revision. ${driverSummary ? `Likely drivers: ${driverSummary}. ` : ""}Suggested next action: refresh the thesis after reviewing new sources and updated analysis layers.`,
     severity,
     relatedSourceIds: changedSources.map((record) => record.sourceId),
     relatedThesisId: input.thesis.id,
@@ -379,6 +409,14 @@ function buildThesisAlert(input: {
     relatedTimelineIds: newerTimelineEvents.map((entry) => entry.id),
     metadata: {
       suggestedAction: "Refresh thesis",
+      driverSummary,
+      themeSummary: changedThemes.map((theme) => formatThemeLabel(theme)).join(", "),
+      sourceChangeCount: String(changedSources.length),
+      contradictionDelta: String(contradictionCountDelta),
+      catalystDelta: String(catalystCountDelta),
+      supportDensityDeltaPct: String(Math.round(supportDensityDelta * 100)),
+      sourceDiversityDelta: String(sourceDiversityDelta),
+      preciseTimelineDelta: String(preciseTimelineDelta),
     },
   };
 }
@@ -410,16 +448,23 @@ function buildDossierAlert(input: {
       refs.sourceIds.includes(record.sourceId),
     ),
   );
-  const changedThemes = Array.from(
-    new Set(
-      changedSources.flatMap((record) =>
-        (record.metadata?.semanticThemes ?? "")
-          .split(",")
-          .map((theme) => theme.trim())
-          .filter(Boolean),
-      ),
-    ),
-  );
+  const changedThemes = uniqueThemesFromRecords(changedSources);
+  const supportedClaimDelta =
+    changedSources.length > 0
+      ? changedSources.length
+      : 0;
+  const coverageDelta =
+    changedSourceSummaryPages.length > 0 ? changedSourceSummaryPages.length : 0;
+  const driverSummary = formatDriverList([
+    changedThemes.length > 0
+      ? `updated themes: ${changedThemes
+          .slice(0, 4)
+          .map((theme) => formatThemeLabel(theme))
+          .join(", ")}`
+      : null,
+    coverageDelta > 0 ? `${coverageDelta} source-summary page update(s)` : null,
+    supportedClaimDelta > 0 ? `${supportedClaimDelta} relevant source freshness signal(s)` : null,
+  ]);
 
   if (changedSourceSummaryPages.length === 0 && changedSources.length === 0) {
     return null;
@@ -431,12 +476,7 @@ function buildDossierAlert(input: {
     alertType: "dossier_may_be_stale",
     title: "Dossier may be stale",
     description: `The dossier predates ${changedSourceSummaryPages.length} changed source-summary page(s) and ${changedSources.length} relevant source change(s). ${
-      changedThemes.length > 0
-        ? `Updated source themes: ${changedThemes
-            .slice(0, 3)
-            .map((theme) => formatThemeLabel(theme as SemanticTheme))
-            .join(", ")}. `
-        : ""
+      driverSummary ? `Likely drivers: ${driverSummary}. ` : ""
     }Suggested next action: refresh the dossier after reviewing updated summaries and sources.`,
     severity: changedSources.some((record) => record.possibleImpactLevel === "high")
       ? "high"
@@ -448,6 +488,10 @@ function buildDossierAlert(input: {
     relatedTimelineIds: [],
     metadata: {
       suggestedAction: "Refresh dossier",
+      driverSummary,
+      themeSummary: changedThemes.map((theme) => formatThemeLabel(theme)).join(", "),
+      sourceChangeCount: String(changedSources.length),
+      sourceSummaryPageDelta: String(changedSourceSummaryPages.length),
     },
   };
 }
@@ -465,6 +509,7 @@ function buildCatalystAlert(input: {
     input.catalystState.lastCompiledAt,
     "medium",
   );
+  const changedThemes = uniqueThemesFromRecords(changedSources);
   const needsAlert =
     (input.catalystState.lastCompiledAt === null && input.catalysts.length === 0) ||
     changedSources.length > 0 ||
@@ -475,27 +520,16 @@ function buildCatalystAlert(input: {
     return null;
   }
 
-  const changedThemes = Array.from(
-    new Set(
-      changedSources.flatMap((record) =>
-        (record.metadata?.semanticThemes ?? "")
-          .split(",")
-          .map((theme) => theme.trim())
-          .filter(Boolean),
-      ),
-    ),
-  );
-
   return {
     stableKey: stableKey("catalyst-tracker"),
     projectId: input.projectId,
     alertType: "catalyst_tracker_needs_refresh",
     title: "Catalyst tracker may need refresh",
-    description: `Catalyst tracking predates newer project signals. ${changedSources.length} source change(s) arrived after the last catalyst compile. ${
+    description: `Catalyst tracking predates newer project signals. ${changedSources.length} source change(s) arrived after the last catalyst compile, and thesis or timeline state may now imply a different catalyst set. ${
       changedThemes.length > 0
-        ? `New source themes: ${changedThemes
-            .slice(0, 3)
-            .map((theme) => formatThemeLabel(theme as SemanticTheme))
+        ? `Likely drivers: ${changedThemes
+            .slice(0, 4)
+            .map((theme) => formatThemeLabel(theme))
             .join(", ")}. `
         : ""
     }Suggested next action: rebuild catalysts after reviewing new sources, thesis state, and chronology.`,
@@ -509,6 +543,8 @@ function buildCatalystAlert(input: {
     relatedTimelineIds: [],
     metadata: {
       suggestedAction: "Refresh catalysts",
+      themeSummary: changedThemes.map((theme) => formatThemeLabel(theme)).join(", "),
+      sourceChangeCount: String(changedSources.length),
     },
   };
 }
@@ -543,16 +579,22 @@ function buildContradictionsAlert(input: {
       : (maxTimestamp(latestPageUpdate, latestTimelineUpdate) ?? "") >
           input.contradictionState.lastAnalyzedAt ||
         changedSources.length > 0;
-  const changedThemes = Array.from(
-    new Set(
-      changedSources.flatMap((record) =>
-        (record.metadata?.semanticThemes ?? "")
-          .split(",")
-          .map((theme) => theme.trim())
-          .filter(Boolean),
-      ),
-    ),
-  );
+  const changedThemes = uniqueThemesFromRecords(changedSources);
+  const activeContradictionCount = input.contradictions.filter(
+    (entry) => entry.status !== "resolved",
+  ).length;
+  const driverSummary = formatDriverList([
+    changedThemes.length > 0
+      ? `affected themes: ${changedThemes
+          .slice(0, 4)
+          .map((theme) => formatThemeLabel(theme))
+          .join(", ")}`
+      : null,
+    latestTimelineUpdate && input.contradictionState.lastAnalyzedAt
+      ? `timeline updates since last analysis`
+      : null,
+    activeContradictionCount > 0 ? `${activeContradictionCount} active contradiction record(s)` : null,
+  ]);
 
   if (!needsAlert) {
     return null;
@@ -564,12 +606,7 @@ function buildContradictionsAlert(input: {
     alertType: "contradictions_should_rerun",
     title: "Contradictions analysis should be rerun",
     description: `Contradiction analysis predates newer canonical inputs. ${changedSources.length} source change(s) and updated page or timeline state may affect disagreement records. ${
-      changedThemes.length > 0
-        ? `Potentially affected themes: ${changedThemes
-            .slice(0, 3)
-            .map((theme) => formatThemeLabel(theme as SemanticTheme))
-            .join(", ")}. `
-        : ""
+      driverSummary ? `Likely drivers: ${driverSummary}. ` : ""
     }Suggested next action: rerun contradiction analysis.`,
     severity: input.contradictions.length > 0 || changedSources.length > 0 ? "medium" : "low",
     relatedSourceIds: changedSources.map((record) => record.sourceId),
@@ -581,6 +618,9 @@ function buildContradictionsAlert(input: {
       .map((event) => event.id),
     metadata: {
       suggestedAction: "Rerun contradictions",
+      driverSummary,
+      themeSummary: changedThemes.map((theme) => formatThemeLabel(theme)).join(", "),
+      sourceChangeCount: String(changedSources.length),
     },
   };
 }
