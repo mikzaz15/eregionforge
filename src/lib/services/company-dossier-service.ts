@@ -51,6 +51,7 @@ export type DossierSupportRecord = {
   claims: Claim[];
   sources: Source[];
   artifacts: Artifact[];
+  entities: ResearchEntity[];
 };
 
 export type CompanyDossierDetailRecord = {
@@ -76,6 +77,7 @@ function emptyReferences(): DossierSectionReferences {
     claimIds: [],
     sourceIds: [],
     artifactIds: [],
+    entityIds: [],
   };
 }
 
@@ -88,6 +90,7 @@ function mergeReferences(
       claimIds: Array.from(new Set([...accumulator.claimIds, ...refs.claimIds])),
       sourceIds: Array.from(new Set([...accumulator.sourceIds, ...refs.sourceIds])),
       artifactIds: Array.from(new Set([...accumulator.artifactIds, ...refs.artifactIds])),
+      entityIds: Array.from(new Set([...(accumulator.entityIds ?? []), ...(refs.entityIds ?? [])])),
     }),
     emptyReferences(),
   );
@@ -130,6 +133,7 @@ function pageReferences(context: PageContext): DossierSectionReferences {
     claimIds: [],
     sourceIds: context.sourceIds,
     artifactIds: [],
+    entityIds: [],
   };
 }
 
@@ -139,6 +143,7 @@ function claimReferences(claim: Claim): DossierSectionReferences {
     claimIds: [claim.id],
     sourceIds: claim.sourceId ? [claim.sourceId] : [],
     artifactIds: [],
+    entityIds: [],
   };
 }
 
@@ -148,6 +153,7 @@ function artifactReferences(artifact: Artifact): DossierSectionReferences {
     claimIds: artifact.referencedClaimIds,
     sourceIds: artifact.referencedSourceIds,
     artifactIds: [artifact.id],
+    entityIds: [],
   };
 }
 
@@ -157,6 +163,7 @@ function entityReferences(entity: ResearchEntity): DossierSectionReferences {
     claimIds: entity.relatedClaimIds,
     sourceIds: entity.relatedSourceIds,
     artifactIds: [],
+    entityIds: [entity.id],
   };
 }
 
@@ -313,6 +320,7 @@ function buildBusinessOverviewBullets(input: {
             claimIds: input.thesis.supportBySection.summary.claimIds,
             sourceIds: input.thesis.supportBySection.summary.sourceIds,
             artifactIds: [],
+            entityIds: input.thesis.supportBySection.summary.entityIds,
           },
           score: 4 + confidenceRank(input.thesis.confidence),
         } satisfies DossierBullet,
@@ -362,6 +370,7 @@ function buildProductsBullets(input: {
         claimIds: [],
         sourceIds: [source.id],
         artifactIds: [],
+        entityIds: [],
       },
       score: 1,
     }));
@@ -412,6 +421,7 @@ function buildManagementBullets(input: {
         claimIds: [],
         sourceIds: [source.id],
         artifactIds: [],
+        entityIds: [],
       },
       score: 1,
     }));
@@ -459,6 +469,7 @@ function buildMarketBullets(input: {
         claimIds: [],
         sourceIds: [source.id],
         artifactIds: [],
+        entityIds: [],
       },
       score: 1,
     }));
@@ -502,6 +513,7 @@ function buildMetricsBullets(input: {
       claimIds: [],
       sourceIds: [source.id],
       artifactIds: [],
+      entityIds: [],
     },
     score: 1,
   }));
@@ -514,6 +526,7 @@ function buildMetricsBullets(input: {
             claimIds: input.thesis.supportBySection.summary.claimIds,
             sourceIds: input.thesis.supportBySection.summary.sourceIds,
             artifactIds: [],
+            entityIds: input.thesis.supportBySection.summary.entityIds,
           },
           score: 2,
         } satisfies DossierBullet,
@@ -560,6 +573,7 @@ function buildCoverageBullets(input: {
         claimIds: [],
         sourceIds: input.sources.map((source) => source.id),
         artifactIds: [],
+        entityIds: [],
       },
       score: 4,
     },
@@ -573,6 +587,7 @@ function supportRecordFromRefs(
     claimsById: Map<string, Claim>;
     sourcesById: Map<string, Source>;
     artifactsById: Map<string, Artifact>;
+    entitiesById: Map<string, ResearchEntity>;
   },
 ): DossierSupportRecord {
   return {
@@ -588,6 +603,9 @@ function supportRecordFromRefs(
     artifacts: refs.artifactIds
       .map((id) => lookup.artifactsById.get(id) ?? null)
       .filter((value): value is Artifact => Boolean(value)),
+    entities: (refs.entityIds ?? [])
+      .map((id) => lookup.entitiesById.get(id) ?? null)
+      .filter((value): value is ResearchEntity => Boolean(value)),
   };
 }
 
@@ -829,12 +847,13 @@ export async function getStoredProjectCompanyDossier(
 export async function getProjectCompanyDossierDetail(
   projectId: string,
 ): Promise<CompanyDossierDetailRecord | null> {
-  const [dossier, pages, claims, sources, artifacts] = await Promise.all([
+  const [dossier, pages, claims, sources, artifacts, entityCompileResult] = await Promise.all([
     companyDossiersRepository.getByProjectId(projectId),
     wikiRepository.listPagesByProjectId(projectId),
     claimsRepository.listByProjectId(projectId),
     sourcesRepository.listByProjectId(projectId),
     artifactsRepository.listByProjectId(projectId),
+    compileProjectEntities(projectId),
   ]);
 
   if (!dossier) {
@@ -846,6 +865,9 @@ export async function getProjectCompanyDossierDetail(
     claimsById: new Map(claims.map((claim) => [claim.id, claim] as const)),
     sourcesById: new Map(sources.map((source) => [source.id, source] as const)),
     artifactsById: new Map(artifacts.map((artifact) => [artifact.id, artifact] as const)),
+    entitiesById: new Map(
+      entityCompileResult.entities.map((entity) => [entity.id, entity] as const),
+    ),
   };
 
   return {

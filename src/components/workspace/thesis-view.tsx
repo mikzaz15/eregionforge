@@ -113,7 +113,7 @@ function ReferencePanel({
   support: ThesisSupportRecord;
 }>) {
   return (
-    <div className="grid gap-3 lg:grid-cols-5">
+    <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
       <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
         <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
           Pages
@@ -136,6 +136,26 @@ function ReferencePanel({
       </div>
       <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
         <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+          Entities
+        </p>
+        <div className="mt-3 space-y-2 text-sm leading-6">
+          {support.entities.length > 0 ? (
+            support.entities.map((entity) => (
+              <Link
+                key={entity.id}
+                href={`/entities#${entity.id}`}
+                className="block text-foreground underline-offset-4 hover:underline"
+              >
+                {entity.canonicalName}
+              </Link>
+            ))
+          ) : (
+            <p className="text-muted">None linked</p>
+          )}
+        </div>
+      </div>
+      <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+        <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
           Claims
         </p>
         <div className="mt-3 space-y-2 text-sm leading-6">
@@ -147,6 +167,26 @@ function ReferencePanel({
                 className="block text-foreground underline-offset-4 hover:underline"
               >
                 {claim.text}
+              </Link>
+            ))
+          ) : (
+            <p className="text-muted">None linked</p>
+          )}
+        </div>
+      </div>
+      <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+        <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+          Catalysts
+        </p>
+        <div className="mt-3 space-y-2 text-sm leading-6">
+          {support.catalysts.length > 0 ? (
+            support.catalysts.map((catalyst) => (
+              <Link
+                key={catalyst.id}
+                href={`/catalysts#${catalyst.id}`}
+                className="block text-foreground underline-offset-4 hover:underline"
+              >
+                {catalyst.title}
               </Link>
             ))
           ) : (

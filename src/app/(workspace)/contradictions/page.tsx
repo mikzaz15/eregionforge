@@ -209,6 +209,16 @@ export default async function ContradictionsPage() {
                     <p className="mt-3 text-sm leading-6 text-muted">
                       Rationale: {entry.contradiction.rationale}
                     </p>
+                    {entry.contradiction.metadata?.anchorSummary ? (
+                      <p className="mt-2 text-sm leading-6 text-foreground">
+                        {entry.contradiction.metadata.anchorSummary}
+                      </p>
+                    ) : null}
+                    {entry.contradiction.metadata?.lineageSummary ? (
+                      <p className="mt-2 text-sm leading-6 text-muted">
+                        {entry.contradiction.metadata.lineageSummary}
+                      </p>
+                    ) : null}
                     <div className="mt-4">
                       <ConfidenceExplainer
                         summary={entry.contradiction.metadata?.confidenceSummary}

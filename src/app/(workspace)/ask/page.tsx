@@ -359,6 +359,86 @@ export default async function AskPage({
                       {currentSession.session.metadata.freshnessCaveat}
                     </p>
                   ) : null}
+                  {currentSession.session.metadata?.lineageSummary ? (
+                    <p className="text-sm leading-6 text-muted">
+                      {currentSession.session.metadata.lineageSummary}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="space-y-3">
+                  <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                    Derived Intelligence
+                  </p>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
+                      <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                        Catalysts and timeline
+                      </p>
+                      <div className="mt-3 space-y-2 text-sm leading-6">
+                        {currentSession.relatedCatalysts.map((entry) => (
+                          <Link
+                            key={entry.catalyst.id}
+                            href={`/catalysts#${entry.catalyst.id}`}
+                            className="block text-foreground underline-offset-4 hover:underline"
+                          >
+                            {entry.catalyst.title}
+                          </Link>
+                        ))}
+                        {currentSession.relatedTimelineEvents.map((entry) => (
+                          <Link
+                            key={entry.event.id}
+                            href={`/timeline#${entry.event.id}`}
+                            className="block text-foreground underline-offset-4 hover:underline"
+                          >
+                            {entry.event.title}
+                          </Link>
+                        ))}
+                        {currentSession.relatedCatalysts.length === 0 &&
+                        currentSession.relatedTimelineEvents.length === 0 ? (
+                          <p className="text-muted">No derived timing objects were consulted.</p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4">
+                      <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                        Tension and entities
+                      </p>
+                      <div className="mt-3 space-y-2 text-sm leading-6">
+                        {currentSession.relatedContradictions.map((entry) => (
+                          <Link
+                            key={entry.contradiction.id}
+                            href={`/contradictions#${entry.contradiction.id}`}
+                            className="block text-foreground underline-offset-4 hover:underline"
+                          >
+                            {entry.contradiction.title}
+                          </Link>
+                        ))}
+                        {currentSession.relatedEntities.map((entry) => (
+                          <Link
+                            key={entry.entity.id}
+                            href={`/entities#${entry.entity.id}`}
+                            className="block text-foreground underline-offset-4 hover:underline"
+                          >
+                            {entry.entity.canonicalName}
+                          </Link>
+                        ))}
+                        {currentSession.relatedAlerts.map((entry) => (
+                          <Link
+                            key={entry.alert.id}
+                            href="/monitoring"
+                            className="block text-foreground underline-offset-4 hover:underline"
+                          >
+                            {entry.alert.title}
+                          </Link>
+                        ))}
+                        {currentSession.relatedContradictions.length === 0 &&
+                        currentSession.relatedEntities.length === 0 &&
+                        currentSession.relatedAlerts.length === 0 ? (
+                          <p className="text-muted">No derived tension objects were consulted.</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-3">
                   <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">

@@ -125,6 +125,8 @@ export type ThesisSupportRecord = {
   pages: WikiPage[];
   claims: Claim[];
   sources: Source[];
+  entities: ResearchEntity[];
+  catalysts: Catalyst[];
   timelineEvents: TimelineEvent[];
   contradictions: Contradiction[];
 };
@@ -251,6 +253,8 @@ function emptyReferences(): ThesisSectionReferences {
     wikiPageIds: [],
     claimIds: [],
     sourceIds: [],
+    entityIds: [],
+    catalystIds: [],
     timelineEventIds: [],
     contradictionIds: [],
   };
@@ -264,6 +268,10 @@ function mergeReferences(
       wikiPageIds: Array.from(new Set([...accumulator.wikiPageIds, ...refs.wikiPageIds])),
       claimIds: Array.from(new Set([...accumulator.claimIds, ...refs.claimIds])),
       sourceIds: Array.from(new Set([...accumulator.sourceIds, ...refs.sourceIds])),
+      entityIds: Array.from(new Set([...(accumulator.entityIds ?? []), ...(refs.entityIds ?? [])])),
+      catalystIds: Array.from(
+        new Set([...(accumulator.catalystIds ?? []), ...(refs.catalystIds ?? [])]),
+      ),
       timelineEventIds: Array.from(
         new Set([...accumulator.timelineEventIds, ...refs.timelineEventIds]),
       ),
@@ -315,6 +323,8 @@ function referencesFromClaim(claim: Claim): ThesisSectionReferences {
     wikiPageIds: [claim.wikiPageId],
     claimIds: [claim.id],
     sourceIds: claim.sourceId ? [claim.sourceId] : [],
+    entityIds: [],
+    catalystIds: [],
     timelineEventIds: [],
     contradictionIds: [],
   };
@@ -325,6 +335,8 @@ function referencesFromPage(context: PageContext): ThesisSectionReferences {
     wikiPageIds: [context.page.id],
     claimIds: [],
     sourceIds: context.sourceIds,
+    entityIds: [],
+    catalystIds: [],
     timelineEventIds: [],
     contradictionIds: [],
   };
@@ -335,6 +347,8 @@ function referencesFromTimeline(entry: TimelineReferenceRecord): ThesisSectionRe
     wikiPageIds: entry.relatedPages.map((page) => page.id),
     claimIds: entry.relatedClaims.map((claim) => claim.id),
     sourceIds: entry.relatedSources.map((source) => source.id),
+    entityIds: [],
+    catalystIds: [],
     timelineEventIds: [entry.event.id],
     contradictionIds: [],
   };
@@ -345,6 +359,8 @@ function referencesFromCatalyst(entry: CatalystReferenceRecord): ThesisSectionRe
     wikiPageIds: entry.relatedPages.map((page) => page.id),
     claimIds: entry.relatedClaims.map((claim) => claim.id),
     sourceIds: entry.relatedSources.map((source) => source.id),
+    entityIds: [],
+    catalystIds: [entry.catalyst.id],
     timelineEventIds: entry.relatedTimelineEvents.map((event) => event.id),
     contradictionIds: entry.relatedContradictions.map((contradiction) => contradiction.id),
   };
@@ -360,6 +376,8 @@ function referencesFromContradiction(
       entry.rightClaim?.id ?? null,
     ].filter((value): value is string => Boolean(value)),
     sourceIds: entry.relatedSources.map((source) => source.id),
+    entityIds: [],
+    catalystIds: [],
     timelineEventIds: entry.relatedTimelineEvents.map((event) => event.id),
     contradictionIds: [entry.contradiction.id],
   };
@@ -370,6 +388,8 @@ function referencesFromEntity(entity: ResearchEntity): ThesisSectionReferences {
     wikiPageIds: entity.relatedWikiPageIds,
     claimIds: entity.relatedClaimIds,
     sourceIds: entity.relatedSourceIds,
+    entityIds: [entity.id],
+    catalystIds: [],
     timelineEventIds: [],
     contradictionIds: [],
   };
@@ -402,6 +422,8 @@ function supportRecordFromRefs(
     pagesById: Map<string, WikiPage>;
     claimsById: Map<string, Claim>;
     sourcesById: Map<string, Source>;
+    entitiesById: Map<string, ResearchEntity>;
+    catalystsById: Map<string, Catalyst>;
     timelineById: Map<string, TimelineEvent>;
     contradictionsById: Map<string, Contradiction>;
   },
@@ -416,6 +438,12 @@ function supportRecordFromRefs(
     sources: refs.sourceIds
       .map((id) => lookup.sourcesById.get(id) ?? null)
       .filter((value): value is Source => Boolean(value)),
+    entities: (refs.entityIds ?? [])
+      .map((id) => lookup.entitiesById.get(id) ?? null)
+      .filter((value): value is ResearchEntity => Boolean(value)),
+    catalysts: (refs.catalystIds ?? [])
+      .map((id) => lookup.catalystsById.get(id) ?? null)
+      .filter((value): value is Catalyst => Boolean(value)),
     timelineEvents: refs.timelineEventIds
       .map((id) => lookup.timelineById.get(id) ?? null)
       .filter((value): value is TimelineEvent => Boolean(value)),
@@ -1356,6 +1384,7 @@ function buildRevisionLookup(input: {
   pages: WikiPage[];
   claims: Claim[];
   sources: Source[];
+  entities: ResearchEntity[];
   catalysts: Catalyst[];
   timelineEvents: TimelineEvent[];
   contradictions: Contradiction[];
@@ -1365,6 +1394,7 @@ function buildRevisionLookup(input: {
     pagesById: new Map(input.pages.map((page) => [page.id, page] as const)),
     claimsById: new Map(input.claims.map((claim) => [claim.id, claim] as const)),
     sourcesById: new Map(input.sources.map((source) => [source.id, source] as const)),
+    entitiesById: new Map(input.entities.map((entity) => [entity.id, entity] as const)),
     catalystsById: new Map(input.catalysts.map((catalyst) => [catalyst.id, catalyst] as const)),
     timelineById: new Map(
       input.timelineEvents.map((event) => [event.id, event] as const),
@@ -1764,6 +1794,7 @@ export async function getProjectThesisDetail(
     pages,
     claims,
     sources,
+    entityCompileResult,
     catalysts,
     timelineEvents,
     contradictions,
@@ -1776,6 +1807,7 @@ export async function getProjectThesisDetail(
       wikiRepository.listPagesByProjectId(projectId),
       claimsRepository.listByProjectId(projectId),
       sourcesRepository.listByProjectId(projectId),
+      compileProjectEntities(projectId),
       catalystsRepository.listByProjectId(projectId),
       timelineEventsRepository.listByProjectId(projectId),
       contradictionsRepository.listByProjectId(projectId),
@@ -1791,6 +1823,7 @@ export async function getProjectThesisDetail(
     pages,
     claims,
     sources,
+    entities: entityCompileResult.entities,
     catalysts,
     timelineEvents,
     contradictions,

@@ -260,6 +260,11 @@ export type AskSessionDetail = {
   consultedPages: WikiPageSummary[];
   consultedClaims: AskConsultedClaim[];
   consultedSources: LinkedSourceDetail[];
+  relatedEntities: EntityReferenceRecord[];
+  relatedCatalysts: CatalystReferenceRecord[];
+  relatedContradictions: ContradictionReferenceRecord[];
+  relatedTimelineEvents: TimelineReferenceRecord[];
+  relatedAlerts: StaleAlertReferenceRecord[];
 };
 
 export type AskPageData = {
@@ -1382,13 +1387,40 @@ export async function getAskPageDataWithSession(
   let currentSession: AskSessionDetail | null = null;
 
   if (currentSessionRecord) {
-    const consultedSources = (
-      await Promise.all(
+    const [
+      consultedSources,
+      catalystRecords,
+      contradictionRecords,
+      timelineRecords,
+      entityPageData,
+      monitoringSnapshot,
+    ] = await Promise.all([
+      Promise.all(
         currentSessionRecord.consultedSourceIds.map((sourceId) =>
           buildLinkedSourceDetail(sourceId),
         ),
-      )
-    ).filter((source): source is LinkedSourceDetail => Boolean(source));
+      ),
+      listProjectCatalysts(projectId),
+      listProjectContradictions(projectId),
+      listProjectTimelineEvents(projectId),
+      buildProjectEntitiesPageData(projectId),
+      getProjectMonitoringSnapshot(projectId),
+    ]);
+    const relatedEntityIds = new Set(
+      parseJsonArray(currentSessionRecord.metadata?.consultedEntityIds),
+    );
+    const relatedCatalystIds = new Set(
+      parseJsonArray(currentSessionRecord.metadata?.consultedCatalystIds),
+    );
+    const relatedContradictionIds = new Set(
+      parseJsonArray(currentSessionRecord.metadata?.consultedContradictionIds),
+    );
+    const relatedTimelineEventIds = new Set(
+      parseJsonArray(currentSessionRecord.metadata?.consultedTimelineEventIds),
+    );
+    const relatedAlertIds = new Set(
+      parseJsonArray(currentSessionRecord.metadata?.consultedAlertIds),
+    );
 
     currentSession = {
       session: currentSessionRecord,
@@ -1406,7 +1438,24 @@ export async function getAskPageDataWithSession(
             : null;
         })
         .filter((claim): claim is AskConsultedClaim => Boolean(claim)),
-      consultedSources,
+      consultedSources: consultedSources.filter(
+        (source): source is LinkedSourceDetail => Boolean(source),
+      ),
+      relatedEntities: entityPageData.entities.filter((entry) =>
+        relatedEntityIds.has(entry.entity.id),
+      ),
+      relatedCatalysts: catalystRecords.filter((entry) =>
+        relatedCatalystIds.has(entry.catalyst.id),
+      ),
+      relatedContradictions: contradictionRecords.filter((entry) =>
+        relatedContradictionIds.has(entry.contradiction.id),
+      ),
+      relatedTimelineEvents: timelineRecords.filter((entry) =>
+        relatedTimelineEventIds.has(entry.event.id),
+      ),
+      relatedAlerts: monitoringSnapshot.alerts.filter((entry) =>
+        relatedAlertIds.has(entry.alert.id),
+      ),
     };
   }
 

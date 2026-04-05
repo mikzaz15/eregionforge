@@ -61,7 +61,7 @@ function ReferencePanel({
   support: DossierSupportRecord;
 }>) {
   return (
-    <div className="grid gap-3 lg:grid-cols-4">
+    <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-5">
       <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
         <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
           Pages
@@ -75,6 +75,26 @@ function ReferencePanel({
                 className="block text-foreground underline-offset-4 hover:underline"
               >
                 {page.title}
+              </Link>
+            ))
+          ) : (
+            <p className="text-muted">None linked</p>
+          )}
+        </div>
+      </div>
+      <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+        <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+          Entities
+        </p>
+        <div className="mt-3 space-y-2 text-sm leading-6">
+          {support.entities.length > 0 ? (
+            support.entities.map((entity) => (
+              <Link
+                key={entity.id}
+                href={`/entities#${entity.id}`}
+                className="block text-foreground underline-offset-4 hover:underline"
+              >
+                {entity.canonicalName}
               </Link>
             ))
           ) : (

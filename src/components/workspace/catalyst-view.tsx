@@ -191,12 +191,27 @@ export function CatalystView({
                       )}
                     />
                   </div>
+                  {entry.catalyst.metadata?.anchorSummary ? (
+                    <p className="mt-3 text-sm leading-6 text-foreground">
+                      {entry.catalyst.metadata.anchorSummary}
+                    </p>
+                  ) : null}
+                  {entry.catalyst.metadata?.lineageSummary ? (
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      {entry.catalyst.metadata.lineageSummary}
+                    </p>
+                  ) : null}
+                  {entry.catalyst.metadata?.thesisSummary ? (
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      {entry.catalyst.metadata.thesisSummary}
+                    </p>
+                  ) : null}
                   {entry.catalyst.reviewNote ? (
                     <p className="mt-2 text-sm leading-6 text-muted">
                       Review note: {entry.catalyst.reviewNote}
                     </p>
                   ) : null}
-                  <div className="mt-4 grid gap-3 lg:grid-cols-5">
+                  <div className="mt-4 grid gap-3 lg:grid-cols-6">
                     <div className="rounded-2xl border border-border bg-background/65 px-4 py-4">
                       <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
                         Thesis
@@ -209,6 +224,26 @@ export function CatalystView({
                           >
                             {entry.thesis.title}
                           </Link>
+                        ) : (
+                          <p className="text-muted">None linked</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-background/65 px-4 py-4">
+                      <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                        Canon pages
+                      </p>
+                      <div className="mt-3 space-y-2 text-sm leading-6">
+                        {entry.relatedPages.length > 0 ? (
+                          entry.relatedPages.map((page) => (
+                            <Link
+                              key={page.id}
+                              href={`/wiki/${page.id}`}
+                              className="block text-foreground underline-offset-4 hover:underline"
+                            >
+                              {page.title}
+                            </Link>
+                          ))
                         ) : (
                           <p className="text-muted">None linked</p>
                         )}

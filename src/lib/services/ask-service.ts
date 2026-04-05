@@ -93,6 +93,7 @@ type AskTrustContext = {
   tensionSummary: string;
   freshnessCaveat: string;
   supportingFactorSummary: string;
+  lineageSummary: string;
   artifactTitle: string;
 };
 
@@ -912,6 +913,9 @@ function buildTrustContext(input: {
       : "No active freshness alert materially constrained the consulted scope.";
   const selectedEntityNames = input.derived.selectedEntities.map((entity) => entity.canonicalName);
   const supportingFactorSummary = `Entity-aware context centered on ${selectedEntityNames.length > 0 ? selectedEntityNames.join(", ") : "general project scope"}, with ${supportedClaims} supported consulted claim(s), source diversity across ${sourceDiversityCount} source record(s), and ${exactTimelineSignals} precise dated signal(s).`;
+  const lineageSummary = `Lineage centers on ${
+    selectedEntityNames.length > 0 ? selectedEntityNames.join(", ") : "general project scope"
+  }, ${input.derived.catalysts.length} catalyst object(s), ${input.derived.contradictions.length} contradiction record(s), ${input.derived.timelineEntries.length} timeline entry(ies), and ${openAlerts} freshness alert(s) in scope.`;
 
   return {
     confidence: confidenceAssessment.label,
@@ -920,6 +924,7 @@ function buildTrustContext(input: {
     tensionSummary,
     freshnessCaveat,
     supportingFactorSummary,
+    lineageSummary,
     artifactTitle:
       input.answerMode === "research-memo"
         ? `Research Memo: ${selectedEntityNames[0] ?? input.prompt}`
@@ -1020,6 +1025,12 @@ function buildReferenceAppendix(context: AskSynthesisContext): string[] {
     ...listLine(pageLines(context.pages).slice(0, 4)).map((line) => `- ${line}`),
     ...listLine(claimLines(context.claims.slice(0, 4), context.pages)).map((line) => `- ${line}`),
     ...listLine(sourceLines(context.sources.slice(0, 4))).map((line) => `- ${line}`),
+    "",
+    "## Derived Lineage",
+    ...listLine(entityLines(context.derived).slice(0, 4)).map((line) => `- ${line}`),
+    ...listLine(catalystLines(context.derived).slice(0, 3)).map((line) => `- ${line}`),
+    ...listLine(contradictionLines(context.derived).slice(0, 3)).map((line) => `- ${line}`),
+    ...listLine(timelineLines(context.derived).slice(0, 3)).map((line) => `- ${line}`),
   ];
 }
 
@@ -1030,6 +1041,7 @@ function buildConciseAnswer(context: AskSynthesisContext): string {
     "",
     "## Why This Holds",
     `- ${context.trust.supportingFactorSummary}`,
+    `- ${context.trust.lineageSummary}`,
     ...listLine(catalystLines(context.derived).slice(0, 2)).map((line) => `- ${line}`),
     "",
     "## Main Caveats",
@@ -1069,6 +1081,7 @@ function buildResearchMemo(context: AskSynthesisContext): string {
     "## Trust Posture",
     `- Confidence posture: ${context.trust.confidence}. ${context.trust.confidenceSummary}`,
     `- ${context.trust.supportingFactorSummary}`,
+    `- ${context.trust.lineageSummary}`,
     `- ${context.trust.consultedObjectSummary}`,
     "",
     ...buildReferenceAppendix(context),
@@ -1106,6 +1119,7 @@ function buildCompareViewpoints(context: AskSynthesisContext): string {
     "",
     "## Trust Posture",
     `- Confidence posture: ${context.trust.confidence}. ${context.trust.confidenceSummary}`,
+    `- ${context.trust.lineageSummary}`,
     `- ${context.trust.consultedObjectSummary}`,
     "",
     ...buildReferenceAppendix(context),
@@ -1141,6 +1155,7 @@ function buildContradictionReview(context: AskSynthesisContext): string {
     "",
     "## Trust Posture",
     `- Confidence posture: ${context.trust.confidence}. ${context.trust.confidenceSummary}`,
+    `- ${context.trust.lineageSummary}`,
     "",
     ...buildReferenceAppendix(context),
   ].join("\n");
@@ -1181,6 +1196,7 @@ function buildFollowUpQuestions(context: AskSynthesisContext): string {
     `- ${context.trust.tensionSummary}`,
     `- ${context.trust.freshnessCaveat}`,
     `- ${context.trust.supportingFactorSummary}`,
+    `- ${context.trust.lineageSummary}`,
     "",
     "## Current Context Used",
     ...listLine([
@@ -1190,6 +1206,7 @@ function buildFollowUpQuestions(context: AskSynthesisContext): string {
     "",
     "## Trust Posture",
     `- Confidence posture: ${context.trust.confidence}. ${context.trust.confidenceSummary}`,
+    `- ${context.trust.lineageSummary}`,
     "",
     ...buildReferenceAppendix(context),
   ].join("\n");
@@ -1224,6 +1241,9 @@ function artifactMarkdownFromSession(session: AskSession): string {
       : []),
     ...(session.metadata?.consultedObjectSummary
       ? [`- Consulted objects: ${session.metadata.consultedObjectSummary}`]
+      : []),
+    ...(session.metadata?.lineageSummary
+      ? [`- Lineage summary: ${session.metadata.lineageSummary}`]
       : []),
   ];
 
@@ -1291,9 +1311,25 @@ export async function runAskSession(input: {
       confidenceSummary: trust.confidenceSummary,
       tensionSummary: trust.tensionSummary,
       freshnessCaveat: trust.freshnessCaveat,
+      lineageSummary: trust.lineageSummary,
       entitySummary:
         derived.selectedEntities.map((entity) => entity.canonicalName).join(", ") ||
         "general project scope",
+      consultedEntityIds: JSON.stringify(
+        derived.selectedEntities.map((entity) => entity.id),
+      ),
+      consultedCatalystIds: JSON.stringify(
+        derived.catalysts.map((entry) => entry.catalyst.id),
+      ),
+      consultedContradictionIds: JSON.stringify(
+        derived.contradictions.map((entry) => entry.contradiction.id),
+      ),
+      consultedTimelineEventIds: JSON.stringify(
+        derived.timelineEntries.map((entry) => entry.event.id),
+      ),
+      consultedAlertIds: JSON.stringify(
+        derived.freshnessAlerts.map((entry) => entry.alert.id),
+      ),
       contradictionCount: String(derived.contradictions.length),
       catalystCount: String(derived.catalysts.length),
       timelineCount: String(derived.timelineEntries.length),
@@ -1341,6 +1377,12 @@ export async function saveAskSessionAsArtifact(input: {
       trustSummary: session.metadata?.trustSummary ?? "",
       confidenceSummary: session.metadata?.confidenceSummary ?? "",
       freshnessCaveat: session.metadata?.freshnessCaveat ?? "",
+      lineageSummary: session.metadata?.lineageSummary ?? "",
+      consultedEntityIds: session.metadata?.consultedEntityIds ?? "[]",
+      consultedCatalystIds: session.metadata?.consultedCatalystIds ?? "[]",
+      consultedContradictionIds: session.metadata?.consultedContradictionIds ?? "[]",
+      consultedTimelineEventIds: session.metadata?.consultedTimelineEventIds ?? "[]",
+      consultedAlertIds: session.metadata?.consultedAlertIds ?? "[]",
       consultedObjectSummary: session.metadata?.consultedObjectSummary ?? "",
       provenanceNote:
         session.metadata?.artifactProvenance ??

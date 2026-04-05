@@ -99,6 +99,16 @@ export default async function ArtifactDetailPage({
           <p className="text-sm leading-6 text-muted">
             {artifact.metadata.derivedFrom ?? "No derived-from label attached."}
           </p>
+          {artifact.metadata.provenanceNote ? (
+            <p className="mt-2 text-sm leading-6 text-muted">
+              {artifact.metadata.provenanceNote}
+            </p>
+          ) : null}
+          {artifact.metadata.lineageSummary ? (
+            <p className="mt-2 text-sm leading-6 text-muted">
+              {artifact.metadata.lineageSummary}
+            </p>
+          ) : null}
         </SectionCard>
         <SectionCard
           eyebrow="References"

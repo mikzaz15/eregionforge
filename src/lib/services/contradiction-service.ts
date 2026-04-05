@@ -127,6 +127,28 @@ function entitySummary(sharedEntities: ResearchEntity[]): string | null {
     .join(", ");
 }
 
+function buildContradictionLineageSummary(input: {
+  sharedEntities: ResearchEntity[];
+  pageCount: number;
+  sourceCount: number;
+  timelineCount: number;
+  leftClaimId: string | null;
+  rightClaimId: string | null;
+}): { anchorSummary: string; lineageSummary: string } {
+  const anchorSummary =
+    input.sharedEntities.length > 0
+      ? `Shared entity scope: ${entitySummary(input.sharedEntities)}.`
+      : `Shared anchor remains thematic rather than entity-resolved.`;
+  const claimCount =
+    (input.leftClaimId ? 1 : 0) + (input.rightClaimId ? 1 : 0);
+  const lineageSummary = `Lineage runs through ${claimCount} claim(s), ${input.pageCount} canon page(s), ${input.sourceCount} source record(s), and ${input.timelineCount} timeline event(s).`;
+
+  return {
+    anchorSummary,
+    lineageSummary,
+  };
+}
+
 function extractNumbers(value: string): string[] {
   return Array.from(
     value.matchAll(/\b\d+(?:\.\d+)?%?\b/g),
@@ -485,6 +507,16 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
       const scopeLabel = sharedEntities[0]?.canonicalName ?? (comparison.primaryTheme
         ? formatThemeLabel(comparison.primaryTheme)
         : "claim");
+      const lineage = buildContradictionLineageSummary({
+        sharedEntities,
+        pageCount: Array.from(new Set([left.wikiPageId, right.wikiPageId])).length,
+        sourceCount: Array.from(
+          new Set([left.sourceId ?? null, right.sourceId ?? null].filter(Boolean) as string[]),
+        ).length,
+        timelineCount: 0,
+        leftClaimId: left.id,
+        rightClaimId: right.id,
+      });
 
       issues.push({
         stableKey: stableKey("claim", contradictionType, left.id, right.id),
@@ -510,6 +542,8 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
           olderClaimId: older.id,
           primaryTheme: comparison.primaryTheme ?? "",
           entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
+          anchorSummary: lineage.anchorSummary,
+          lineageSummary: lineage.lineageSummary,
           confidenceScore: confidenceAssessment.score.toFixed(2),
           confidenceSummary: confidenceAssessment.summary,
           confidenceFactors: confidenceAssessment.factors,
@@ -554,6 +588,19 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         entityClarity: sharedEntities.length > 0 ? Math.min(sharedEntities.length / 2, 1) : comparison.primaryTheme ? 0.65 : 0.35,
       });
       const confidence = confidenceAssessment.label;
+      const lineage = buildContradictionLineageSummary({
+        sharedEntities,
+        pageCount: Array.from(
+          new Set([
+            ...(pageIdsBySourceId.get(left.id) ?? []),
+            ...(pageIdsBySourceId.get(right.id) ?? []),
+          ]),
+        ).length,
+        sourceCount: 2,
+        timelineCount: 0,
+        leftClaimId: null,
+        rightClaimId: null,
+      });
 
       issues.push({
         stableKey: stableKey("source", left.id, right.id, comparison.signalKind),
@@ -581,6 +628,8 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         metadata: {
           primaryTheme: comparison.primaryTheme ?? "",
           entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
+          anchorSummary: lineage.anchorSummary,
+          lineageSummary: lineage.lineageSummary,
           confidenceScore: confidenceAssessment.score.toFixed(2),
           confidenceSummary: confidenceAssessment.summary,
           confidenceFactors: confidenceAssessment.factors,
@@ -624,6 +673,14 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         entityClarity: sharedEntities.length > 0 ? Math.min(sharedEntities.length / 2, 1) : comparison.primaryTheme ? 0.65 : 0.35,
       });
       const confidence = confidenceAssessment.label;
+      const lineage = buildContradictionLineageSummary({
+        sharedEntities,
+        pageCount: 2,
+        sourceCount: new Set([...left.sourceIds, ...right.sourceIds]).size,
+        timelineCount: 0,
+        leftClaimId: null,
+        rightClaimId: null,
+      });
 
       issues.push({
         stableKey: stableKey("page", left.page.id, right.page.id, comparison.signalKind),
@@ -646,6 +703,8 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         metadata: {
           primaryTheme: comparison.primaryTheme ?? "",
           entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
+          anchorSummary: lineage.anchorSummary,
+          lineageSummary: lineage.lineageSummary,
           confidenceScore: confidenceAssessment.score.toFixed(2),
           confidenceSummary: confidenceAssessment.summary,
           confidenceFactors: confidenceAssessment.factors,
@@ -698,6 +757,14 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         entityClarity: sharedEntities.length > 0 ? Math.min(sharedEntities.length / 2, 1) : comparison.primaryTheme ? 0.65 : 0.35,
       });
       const confidence = confidenceAssessment.label;
+      const lineage = buildContradictionLineageSummary({
+        sharedEntities,
+        pageCount: 1,
+        sourceCount: 1,
+        timelineCount: 0,
+        leftClaimId: null,
+        rightClaimId: null,
+      });
 
       issues.push({
         stableKey: stableKey("page-source", pageContext.page.id, source.id, comparison.signalKind),
@@ -720,6 +787,8 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         metadata: {
           primaryTheme: comparison.primaryTheme ?? "",
           entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
+          anchorSummary: lineage.anchorSummary,
+          lineageSummary: lineage.lineageSummary,
           confidenceScore: confidenceAssessment.score.toFixed(2),
           confidenceSummary: confidenceAssessment.summary,
           confidenceFactors: confidenceAssessment.factors,
@@ -777,6 +846,14 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
               : 0.35,
       });
       const confidence = confidenceAssessment.label;
+      const lineage = buildContradictionLineageSummary({
+        sharedEntities,
+        pageCount: Array.from(new Set([...left.wikiPageIds, ...right.wikiPageIds])).length,
+        sourceCount: new Set([...left.sourceIds, ...right.sourceIds]).size,
+        timelineCount: 2,
+        leftClaimId: null,
+        rightClaimId: null,
+      });
 
       issues.push({
         stableKey: stableKey("timeline", left.id, right.id),
@@ -809,6 +886,8 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
           primaryTheme: impactTheme ?? "",
           dayDiff: String(Math.round(dayDiff)),
           entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
+          anchorSummary: lineage.anchorSummary,
+          lineageSummary: lineage.lineageSummary,
           confidenceScore: confidenceAssessment.score.toFixed(2),
           confidenceSummary: confidenceAssessment.summary,
           confidenceFactors: confidenceAssessment.factors,

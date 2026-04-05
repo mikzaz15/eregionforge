@@ -260,6 +260,30 @@ function riskLinkageSentence(contradictions: Contradiction[]): string {
     .join("; ")}.`;
 }
 
+function buildCatalystLineageSummary(input: {
+  primaryEntity: ResearchEntity | null;
+  claimCount: number;
+  sourceCount: number;
+  timelineCount: number;
+  contradictionCount: number;
+  thesisLinked: boolean;
+  derivedFrom: string;
+}): { anchorSummary: string; thesisSummary: string; lineageSummary: string } {
+  const anchorSummary = input.primaryEntity
+    ? `Primary anchor: ${input.primaryEntity.canonicalName}.`
+    : `Primary anchor remains ${input.derivedFrom.replaceAll("_", " ")} scope rather than a stabilized entity.`;
+  const thesisSummary = input.thesisLinked
+    ? "This catalyst is linked back into the current thesis posture."
+    : "This catalyst is not yet directly linked to a compiled thesis record.";
+  const lineageSummary = `Lineage runs through ${input.claimCount} claim(s), ${input.sourceCount} source record(s), ${input.timelineCount} timeline event(s), and ${input.contradictionCount} contradiction record(s).`;
+
+  return {
+    anchorSummary,
+    thesisSummary,
+    lineageSummary,
+  };
+}
+
 function whyItMattersSentence(
   catalystType: CatalystType,
   themes: SemanticTheme[],
@@ -422,6 +446,15 @@ function buildDraftFromTimelineEvent(
     entityClarity: primaryEntity ? 1 : themes.length > 0 ? 0.6 : 0.3,
   });
   const confidence = confidenceAssessment.label;
+  const lineage = buildCatalystLineageSummary({
+    primaryEntity,
+    claimCount: event.claimIds.length,
+    sourceCount: event.sourceIds.length,
+    timelineCount: 1,
+    contradictionCount: relatedContradictions.length,
+    thesisLinked: Boolean(input.thesis?.id),
+    derivedFrom: "timeline",
+  });
 
   return {
     stableKey: stableKey("timeline", catalystType, event.title, event.eventDate),
@@ -457,6 +490,9 @@ function buildDraftFromTimelineEvent(
       derivedFrom: "timeline",
       semanticThemes: themes.join(", "),
       primaryEntityName: primaryEntity?.canonicalName ?? "",
+      anchorSummary: lineage.anchorSummary,
+      thesisSummary: lineage.thesisSummary,
+      lineageSummary: lineage.lineageSummary,
       confidenceScore: confidenceAssessment.score.toFixed(2),
       confidenceSummary: confidenceAssessment.summary,
       confidenceFactors: confidenceAssessment.factors,
@@ -500,6 +536,15 @@ function buildDraftFromClaim(
     entityClarity: primaryEntity ? 1 : themes.length > 0 ? 0.65 : 0.3,
   });
   const confidence = confidenceAssessment.label;
+  const lineage = buildCatalystLineageSummary({
+    primaryEntity,
+    claimCount: 1,
+    sourceCount: claim.sourceId ? 1 : 0,
+    timelineCount: linkedTimelineEvents.length,
+    contradictionCount: linkedContradictions.length,
+    thesisLinked: Boolean(input.thesis?.id),
+    derivedFrom: "claim",
+  });
 
   return {
     stableKey: stableKey(
@@ -539,6 +584,9 @@ function buildDraftFromClaim(
       derivedFrom: "claim",
       semanticThemes: themes.join(", "),
       primaryEntityName: primaryEntity?.canonicalName ?? "",
+      anchorSummary: lineage.anchorSummary,
+      thesisSummary: lineage.thesisSummary,
+      lineageSummary: lineage.lineageSummary,
       confidenceScore: confidenceAssessment.score.toFixed(2),
       confidenceSummary: confidenceAssessment.summary,
       confidenceFactors: confidenceAssessment.factors,
@@ -580,6 +628,15 @@ function buildDraftFromSource(
     entityClarity: primaryEntity ? 1 : themes.length > 0 ? 0.6 : 0.3,
   });
   const confidence = confidenceAssessment.label;
+  const lineage = buildCatalystLineageSummary({
+    primaryEntity,
+    claimCount: relatedClaims.length,
+    sourceCount: 1,
+    timelineCount: relatedTimelineEvents.length,
+    contradictionCount: relatedContradictions.length,
+    thesisLinked: Boolean(input.thesis?.id),
+    derivedFrom: "source",
+  });
 
   return {
     stableKey: stableKey("source", primaryEntity?.canonicalName, catalystType, source.title),
@@ -614,6 +671,9 @@ function buildDraftFromSource(
       derivedFrom: "source",
       semanticThemes: themes.join(", "),
       primaryEntityName: primaryEntity?.canonicalName ?? "",
+      anchorSummary: lineage.anchorSummary,
+      thesisSummary: lineage.thesisSummary,
+      lineageSummary: lineage.lineageSummary,
       confidenceScore: confidenceAssessment.score.toFixed(2),
       confidenceSummary: confidenceAssessment.summary,
       confidenceFactors: confidenceAssessment.factors,
@@ -653,6 +713,15 @@ function buildDraftFromThesis(
         entityClarity: primaryEntity ? 1 : themes.length > 0 ? 0.55 : 0.25,
       });
       const confidence = confidenceAssessment.label;
+      const lineage = buildCatalystLineageSummary({
+        primaryEntity,
+        claimCount: thesis.supportBySection.catalystSummary.claimIds.length,
+        sourceCount: thesis.supportBySection.catalystSummary.sourceIds.length,
+        timelineCount: thesis.supportBySection.catalystSummary.timelineEventIds.length,
+        contradictionCount: thesis.supportBySection.catalystSummary.contradictionIds.length,
+        thesisLinked: true,
+        derivedFrom: "thesis",
+      });
 
       return {
         stableKey: stableKey("thesis", catalystType, line.slice(0, 72)),
@@ -687,6 +756,9 @@ function buildDraftFromThesis(
           derivedFrom: "thesis",
           semanticThemes: themes.join(", "),
           primaryEntityName: primaryEntity?.canonicalName ?? "",
+          anchorSummary: lineage.anchorSummary,
+          thesisSummary: lineage.thesisSummary,
+          lineageSummary: lineage.lineageSummary,
           confidenceScore: confidenceAssessment.score.toFixed(2),
           confidenceSummary: confidenceAssessment.summary,
           confidenceFactors: confidenceAssessment.factors,

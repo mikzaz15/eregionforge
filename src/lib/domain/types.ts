@@ -325,6 +325,7 @@ export interface DossierSectionReferences {
   claimIds: string[];
   sourceIds: string[];
   artifactIds: string[];
+  entityIds: string[];
 }
 
 export interface DossierSectionSupportMap {
@@ -470,6 +471,8 @@ export interface ThesisSectionReferences {
   wikiPageIds: string[];
   claimIds: string[];
   sourceIds: string[];
+  entityIds: string[];
+  catalystIds: string[];
   timelineEventIds: string[];
   contradictionIds: string[];
 }
