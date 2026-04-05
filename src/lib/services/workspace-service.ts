@@ -25,6 +25,7 @@ import type {
 import { askSessionsRepository } from "@/lib/repositories/ask-sessions-repository";
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { compileJobsRepository } from "@/lib/repositories/compile-jobs-repository";
+import { contradictionsRepository } from "@/lib/repositories/contradictions-repository";
 import { evidenceLinksRepository } from "@/lib/repositories/evidence-links-repository";
 import { operationalAuditEventsRepository } from "@/lib/repositories/operational-audit-events-repository";
 import { projectsRepository } from "@/lib/repositories/projects-repository";
@@ -82,6 +83,10 @@ import {
   type ThesisDetailRecord,
   getProjectThesisSnapshot,
 } from "@/lib/services/thesis-service";
+import type { ConfidenceFactor } from "@/lib/services/confidence-model-v2";
+import {
+  buildConfidenceAssessment,
+} from "@/lib/services/confidence-model-v2";
 
 export type ProjectSummary = {
   project: Project;
@@ -106,6 +111,7 @@ export type ProjectSummary = {
   thesisStatus: Thesis["status"] | null;
   thesisStance: Thesis["overallStance"] | null;
   thesisConfidence: Thesis["confidence"] | null;
+  thesisConfidenceSummary: string | null;
   thesisCatalystCount: number;
   thesisRevisionNumber: number;
   thesisLastRefreshedAt: string | null;
@@ -119,6 +125,7 @@ export type ProjectSummary = {
   monitoringLastEvaluatedAt: string | null;
   dossierCompanyName: string | null;
   dossierConfidence: CompanyDossier["confidence"] | null;
+  dossierConfidenceSummary: string | null;
   dossierSectionCoverageLabel: string;
   dossierReady: boolean;
   dossierLastRefreshedAt: string | null;
@@ -147,6 +154,9 @@ export type WikiPageSummary = {
   sourceDiversityCount: number;
   supportPosture: string;
   supportDensityLabel: string;
+  confidence: string;
+  confidenceSummary: string;
+  confidenceFactors: ConfidenceFactor[];
   isStale: boolean;
   staleReason: string;
   changedSections: string[];
@@ -347,6 +357,9 @@ export type WikiPageDetailData = {
     sourceDiversityCount: number;
     supportPosture: string;
     supportDensityLabel: string;
+    confidence: string;
+    confidenceSummary: string;
+    confidenceFactors: ConfidenceFactor[];
   };
   freshness: {
     isStale: boolean;
@@ -662,6 +675,31 @@ function buildWikiFreshnessSignals(input: {
   };
 }
 
+function buildWikiConfidenceSignals(input: {
+  claimCount: number;
+  supportedClaimCount: number;
+  sourceDiversityCount: number;
+  activeContradictionCount: number;
+  relatedEntityCount: number;
+  isStale: boolean;
+}) {
+  const assessment = buildConfidenceAssessment({
+    supportDensity:
+      input.claimCount === 0 ? 0 : input.supportedClaimCount / input.claimCount,
+    sourceDiversityCount: input.sourceDiversityCount,
+    contradictionBurden: Math.min(input.activeContradictionCount / 3, 1),
+    freshnessBurden: input.isStale ? 0.45 : 0,
+    entityClarity: Math.min(input.relatedEntityCount / 3, 1),
+    stalePosture: input.isStale ? 1 : 0,
+  });
+
+  return {
+    confidence: assessment.label,
+    confidenceSummary: assessment.summary,
+    confidenceFactors: assessment.factors,
+  };
+}
+
 async function buildSourceRecordSummary(source: Source): Promise<SourceRecordSummary> {
   const fragments = await sourceFragmentsRepository.listBySourceId(source.id);
 
@@ -808,6 +846,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       : null,
     thesisStance: thesis?.overallStance ?? null,
     thesisConfidence: thesis?.confidence ?? null,
+    thesisConfidenceSummary: thesis?.metadata?.confidenceSummary ?? null,
     thesisCatalystCount: Number(thesis?.metadata?.catalystCount ?? "0"),
     thesisRevisionNumber: thesisSnapshot.revisionCount,
     thesisLastRefreshedAt: thesisSnapshot.freshness.lastRefreshedAt,
@@ -822,6 +861,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     monitoringLastEvaluatedAt: monitoringSnapshot.analysisState.lastEvaluatedAt,
     dossierCompanyName: dossier?.companyName ?? null,
     dossierConfidence: dossier?.confidence ?? null,
+    dossierConfidenceSummary: dossier?.metadata?.confidenceSummary ?? null,
     dossierSectionCoverageLabel:
       dossier?.metadata?.sectionCoverageLabel ?? "0/6 sections supported",
     dossierReady: Number(dossier?.metadata?.coveredSections ?? "0") >= 4,
@@ -842,7 +882,11 @@ const buildProjectSummary = cache(async function buildProjectSummary(
 const buildWikiPageSummaries = cache(async function buildWikiPageSummaries(
   projectId: string,
 ): Promise<WikiPageSummary[]> {
-  const pages = await wikiRepository.listPagesByProjectId(projectId);
+  const [pages, contradictions, entitySnapshot] = await Promise.all([
+    wikiRepository.listPagesByProjectId(projectId),
+    contradictionsRepository.listByProjectId(projectId),
+    getProjectEntitySnapshot(projectId),
+  ]);
 
   return Promise.all(
     pages.map(async (page) => {
@@ -895,6 +939,20 @@ const buildWikiPageSummaries = cache(async function buildWikiPageSummaries(
         latestClaimAt,
         isGenerated,
       });
+      const activeContradictionCount = contradictions.filter(
+        (entry) => entry.status !== "resolved" && entry.relatedPageIds.includes(page.id),
+      ).length;
+      const relatedEntityCount = entitySnapshot.entities.filter((entity) =>
+        entity.relatedWikiPageIds.includes(page.id),
+      ).length;
+      const confidenceSignals = buildWikiConfidenceSignals({
+        claimCount: claims.length,
+        supportedClaimCount: countClaimStatus(claims, "supported"),
+        sourceDiversityCount: Math.max(sourceDiversityCount, linkedSourceIds.length),
+        activeContradictionCount,
+        relatedEntityCount,
+        isStale: freshnessSignals.isStale,
+      });
       const changedSections = parseJsonArray(
         currentRevision?.generationMetadata?.changedSections ??
           page.generationMetadata?.changedSections,
@@ -917,6 +975,9 @@ const buildWikiPageSummaries = cache(async function buildWikiPageSummaries(
         sourceDiversityCount,
         supportPosture: supportSignals.supportPosture,
         supportDensityLabel: supportSignals.supportDensityLabel,
+        confidence: confidenceSignals.confidence,
+        confidenceSummary: confidenceSignals.confidenceSummary,
+        confidenceFactors: confidenceSignals.confidenceFactors,
         isStale: freshnessSignals.isStale,
         staleReason: freshnessSignals.staleReason,
         changedSections,
@@ -1458,7 +1519,9 @@ export async function getThesisPageData(
       {
         label: "Confidence",
         value: summary.thesisConfidence ?? "Not set",
-        note: "Confidence reflects the current density and consistency of compiled supporting knowledge.",
+        note:
+          summary.thesisConfidenceSummary ??
+          "Confidence reflects the current density and consistency of compiled supporting knowledge.",
       },
       {
         label: "Catalysts",
@@ -1507,7 +1570,9 @@ export async function getDossierPageData(
       {
         label: "Confidence",
         value: summary.dossierConfidence ?? "Not set",
-        note: "Confidence reflects the breadth and consistency of current dossier-supporting knowledge objects.",
+        note:
+          summary.dossierConfidenceSummary ??
+          "Confidence reflects the breadth and consistency of current dossier-supporting knowledge objects.",
       },
       {
         label: "Coverage",
@@ -1648,11 +1713,14 @@ export async function getWikiPageDetailData(
     return null;
   }
 
-  const [revisions, currentRevision, sourceIds, claims] = await Promise.all([
+  const [revisions, currentRevision, sourceIds, claims, contradictions, entitySnapshot] =
+    await Promise.all([
     wikiRepository.listRevisionsByPageId(pageId),
     wikiRepository.getCurrentRevision(pageId),
     wikiRepository.listSourceIdsForPage(pageId),
     claimsRepository.listByWikiPageId(pageId),
+    contradictionsRepository.listByProjectId(projectId),
+    getProjectEntitySnapshot(projectId),
   ]);
 
   const linkedSources = (
@@ -1732,6 +1800,18 @@ export async function getWikiPageDetailData(
         .sort((left, right) => right.localeCompare(left))[0] ?? null,
     isGenerated: page.generationMetadata?.generatedBy === "deterministic-compiler",
   });
+  const confidenceSignals = buildWikiConfidenceSignals({
+    claimCount: claims.length,
+    supportedClaimCount: supported,
+    sourceDiversityCount: Math.max(sourceDiversityCount, linkedSources.length),
+    activeContradictionCount: contradictions.filter(
+      (entry) => entry.status !== "resolved" && entry.relatedPageIds.includes(page.id),
+    ).length,
+    relatedEntityCount: entitySnapshot.entities.filter((entity) =>
+      entity.relatedWikiPageIds.includes(page.id),
+    ).length,
+    isStale: freshnessSignals.isStale,
+  });
   const changedSections = parseJsonArray(
     currentRevision?.generationMetadata?.changedSections ??
       page.generationMetadata?.changedSections,
@@ -1758,6 +1838,9 @@ export async function getWikiPageDetailData(
       sourceDiversityCount,
       supportPosture: supportSignals.supportPosture,
       supportDensityLabel: supportSignals.supportDensityLabel,
+      confidence: confidenceSignals.confidence,
+      confidenceSummary: confidenceSignals.confidenceSummary,
+      confidenceFactors: confidenceSignals.confidenceFactors,
     },
     freshness: {
       isStale: freshnessSignals.isStale,

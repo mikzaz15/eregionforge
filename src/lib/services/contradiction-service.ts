@@ -27,6 +27,10 @@ import {
   startOperationalJob,
 } from "@/lib/services/operational-history-service";
 import {
+  buildConfidenceAssessment,
+  serializeConfidenceFactors,
+} from "@/lib/services/confidence-model-v2";
+import {
   buildSemanticProfile,
   dominantConflictTheme,
   formatThemeLabel,
@@ -295,16 +299,43 @@ function severityForComparison(
   return confidence === "high" ? "medium" : "low";
 }
 
-function confidenceFromScore(score: number): RevisionConfidence {
-  if (score >= 0.45) {
-    return "high";
-  }
+function contradictionConfidenceAssessment(input: {
+  overlap: number;
+  sourceDiversityCount: number;
+  freshnessBurden?: number;
+  entityClarity: number;
+  datePrecision?: number;
+  anchoredByClaims?: boolean;
+  reviewPosture?: number;
+}): {
+  label: RevisionConfidence;
+  score: number;
+  summary: string;
+  factors: string;
+} {
+  const supportDensity = Math.max(
+    0,
+    Math.min(
+      input.overlap * 2 + (input.anchoredByClaims ? 0.2 : 0) + (input.sourceDiversityCount > 0 ? 0.1 : 0),
+      1,
+    ),
+  );
+  const assessment = buildConfidenceAssessment({
+    supportDensity,
+    sourceDiversityCount: input.sourceDiversityCount,
+    contradictionBurden: 0,
+    freshnessBurden: input.freshnessBurden ?? 0,
+    entityClarity: input.entityClarity,
+    datePrecision: input.datePrecision ?? 0.4,
+    reviewPosture: input.reviewPosture ?? 0,
+  });
 
-  if (score >= 0.22) {
-    return "medium";
-  }
-
-  return "low";
+  return {
+    label: assessment.label,
+    score: assessment.score,
+    summary: assessment.summary,
+    factors: serializeConfidenceFactors(assessment.factors),
+  };
 }
 
 function confidenceRank(value: RevisionConfidence | null | undefined): number {
@@ -434,7 +465,8 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
           left.sourceId === right.sourceId)
           ? "stale_vs_newer_claim"
           : "direct_claim_conflict";
-      const confidence = confidenceFromScore(
+      const confidenceAssessment = contradictionConfidenceAssessment({
+        overlap:
         comparison.overlap +
           comparison.sharedThemes.length * 0.18 +
           comparison.sharedTokens.length * 0.03 +
@@ -442,7 +474,14 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
           (comparison.primaryTheme ? 0.08 : 0) +
           (contradictionType === "stale_vs_newer_claim" ? 0.06 : 0) +
           (maxConfidence(left.confidence, right.confidence) === "high" ? 0.1 : 0),
-      );
+        sourceDiversityCount: new Set(
+          [left.sourceId ?? null, right.sourceId ?? null].filter((value): value is string => Boolean(value)),
+        ).size,
+        freshnessBurden: contradictionType === "stale_vs_newer_claim" ? 0.35 : 0,
+        entityClarity: sharedEntities.length > 0 ? Math.min(sharedEntities.length / 2, 1) : comparison.primaryTheme ? 0.65 : 0.35,
+        anchoredByClaims: true,
+      });
+      const confidence = confidenceAssessment.label;
       const scopeLabel = sharedEntities[0]?.canonicalName ?? (comparison.primaryTheme
         ? formatThemeLabel(comparison.primaryTheme)
         : "claim");
@@ -471,6 +510,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
           olderClaimId: older.id,
           primaryTheme: comparison.primaryTheme ?? "",
           entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
+          confidenceScore: confidenceAssessment.score.toFixed(2),
+          confidenceSummary: confidenceAssessment.summary,
+          confidenceFactors: confidenceAssessment.factors,
         },
       });
     }
@@ -501,13 +543,17 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         continue;
       }
 
-      const confidence = confidenceFromScore(
+      const confidenceAssessment = contradictionConfidenceAssessment({
+        overlap:
         comparison.overlap +
           comparison.sharedThemes.length * 0.18 +
           comparison.sharedTokens.length * 0.03 +
           sharedEntities.length * 0.08 +
           (comparison.primaryTheme ? 0.06 : 0),
-      );
+        sourceDiversityCount: 2,
+        entityClarity: sharedEntities.length > 0 ? Math.min(sharedEntities.length / 2, 1) : comparison.primaryTheme ? 0.65 : 0.35,
+      });
+      const confidence = confidenceAssessment.label;
 
       issues.push({
         stableKey: stableKey("source", left.id, right.id, comparison.signalKind),
@@ -535,6 +581,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         metadata: {
           primaryTheme: comparison.primaryTheme ?? "",
           entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
+          confidenceScore: confidenceAssessment.score.toFixed(2),
+          confidenceSummary: confidenceAssessment.summary,
+          confidenceFactors: confidenceAssessment.factors,
         },
       });
     }
@@ -562,7 +611,8 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         continue;
       }
 
-      const confidence = confidenceFromScore(
+      const confidenceAssessment = contradictionConfidenceAssessment({
+        overlap:
         comparison.overlap +
           comparison.sharedThemes.length * 0.18 +
           comparison.sharedTokens.length * 0.03 +
@@ -570,7 +620,10 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
           (left.revision?.confidence === "high" || right.revision?.confidence === "high"
             ? 0.08
             : 0),
-      );
+        sourceDiversityCount: new Set([...left.sourceIds, ...right.sourceIds]).size,
+        entityClarity: sharedEntities.length > 0 ? Math.min(sharedEntities.length / 2, 1) : comparison.primaryTheme ? 0.65 : 0.35,
+      });
+      const confidence = confidenceAssessment.label;
 
       issues.push({
         stableKey: stableKey("page", left.page.id, right.page.id, comparison.signalKind),
@@ -593,6 +646,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         metadata: {
           primaryTheme: comparison.primaryTheme ?? "",
           entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
+          confidenceScore: confidenceAssessment.score.toFixed(2),
+          confidenceSummary: confidenceAssessment.summary,
+          confidenceFactors: confidenceAssessment.factors,
         },
       });
     }
@@ -631,13 +687,17 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         continue;
       }
 
-      const confidence = confidenceFromScore(
+      const confidenceAssessment = contradictionConfidenceAssessment({
+        overlap:
         comparison.overlap +
           comparison.sharedThemes.length * 0.18 +
           comparison.sharedTokens.length * 0.03 +
           sharedEntities.length * 0.08 +
           (comparison.primaryTheme ? 0.05 : 0),
-      );
+        sourceDiversityCount: 1,
+        entityClarity: sharedEntities.length > 0 ? Math.min(sharedEntities.length / 2, 1) : comparison.primaryTheme ? 0.65 : 0.35,
+      });
+      const confidence = confidenceAssessment.label;
 
       issues.push({
         stableKey: stableKey("page-source", pageContext.page.id, source.id, comparison.signalKind),
@@ -660,6 +720,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         metadata: {
           primaryTheme: comparison.primaryTheme ?? "",
           entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
+          confidenceScore: confidenceAssessment.score.toFixed(2),
+          confidenceSummary: confidenceAssessment.summary,
+          confidenceFactors: confidenceAssessment.factors,
         },
       });
     }
@@ -696,14 +759,24 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
         continue;
       }
 
-      const confidence = confidenceFromScore(
+      const confidenceAssessment = contradictionConfidenceAssessment({
+        overlap:
         titleOverlap +
           (comparison ? comparison.sharedThemes.length * 0.16 : 0) +
           sharedEntities.length * 0.08 +
           (left.eventDatePrecision === "exact_day" && right.eventDatePrecision === "exact_day"
             ? 0.2
             : 0.08),
-      );
+        sourceDiversityCount: new Set([...left.sourceIds, ...right.sourceIds]).size,
+        entityClarity: sharedEntities.length > 0 ? Math.min(sharedEntities.length / 2, 1) : impactTheme ? 0.65 : 0.35,
+        datePrecision:
+          left.eventDatePrecision === "exact_day" && right.eventDatePrecision === "exact_day"
+            ? 1
+            : left.eventDatePrecision === "month" || right.eventDatePrecision === "month"
+              ? 0.65
+              : 0.35,
+      });
+      const confidence = confidenceAssessment.label;
 
       issues.push({
         stableKey: stableKey("timeline", left.id, right.id),
@@ -736,6 +809,9 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
           primaryTheme: impactTheme ?? "",
           dayDiff: String(Math.round(dayDiff)),
           entityNames: sharedEntities.map((entity) => entity.canonicalName).join(", "),
+          confidenceScore: confidenceAssessment.score.toFixed(2),
+          confidenceSummary: confidenceAssessment.summary,
+          confidenceFactors: confidenceAssessment.factors,
         },
       });
     }

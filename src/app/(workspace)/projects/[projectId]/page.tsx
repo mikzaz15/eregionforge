@@ -899,6 +899,11 @@ export default async function ProjectDetailPage({
               <p className="mt-2 text-sm leading-6 text-foreground">
                 Coverage: {projectData.summary.dossierSectionCoverageLabel}
               </p>
+              {projectData.summary.dossierConfidenceSummary ? (
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  {projectData.summary.dossierConfidenceSummary}
+                </p>
+              ) : null}
               <Link
                 href={`/projects/${projectId}/dossier`}
                 className="action-button-secondary mt-4"
@@ -918,6 +923,11 @@ export default async function ProjectDetailPage({
                   {" "}Geography: {projectData.dossier.dossier.geography ?? "Not set"}.
                   {" "}Coverage: {projectData.dossier.readiness.sectionCoverageLabel}.
                 </p>
+                {projectData.dossier.dossier.metadata?.confidenceSummary ? (
+                  <p className="text-sm leading-6 text-muted">
+                    {projectData.dossier.dossier.metadata.confidenceSummary}
+                  </p>
+                ) : null}
                 <p className="text-sm leading-6 text-foreground">
                   {previewMarkdown(projectData.dossier.dossier.businessOverviewMarkdown)}
                 </p>
@@ -1047,6 +1057,11 @@ export default async function ProjectDetailPage({
               <p className="mt-2 text-sm leading-6 text-muted">
                 {projectData.summary.thesisFreshnessReason}
               </p>
+              {projectData.summary.thesisConfidenceSummary ? (
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  {projectData.summary.thesisConfidenceSummary}
+                </p>
+              ) : null}
               <Link
                 href={`/projects/${projectId}/thesis`}
                 className="action-button-secondary mt-4"
@@ -1061,6 +1076,11 @@ export default async function ProjectDetailPage({
                 <p className="font-semibold tracking-tight text-foreground">
                   {projectData.thesis.thesis.title}
                 </p>
+                {projectData.thesis.thesis.metadata?.confidenceSummary ? (
+                  <p className="text-sm leading-6 text-muted">
+                    {projectData.thesis.thesis.metadata.confidenceSummary}
+                  </p>
+                ) : null}
                 <p className="text-sm leading-6 text-foreground">
                   {projectData.thesis.thesis.summary}
                 </p>

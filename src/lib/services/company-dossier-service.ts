@@ -27,8 +27,10 @@ import {
   startOperationalJob,
 } from "@/lib/services/operational-history-service";
 import {
-  confidenceLabelFromScore,
-  deriveConfidenceScore,
+  buildConfidenceAssessment,
+  serializeConfidenceFactors,
+} from "@/lib/services/confidence-model-v2";
+import {
   safeRatio,
 } from "@/lib/services/semantic-intelligence-v1";
 
@@ -703,15 +705,23 @@ export async function compileProjectCompanyDossier(
         .length,
       sources.length,
     );
-    const confidence: RevisionConfidence = confidenceLabelFromScore(
-      deriveConfidenceScore({
-        supportDensity: safeRatio(supportedClaimsCount, Math.max(claims.length, 1)),
-        sourceDiversityCount,
-        contradictionBurden: safeRatio(openContradictions, 4),
-        freshnessBurden,
-        precisionSupport: safeRatio(coveredSections, 6),
-      }),
+    const entityClarity = Math.min(
+      entities.filter((entity) =>
+        ["company", "product_or_segment", "operator", "market_or_competitor", "metric", "risk_theme"].includes(
+          entity.entityType,
+        ),
+      ).length / 5,
+      1,
     );
+    const confidenceAssessment = buildConfidenceAssessment({
+      supportDensity: safeRatio(supportedClaimsCount, Math.max(claims.length, 1)),
+      sourceDiversityCount,
+      contradictionBurden: safeRatio(openContradictions, 4),
+      freshnessBurden,
+      entityClarity,
+      datePrecision: safeRatio(coveredSections, 6),
+    });
+    const confidence: RevisionConfidence = confidenceAssessment.label;
 
     const dossier = await companyDossiersRepository.upsertForProject({
       projectId,
@@ -760,6 +770,10 @@ export async function compileProjectCompanyDossier(
         sourceDiversityCount: String(sourceDiversityCount),
         openContradictionCount: String(openContradictions),
         freshnessBurden: freshnessBurden.toFixed(2),
+        entityClarity: entityClarity.toFixed(2),
+        confidenceScore: confidenceAssessment.score.toFixed(2),
+        confidenceSummary: confidenceAssessment.summary,
+        confidenceFactors: serializeConfidenceFactors(confidenceAssessment.factors),
       },
     });
 

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { ConfidenceExplainer } from "@/components/workspace/confidence-explainer";
 import { MarkdownDocument } from "@/components/workspace/markdown-document";
 import {
   MetricCard,
@@ -10,6 +11,7 @@ import {
 } from "@/components/workspace/primitives";
 import type { ThesisSupportRecord } from "@/lib/services/thesis-service";
 import type { ThesisPageData } from "@/lib/services/workspace-service";
+import { parseConfidenceFactors } from "@/lib/services/confidence-model-v2";
 
 function stanceTone(stance: string | null): StatusTone {
   if (stance === "bullish") {
@@ -227,6 +229,9 @@ export function ThesisView({
   const thesis = thesisDetail?.thesis ?? null;
   const currentRevision = thesisDetail?.currentRevision ?? null;
   const comparison = thesisDetail?.comparison ?? null;
+  const thesisConfidenceFactors = parseConfidenceFactors(
+    thesis?.metadata?.confidenceFactors,
+  );
 
   return (
     <PageFrame
@@ -283,6 +288,10 @@ export function ThesisView({
                     Last refreshed {formatDateTime(thesisDetail.freshness.lastRefreshedAt)}
                   </p>
                 </div>
+                <ConfidenceExplainer
+                  summary={thesis.metadata?.confidenceSummary}
+                  factors={thesisConfidenceFactors}
+                />
                 <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">

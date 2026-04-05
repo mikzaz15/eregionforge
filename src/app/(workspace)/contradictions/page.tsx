@@ -3,6 +3,7 @@ import {
   runActiveProjectContradictionAnalysisAction,
   updateContradictionStatusAction,
 } from "@/app/(workspace)/actions";
+import { ConfidenceExplainer } from "@/components/workspace/confidence-explainer";
 import {
   MetricCard,
   PageFrame,
@@ -10,6 +11,7 @@ import {
   StatusPill,
   type StatusTone,
 } from "@/components/workspace/primitives";
+import { parseConfidenceFactors } from "@/lib/services/confidence-model-v2";
 import {
   getActiveProjectId,
   getContradictionsPageData,
@@ -207,6 +209,14 @@ export default async function ContradictionsPage() {
                     <p className="mt-3 text-sm leading-6 text-muted">
                       Rationale: {entry.contradiction.rationale}
                     </p>
+                    <div className="mt-4">
+                      <ConfidenceExplainer
+                        summary={entry.contradiction.metadata?.confidenceSummary}
+                        factors={parseConfidenceFactors(
+                          entry.contradiction.metadata?.confidenceFactors,
+                        )}
+                      />
+                    </div>
                     {entry.contradiction.reviewNote ? (
                       <p className="mt-2 text-sm leading-6 text-muted">
                         Review note: {entry.contradiction.reviewNote}

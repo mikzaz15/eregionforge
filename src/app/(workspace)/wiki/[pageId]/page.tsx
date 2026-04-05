@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ConfidenceExplainer } from "@/components/workspace/confidence-explainer";
 import { MarkdownDocument } from "@/components/workspace/markdown-document";
 import {
   PageFrame,
@@ -56,6 +57,18 @@ function supportTone(label: string): StatusTone {
   return "neutral";
 }
 
+function confidenceTone(confidence: string): StatusTone {
+  if (confidence === "high") {
+    return "success";
+  }
+
+  if (confidence === "medium") {
+    return "accent";
+  }
+
+  return "neutral";
+}
+
 function parseChangedSections(value: string | undefined): string[] {
   if (!value) {
     return [];
@@ -105,6 +118,9 @@ export default async function WikiPageDetail({
           </StatusPill>
           <StatusPill tone={supportTone(data.supportSummary.supportDensityLabel)}>
             {data.supportSummary.supportDensityLabel} support
+          </StatusPill>
+          <StatusPill tone={confidenceTone(data.supportSummary.confidence)}>
+            {data.supportSummary.confidence} confidence
           </StatusPill>
           <StatusPill tone={data.freshness.isStale ? "danger" : "success"}>
             {data.freshness.isStale ? "stale" : "current"}
@@ -215,6 +231,12 @@ export default async function WikiPageDetail({
                 <p className="mt-3 text-sm leading-6 text-foreground">
                   {data.supportSummary.supportPosture}
                 </p>
+                <div className="mt-4">
+                  <ConfidenceExplainer
+                    summary={data.supportSummary.confidenceSummary}
+                    factors={data.supportSummary.confidenceFactors}
+                  />
+                </div>
               </div>
               {data.claims.length > 0 ? (
                 data.claims.map((entry) => (

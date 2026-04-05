@@ -37,6 +37,18 @@ function supportTone(label: string): StatusTone {
   return "neutral";
 }
 
+function confidenceTone(confidence: string): StatusTone {
+  if (confidence === "high") {
+    return "success";
+  }
+
+  if (confidence === "medium") {
+    return "accent";
+  }
+
+  return "neutral";
+}
+
 export default async function WikiPage() {
   const projectId = await getActiveProjectId();
   const data = await getWikiPageData(projectId);
@@ -186,6 +198,9 @@ export default async function WikiPage() {
                     <StatusPill tone={supportTone(entry.supportDensityLabel)}>
                       {entry.supportDensityLabel} support
                     </StatusPill>
+                    <StatusPill tone={confidenceTone(entry.confidence)}>
+                      {entry.confidence} confidence
+                    </StatusPill>
                     {entry.isStale ? (
                       <StatusPill tone="danger">stale</StatusPill>
                     ) : (
@@ -197,6 +212,9 @@ export default async function WikiPage() {
                   </p>
                   <p className="text-sm leading-6 text-muted">
                     {entry.supportPosture}
+                  </p>
+                  <p className="text-sm leading-6 text-muted">
+                    {entry.confidenceSummary}
                   </p>
                   {entry.isStale ? (
                     <p className="text-sm leading-6 text-[var(--danger-ink)]">

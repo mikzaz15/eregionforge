@@ -34,9 +34,11 @@ import {
   startOperationalJob,
 } from "@/lib/services/operational-history-service";
 import {
+  buildConfidenceAssessment,
+  serializeConfidenceFactors,
+} from "@/lib/services/confidence-model-v2";
+import {
   buildSemanticProfile,
-  confidenceLabelFromScore,
-  deriveConfidenceScore,
   summarizeThemeList,
   type SemanticTheme,
 } from "@/lib/services/semantic-intelligence-v1";
@@ -318,7 +320,8 @@ function confidenceForCatalyst(input: {
   claimCount: number;
   contradictionCount: number;
   timeframePrecision: TimelineEventDatePrecision;
-}): RevisionConfidence {
+  entityClarity: number;
+}): { label: RevisionConfidence; score: number; summary: string; factors: string } {
   const precisionSupport =
     input.timeframePrecision === "exact_day"
       ? 1
@@ -328,16 +331,22 @@ function confidenceForCatalyst(input: {
           ? 0.45
           : 0.25;
   const supportDensity = Math.min((input.sourceCount + input.claimCount) / 4, 1);
+  const assessment = buildConfidenceAssessment({
+    supportDensity,
+    sourceDiversityCount: input.sourceCount,
+    contradictionBurden: Math.min(input.contradictionCount / 3, 1),
+    freshnessBurden: 0,
+    entityClarity: input.entityClarity,
+    datePrecision: precisionSupport,
+    reviewPosture: 0,
+  });
 
-  return confidenceLabelFromScore(
-    deriveConfidenceScore({
-      supportDensity,
-      sourceDiversityCount: input.sourceCount,
-      contradictionBurden: Math.min(input.contradictionCount / 3, 1),
-      freshnessBurden: 0,
-      precisionSupport,
-    }),
-  );
+  return {
+    label: assessment.label,
+    score: assessment.score,
+    summary: assessment.summary,
+    factors: serializeConfidenceFactors(assessment.factors),
+  };
 }
 
 function buildCatalystDescription(input: {
@@ -405,12 +414,14 @@ function buildDraftFromTimelineEvent(
     `${event.title} ${event.description}`,
     input.entities,
   );
-  const confidence = confidenceForCatalyst({
+  const confidenceAssessment = confidenceForCatalyst({
     sourceCount: event.sourceIds.length,
     claimCount: event.claimIds.length,
     contradictionCount: relatedContradictions.length,
     timeframePrecision: event.eventDatePrecision,
+    entityClarity: primaryEntity ? 1 : themes.length > 0 ? 0.6 : 0.3,
   });
+  const confidence = confidenceAssessment.label;
 
   return {
     stableKey: stableKey("timeline", catalystType, event.title, event.eventDate),
@@ -446,6 +457,9 @@ function buildDraftFromTimelineEvent(
       derivedFrom: "timeline",
       semanticThemes: themes.join(", "),
       primaryEntityName: primaryEntity?.canonicalName ?? "",
+      confidenceScore: confidenceAssessment.score.toFixed(2),
+      confidenceSummary: confidenceAssessment.summary,
+      confidenceFactors: confidenceAssessment.factors,
     },
   };
 }
@@ -478,12 +492,14 @@ function buildDraftFromClaim(
     linkedTimelineEvents[0]?.eventDatePrecision ?? "unknown_estimated";
   const themes = buildSemanticProfile(claim.text).themes;
   const primaryEntity = primaryEntityForText(claim.text, input.entities);
-  const confidence = confidenceForCatalyst({
+  const confidenceAssessment = confidenceForCatalyst({
     sourceCount: claim.sourceId ? 1 : 0,
     claimCount: 1,
     contradictionCount: linkedContradictions.length,
     timeframePrecision,
+    entityClarity: primaryEntity ? 1 : themes.length > 0 ? 0.65 : 0.3,
   });
+  const confidence = confidenceAssessment.label;
 
   return {
     stableKey: stableKey(
@@ -523,6 +539,9 @@ function buildDraftFromClaim(
       derivedFrom: "claim",
       semanticThemes: themes.join(", "),
       primaryEntityName: primaryEntity?.canonicalName ?? "",
+      confidenceScore: confidenceAssessment.score.toFixed(2),
+      confidenceSummary: confidenceAssessment.summary,
+      confidenceFactors: confidenceAssessment.factors,
     },
   };
 }
@@ -553,12 +572,14 @@ function buildDraftFromSource(
     `${source.title} ${source.body ?? ""}`,
     input.entities,
   );
-  const confidence = confidenceForCatalyst({
+  const confidenceAssessment = confidenceForCatalyst({
     sourceCount: 1,
     claimCount: relatedClaims.length,
     contradictionCount: relatedContradictions.length,
     timeframePrecision,
+    entityClarity: primaryEntity ? 1 : themes.length > 0 ? 0.6 : 0.3,
   });
+  const confidence = confidenceAssessment.label;
 
   return {
     stableKey: stableKey("source", primaryEntity?.canonicalName, catalystType, source.title),
@@ -593,6 +614,9 @@ function buildDraftFromSource(
       derivedFrom: "source",
       semanticThemes: themes.join(", "),
       primaryEntityName: primaryEntity?.canonicalName ?? "",
+      confidenceScore: confidenceAssessment.score.toFixed(2),
+      confidenceSummary: confidenceAssessment.summary,
+      confidenceFactors: confidenceAssessment.factors,
     },
   };
 }
@@ -621,12 +645,14 @@ function buildDraftFromThesis(
             : "unknown_estimated";
       const themes = buildSemanticProfile(line).themes;
       const primaryEntity = primaryEntityForText(line, entities);
-      const confidence = confidenceForCatalyst({
+      const confidenceAssessment = confidenceForCatalyst({
         sourceCount: thesis.supportBySection.catalystSummary.sourceIds.length,
         claimCount: thesis.supportBySection.catalystSummary.claimIds.length,
         contradictionCount: thesis.supportBySection.catalystSummary.contradictionIds.length,
         timeframePrecision,
+        entityClarity: primaryEntity ? 1 : themes.length > 0 ? 0.55 : 0.25,
       });
+      const confidence = confidenceAssessment.label;
 
       return {
         stableKey: stableKey("thesis", catalystType, line.slice(0, 72)),
@@ -661,6 +687,9 @@ function buildDraftFromThesis(
           derivedFrom: "thesis",
           semanticThemes: themes.join(", "),
           primaryEntityName: primaryEntity?.canonicalName ?? "",
+          confidenceScore: confidenceAssessment.score.toFixed(2),
+          confidenceSummary: confidenceAssessment.summary,
+          confidenceFactors: confidenceAssessment.factors,
         },
       } satisfies CatalystDraft;
     })

@@ -41,8 +41,10 @@ import {
   type TimelineReferenceRecord,
 } from "@/lib/services/timeline-service";
 import {
-  confidenceLabelFromScore,
-  deriveConfidenceScore,
+  buildConfidenceAssessment,
+  serializeConfidenceFactors,
+} from "@/lib/services/confidence-model-v2";
+import {
   safeRatio,
 } from "@/lib/services/semantic-intelligence-v1";
 
@@ -808,15 +810,23 @@ function buildCompiledThesisCandidate(
     supportedClaimsCount,
     Math.max(supportedClaimsCount + weakClaimsCount + unresolvedClaimsCount, 1),
   );
-  const confidence = confidenceLabelFromScore(
-    deriveConfidenceScore({
-      supportDensity,
-      sourceDiversityCount,
-      contradictionBurden: safeRatio(highSeverityContradictionCount, 3),
-      freshnessBurden,
-      precisionSupport: safeRatio(preciseTimelineCount, Math.max(state.timelineEntries.length, 1)),
-    }),
+  const entityClarity = Math.min(
+    entities.filter((entity) =>
+      ["company", "product_or_segment", "operator", "market_or_competitor", "metric", "risk_theme"].includes(
+        entity.entityType,
+      ),
+    ).length / 5,
+    1,
   );
+  const confidenceAssessment = buildConfidenceAssessment({
+    supportDensity,
+    sourceDiversityCount,
+    contradictionBurden: safeRatio(highSeverityContradictionCount, 3),
+    freshnessBurden,
+    entityClarity,
+    datePrecision: safeRatio(preciseTimelineCount, Math.max(state.timelineEntries.length, 1)),
+  });
+  const confidence = confidenceAssessment.label;
   const positivePageBullets = state.pageContexts
     .filter(
       (context) =>
@@ -1069,6 +1079,10 @@ function buildCompiledThesisCandidate(
       preciseTimelineCount: String(preciseTimelineCount),
       supportDensity: supportDensity.toFixed(2),
       freshnessBurden: freshnessBurden.toFixed(2),
+      entityClarity: entityClarity.toFixed(2),
+      confidenceScore: confidenceAssessment.score.toFixed(2),
+      confidenceSummary: confidenceAssessment.summary,
+      confidenceFactors: serializeConfidenceFactors(confidenceAssessment.factors),
       latestKnowledgeUpdateAt: fingerprint.latestKnowledgeUpdateAt ?? "",
     },
   };

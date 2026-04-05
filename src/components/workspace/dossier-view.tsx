@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { ConfidenceExplainer } from "@/components/workspace/confidence-explainer";
 import { MarkdownDocument } from "@/components/workspace/markdown-document";
 import {
   MetricCard,
@@ -9,6 +10,7 @@ import {
   type StatusTone,
 } from "@/components/workspace/primitives";
 import type { DossierSupportRecord } from "@/lib/services/company-dossier-service";
+import { parseConfidenceFactors } from "@/lib/services/confidence-model-v2";
 import type { DossierPageData } from "@/lib/services/workspace-service";
 
 function confidenceTone(confidence: string | null): StatusTone {
@@ -159,6 +161,9 @@ export function DossierView({
 }>) {
   const detail = data.dossier;
   const dossier = detail?.dossier ?? null;
+  const dossierConfidenceFactors = parseConfidenceFactors(
+    dossier?.metadata?.confidenceFactors,
+  );
 
   return (
     <PageFrame
@@ -210,6 +215,10 @@ export function DossierView({
                     Last refreshed {formatDateTime(dossier.updatedAt)}
                   </p>
                 </div>
+                <ConfidenceExplainer
+                  summary={dossier.metadata?.confidenceSummary}
+                  factors={dossierConfidenceFactors}
+                />
               </div>
             </div>
             <div className="mt-4">

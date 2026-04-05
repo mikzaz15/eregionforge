@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { updateCatalystReviewStatusAction } from "@/app/(workspace)/actions";
+import { ConfidenceExplainer } from "@/components/workspace/confidence-explainer";
 import {
   MetricCard,
   PageFrame,
@@ -8,6 +9,7 @@ import {
   StatusPill,
   type StatusTone,
 } from "@/components/workspace/primitives";
+import { parseConfidenceFactors } from "@/lib/services/confidence-model-v2";
 import type { CatalystsPageData } from "@/lib/services/workspace-service";
 
 function confidenceTone(confidence: string): StatusTone {
@@ -181,6 +183,14 @@ export function CatalystView({
                   <p className="mt-3 text-sm leading-6 text-foreground">
                     {entry.catalyst.description}
                   </p>
+                  <div className="mt-4">
+                    <ConfidenceExplainer
+                      summary={entry.catalyst.metadata?.confidenceSummary}
+                      factors={parseConfidenceFactors(
+                        entry.catalyst.metadata?.confidenceFactors,
+                      )}
+                    />
+                  </div>
                   {entry.catalyst.reviewNote ? (
                     <p className="mt-2 text-sm leading-6 text-muted">
                       Review note: {entry.catalyst.reviewNote}
