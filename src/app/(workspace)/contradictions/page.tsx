@@ -228,7 +228,16 @@ export default async function ContradictionsPage() {
                         )}
                       />
                     </div>
-                    {entry.contradiction.reviewNote ? (
+                    {entry.noteSummary.noteCount > 0 ? (
+                      <div className="mt-3 rounded-2xl border border-border bg-background/60 px-4 py-3">
+                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                          Operator notes {entry.noteSummary.noteCount}
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-foreground">
+                          {entry.noteSummary.latestNotePreview}
+                        </p>
+                      </div>
+                    ) : entry.contradiction.reviewNote ? (
                       <p className="mt-2 text-sm leading-6 text-muted">
                         Review note: {entry.contradiction.reviewNote}
                       </p>
@@ -365,37 +374,48 @@ export default async function ContradictionsPage() {
                       >
                         Open Sources
                       </Link>
-                      {entry.contradiction.status !== "reviewed" ? (
-                        <form action={updateContradictionStatusAction}>
-                          <input type="hidden" name="projectId" value={data.summary.project.id} />
-                          <input
-                            type="hidden"
-                            name="contradictionId"
-                            value={entry.contradiction.id}
-                          />
-                          <input type="hidden" name="status" value="reviewed" />
-                          <input type="hidden" name="redirectTo" value="/contradictions" />
-                          <button className="action-button-secondary action-button-compact">
+                    </div>
+                    <form action={updateContradictionStatusAction} className="mt-4 space-y-3">
+                      <input type="hidden" name="projectId" value={data.summary.project.id} />
+                      <input
+                        type="hidden"
+                        name="contradictionId"
+                        value={entry.contradiction.id}
+                      />
+                      <input type="hidden" name="redirectTo" value="/contradictions" />
+                      <label className="block">
+                        <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                          Operator note
+                        </span>
+                        <textarea
+                          name="reviewNote"
+                          rows={2}
+                          placeholder="Optional rationale for review or resolution"
+                          className="mt-2 w-full rounded-2xl border border-border bg-background/70 px-3 py-2 text-sm leading-6 text-foreground outline-none transition focus:border-foreground/30"
+                          defaultValue=""
+                        />
+                      </label>
+                      <div className="flex flex-wrap gap-3">
+                        {entry.contradiction.status !== "reviewed" ? (
+                          <button
+                            name="status"
+                            value="reviewed"
+                            className="action-button-secondary action-button-compact"
+                          >
                             Mark Reviewed
                           </button>
-                        </form>
-                      ) : null}
-                      {entry.contradiction.status !== "resolved" ? (
-                        <form action={updateContradictionStatusAction}>
-                          <input type="hidden" name="projectId" value={data.summary.project.id} />
-                          <input
-                            type="hidden"
-                            name="contradictionId"
-                            value={entry.contradiction.id}
-                          />
-                          <input type="hidden" name="status" value="resolved" />
-                          <input type="hidden" name="redirectTo" value="/contradictions" />
-                          <button className="action-button-secondary action-button-compact">
+                        ) : null}
+                        {entry.contradiction.status !== "resolved" ? (
+                          <button
+                            name="status"
+                            value="resolved"
+                            className="action-button-secondary action-button-compact"
+                          >
                             Mark Resolved
                           </button>
-                        </form>
-                      ) : null}
-                    </div>
+                        ) : null}
+                      </div>
+                    </form>
                   </article>
                 );
               })

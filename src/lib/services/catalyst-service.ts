@@ -20,6 +20,7 @@ import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { contradictionsRepository } from "@/lib/repositories/contradictions-repository";
 import { catalystsRepository } from "@/lib/repositories/catalysts-repository";
 import { evidenceLinksRepository } from "@/lib/repositories/evidence-links-repository";
+import { operatorNotesRepository } from "@/lib/repositories/operator-notes-repository";
 import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { thesesRepository } from "@/lib/repositories/theses-repository";
@@ -47,6 +48,11 @@ import {
   type EvidenceHighlight,
 } from "@/lib/services/evidence-lineage-v3";
 import {
+  buildOperatorNoteSummaryMap,
+  createOperatorNote,
+  type OperatorNoteSummary,
+} from "@/lib/services/operator-notes-service";
+import {
   buildSemanticProfile,
   summarizeThemeList,
   type SemanticTheme,
@@ -61,6 +67,7 @@ export type CatalystReferenceRecord = {
   relatedContradictions: Contradiction[];
   relatedPages: WikiPage[];
   evidenceHighlights: EvidenceHighlight[];
+  noteSummary: OperatorNoteSummary;
 };
 
 export type CatalystPageData = {
@@ -981,6 +988,7 @@ export async function listProjectCatalysts(
     pages,
     evidenceLinks,
     sourceFragments,
+    operatorNotes,
   ] =
     await Promise.all([
       catalystsRepository.listByProjectId(projectId),
@@ -992,6 +1000,7 @@ export async function listProjectCatalysts(
       wikiRepository.listPagesByProjectId(projectId),
       evidenceLinksRepository.listByProjectId(projectId),
       sourceFragmentsRepository.listByProjectId(projectId),
+      operatorNotesRepository.listByProjectId(projectId),
     ]);
 
   const timelineById = new Map(timelineEvents.map((event) => [event.id, event] as const));
@@ -1006,6 +1015,10 @@ export async function listProjectCatalysts(
     fragments: sourceFragments,
     claimsById,
     sourcesById,
+  });
+  const noteSummaryById = buildOperatorNoteSummaryMap({
+    notes: operatorNotes,
+    targetObjectType: "catalyst",
   });
 
   return catalysts.map((catalyst) => {
@@ -1038,6 +1051,13 @@ export async function listProjectCatalysts(
       relatedSources,
       relatedContradictions,
       relatedPages,
+      noteSummary:
+        noteSummaryById.get(catalyst.id) ?? {
+          notes: [],
+          noteCount: 0,
+          latestNote: null,
+          latestNotePreview: null,
+        },
       evidenceHighlights: collectEvidenceHighlights(
         {
           claimIds: catalyst.linkedClaimIds,
@@ -1092,6 +1112,30 @@ export async function updateCatalystReviewStatus(input: {
       reviewStatus: catalyst.reviewStatus,
     },
   });
+
+  if (input.reviewNote) {
+    await createOperatorNote({
+      projectId: catalyst.projectId,
+      targetObjectType: "catalyst",
+      targetObjectId: catalyst.id,
+      noteBody: input.reviewNote,
+      noteType:
+        input.reviewStatus === "resolved"
+          ? "resolution"
+          : input.reviewStatus === "invalidated"
+            ? "invalidation"
+            : "review_rationale",
+      auditEventType: "catalyst_note_added",
+      auditTitle: "Catalyst note added",
+      auditDescription: `Operator added a note to catalyst "${catalyst.title}".`,
+      relatedObjectType: "catalyst_tracker",
+      relatedObjectId: catalyst.id,
+      metadata: {
+        catalystType: catalyst.catalystType,
+        reviewStatus: catalyst.reviewStatus,
+      },
+    });
+  }
 
   return catalyst;
 }

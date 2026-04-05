@@ -25,7 +25,13 @@ import { catalystsRepository } from "@/lib/repositories/catalysts-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { sourceMonitoringRepository } from "@/lib/repositories/source-monitoring-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
+import { operatorNotesRepository } from "@/lib/repositories/operator-notes-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import {
+  buildOperatorNoteSummaryMap,
+  createOperatorNote,
+  type OperatorNoteSummary,
+} from "@/lib/services/operator-notes-service";
 import {
   completeOperationalJob,
   failOperationalJob,
@@ -58,6 +64,7 @@ export type StaleAlertReferenceRecord = {
   relatedDossier: CompanyDossier | null;
   relatedCatalysts: Catalyst[];
   relatedTimelineEvents: TimelineEvent[];
+  noteSummary: OperatorNoteSummary;
 };
 
 export type ProjectMonitoringSnapshot = {
@@ -734,6 +741,11 @@ export async function runProjectMonitoringAnalysis(
   const sourcesById = new Map(sources.map((source) => [source.id, source] as const));
   const catalystsById = new Map(catalysts.map((catalyst) => [catalyst.id, catalyst] as const));
   const timelineById = new Map(timelineEvents.map((event) => [event.id, event] as const));
+  const operatorNotes = await operatorNotesRepository.listByProjectId(projectId);
+  const alertNoteSummaryById = buildOperatorNoteSummaryMap({
+    notes: operatorNotes,
+    targetObjectType: "stale_alert",
+  });
 
   const sourceRecords = syncResult.records.map((record) => ({
     record,
@@ -756,6 +768,13 @@ export async function runProjectMonitoringAnalysis(
     relatedTimelineEvents: alert.relatedTimelineIds
       .map((id) => timelineById.get(id) ?? null)
       .filter((entry): entry is TimelineEvent => Boolean(entry)),
+    noteSummary:
+      alertNoteSummaryById.get(alert.id) ?? {
+        notes: [],
+        noteCount: 0,
+        latestNote: null,
+        latestNotePreview: null,
+      },
   }));
 
   const snapshot = {
@@ -930,6 +949,26 @@ export async function updateStaleAlertStatus(input: {
       status: updatedAlert.status,
     },
   });
+
+  if (input.reviewNote) {
+    await createOperatorNote({
+      projectId: updatedAlert.projectId,
+      targetObjectType: "stale_alert",
+      targetObjectId: updatedAlert.id,
+      noteBody: input.reviewNote,
+      noteType:
+        input.status === "dismissed" ? "dismissal" : "acknowledgement",
+      auditEventType: "alert_note_added",
+      auditTitle: "Alert note added",
+      auditDescription: `Operator added a note to monitoring alert "${updatedAlert.title}".`,
+      relatedObjectType: "monitoring",
+      relatedObjectId: updatedAlert.id,
+      metadata: {
+        alertType: updatedAlert.alertType,
+        status: updatedAlert.status,
+      },
+    });
+  }
 
   return updatedAlert;
 }

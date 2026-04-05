@@ -14,6 +14,7 @@ import type {
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { contradictionsRepository } from "@/lib/repositories/contradictions-repository";
 import { evidenceLinksRepository } from "@/lib/repositories/evidence-links-repository";
+import { operatorNotesRepository } from "@/lib/repositories/operator-notes-repository";
 import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
@@ -38,6 +39,11 @@ import {
   collectEvidenceHighlights,
   type EvidenceHighlight,
 } from "@/lib/services/evidence-lineage-v3";
+import {
+  buildOperatorNoteSummaryMap,
+  createOperatorNote,
+  type OperatorNoteSummary,
+} from "@/lib/services/operator-notes-service";
 import {
   buildSemanticProfile,
   dominantConflictTheme,
@@ -73,6 +79,7 @@ export type ContradictionReferenceRecord = {
   relatedSources: Source[];
   relatedTimelineEvents: TimelineEvent[];
   evidenceHighlights: EvidenceHighlight[];
+  noteSummary: OperatorNoteSummary;
 };
 
 export type ProjectContradictionSummary = {
@@ -1021,14 +1028,41 @@ export async function updateContradictionStatus(
     },
   });
 
+  if (reviewNote) {
+    await createOperatorNote({
+      projectId: contradiction.projectId,
+      targetObjectType: "contradiction",
+      targetObjectId: contradiction.id,
+      noteBody: reviewNote,
+      noteType: status === "resolved" ? "resolution" : "review_rationale",
+      auditEventType: "contradiction_note_added",
+      auditTitle: "Contradiction note added",
+      auditDescription: `Operator added a note to contradiction "${contradiction.title}".`,
+      relatedObjectType: "contradictions",
+      relatedObjectId: contradiction.id,
+      metadata: {
+        contradictionType: contradiction.contradictionType,
+        status: contradiction.status,
+      },
+    });
+  }
+
   return contradiction;
 }
 
 export async function listProjectContradictions(
   projectId: string,
 ): Promise<ContradictionReferenceRecord[]> {
-  const [contradictions, claims, sources, pages, timelineEvents, evidenceLinks, sourceFragments] =
-    await Promise.all([
+  const [
+    contradictions,
+    claims,
+    sources,
+    pages,
+    timelineEvents,
+    evidenceLinks,
+    sourceFragments,
+    operatorNotes,
+  ] = await Promise.all([
     contradictionsRepository.listByProjectId(projectId),
     claimsRepository.listByProjectId(projectId),
     sourcesRepository.listByProjectId(projectId),
@@ -1036,6 +1070,7 @@ export async function listProjectContradictions(
     timelineEventsRepository.listByProjectId(projectId),
     evidenceLinksRepository.listByProjectId(projectId),
     sourceFragmentsRepository.listByProjectId(projectId),
+    operatorNotesRepository.listByProjectId(projectId),
   ]);
   const claimsById = new Map(claims.map((claim) => [claim.id, claim] as const));
   const sourcesById = new Map(sources.map((source) => [source.id, source] as const));
@@ -1046,6 +1081,10 @@ export async function listProjectContradictions(
     fragments: sourceFragments,
     claimsById,
     sourcesById,
+  });
+  const noteSummaryById = buildOperatorNoteSummaryMap({
+    notes: operatorNotes,
+    targetObjectType: "contradiction",
   });
 
   return sortContradictions(contradictions).map((contradiction) => ({
@@ -1065,6 +1104,13 @@ export async function listProjectContradictions(
     relatedTimelineEvents: contradiction.relatedTimelineEventIds
       .map((eventId) => eventsById.get(eventId) ?? null)
       .filter((event): event is TimelineEvent => Boolean(event)),
+    noteSummary:
+      noteSummaryById.get(contradiction.id) ?? {
+        notes: [],
+        noteCount: 0,
+        latestNote: null,
+        latestNotePreview: null,
+      },
     evidenceHighlights: collectEvidenceHighlights(
       {
         claimIds: [

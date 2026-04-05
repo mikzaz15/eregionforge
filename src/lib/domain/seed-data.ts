@@ -11,6 +11,7 @@ import type {
   EntityAnalysisState,
   EvidenceLink,
   MonitoringAnalysisState,
+  OperatorNote,
   OperationalAuditEvent,
   Project,
   ResearchEntity,
@@ -1983,6 +1984,8 @@ export const seedOperationalAuditEvents: OperationalAuditEvent[] = [
     createdAt: "2026-04-03T09:09:00Z",
   },
 ];
+
+export const seedOperatorNotes: OperatorNote[] = [];
 
 export const seedWikiPageSourceLinks: WikiPageSourceLink[] = [
   { pageId: "page-ef-overview", sourceId: "source-ef-readme" },

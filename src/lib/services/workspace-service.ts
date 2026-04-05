@@ -129,6 +129,7 @@ export type ProjectSummary = {
   freshnessAlertCount: number;
   acknowledgedFreshnessAlertCount: number;
   dismissedFreshnessAlertCount: number;
+  freshnessAlertNoteCount: number;
   highSeverityFreshnessAlertCount: number;
   sourcesNeedingReviewCount: number;
   monitoringLastEvaluatedAt: string | null;
@@ -141,9 +142,11 @@ export type ProjectSummary = {
   catalystCount: number;
   upcomingCatalystCount: number;
   reviewedCatalystCount: number;
+  catalystNoteCount: number;
   resolvedCatalystCount: number;
   invalidatedCatalystCount: number;
   highImportanceCatalystCount: number;
+  contradictionNoteCount: number;
   catalystsLastCompiledAt: string | null;
   timelineLastCompiledAt: string | null;
   contradictionsLastAnalyzedAt: string | null;
@@ -793,6 +796,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     timelineData,
     lintSnapshot,
     contradictionSnapshot,
+    contradictionRecords,
     thesisSnapshot,
     dossier,
     catalystPageData,
@@ -809,6 +813,7 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       getProjectTimelinePageData(project.id),
       getProjectLintSnapshot(project.id),
       getProjectContradictionSnapshot(project.id),
+      listProjectContradictions(project.id),
       getProjectThesisSnapshot(project.id),
       getStoredProjectCompanyDossier(project.id),
       getProjectCatalystPageData(project.id),
@@ -875,6 +880,9 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     acknowledgedFreshnessAlertCount:
       monitoringSnapshot.summary.acknowledgedAlerts,
     dismissedFreshnessAlertCount: monitoringSnapshot.summary.dismissedAlerts,
+    freshnessAlertNoteCount: monitoringSnapshot.alerts.filter(
+      (entry) => entry.noteSummary.noteCount > 0,
+    ).length,
     highSeverityFreshnessAlertCount: monitoringSnapshot.summary.highSeverityAlerts,
     sourcesNeedingReviewCount: monitoringSnapshot.summary.sourcesNeedingReview,
     monitoringLastEvaluatedAt: monitoringSnapshot.analysisState.lastEvaluatedAt,
@@ -888,9 +896,15 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     catalystCount: catalystPageData.summary.totalCatalysts,
     upcomingCatalystCount: catalystPageData.summary.upcomingCatalysts,
     reviewedCatalystCount: catalystPageData.summary.reviewedCatalysts,
+    catalystNoteCount: catalystPageData.catalysts.filter(
+      (entry) => entry.noteSummary.noteCount > 0,
+    ).length,
     resolvedCatalystCount: catalystPageData.summary.resolvedCatalysts,
     invalidatedCatalystCount: catalystPageData.summary.invalidatedCatalysts,
     highImportanceCatalystCount: catalystPageData.summary.highImportanceCatalysts,
+    contradictionNoteCount: contradictionRecords.filter(
+      (entry) => entry.noteSummary.noteCount > 0,
+    ).length,
     catalystsLastCompiledAt: catalystPageData.compileState.lastCompiledAt,
     timelineLastCompiledAt: timelineData.compileState.lastCompiledAt,
     contradictionsLastAnalyzedAt: contradictionSnapshot.analysisState.lastAnalyzedAt,

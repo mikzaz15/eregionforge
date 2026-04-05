@@ -137,12 +137,26 @@ export type OperationalAuditEventType =
   | "entities_extracted"
   | "alert_acknowledged"
   | "alert_dismissed"
+  | "alert_note_added"
   | "contradiction_reviewed"
   | "contradiction_resolved"
+  | "contradiction_note_added"
   | "catalyst_reviewed"
   | "catalyst_invalidated"
   | "catalyst_resolved"
+  | "catalyst_note_added"
+  | "operator_note_updated"
   | "job_failed";
+export type OperatorNoteTargetObjectType =
+  | "stale_alert"
+  | "contradiction"
+  | "catalyst";
+export type OperatorNoteType =
+  | "review_rationale"
+  | "acknowledgement"
+  | "dismissal"
+  | "resolution"
+  | "invalidation";
 export type EntityType =
   | "company"
   | "product_or_segment"
@@ -569,6 +583,21 @@ export interface OperationalAuditEvent {
 }
 
 export type OperationalAuditEventPayload = Omit<OperationalAuditEvent, "id" | "createdAt">;
+
+export interface OperatorNote {
+  id: string;
+  projectId: string;
+  targetObjectType: OperatorNoteTargetObjectType;
+  targetObjectId: string;
+  noteBody: string;
+  noteType: OperatorNoteType;
+  authoredBy: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  metadata?: StringMetadata;
+}
+
+export type OperatorNotePayload = Omit<OperatorNote, "id" | "createdAt" | "updatedAt">;
 
 export interface WikiPageSourceLink {
   pageId: string;

@@ -207,7 +207,16 @@ export function CatalystView({
                       {entry.catalyst.metadata.thesisSummary}
                     </p>
                   ) : null}
-                  {entry.catalyst.reviewNote ? (
+                  {entry.noteSummary.noteCount > 0 ? (
+                    <div className="mt-3 rounded-2xl border border-border bg-background/60 px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                        Operator notes {entry.noteSummary.noteCount}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-foreground">
+                        {entry.noteSummary.latestNotePreview}
+                      </p>
+                    </div>
+                  ) : entry.catalyst.reviewNote ? (
                     <p className="mt-2 text-sm leading-6 text-muted">
                       Review note: {entry.catalyst.reviewNote}
                     </p>
@@ -361,41 +370,52 @@ export function CatalystView({
                       </div>
                     </div>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    {entry.catalyst.reviewStatus !== "reviewed" ? (
-                      <form action={updateCatalystReviewStatusAction}>
-                        <input type="hidden" name="projectId" value={data.summary.project.id} />
-                        <input type="hidden" name="catalystId" value={entry.catalyst.id} />
-                        <input type="hidden" name="reviewStatus" value="reviewed" />
-                        <input type="hidden" name="redirectTo" value={basePath} />
-                        <button className="action-button-secondary action-button-compact">
+                  <form action={updateCatalystReviewStatusAction} className="mt-4 space-y-3">
+                    <input type="hidden" name="projectId" value={data.summary.project.id} />
+                    <input type="hidden" name="catalystId" value={entry.catalyst.id} />
+                    <input type="hidden" name="redirectTo" value={basePath} />
+                    <label className="block">
+                      <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                        Operator note
+                      </span>
+                      <textarea
+                        name="reviewNote"
+                        rows={2}
+                        placeholder="Optional rationale for review, resolution, or invalidation"
+                        className="mt-2 w-full rounded-2xl border border-border bg-background/70 px-3 py-2 text-sm leading-6 text-foreground outline-none transition focus:border-foreground/30"
+                        defaultValue=""
+                      />
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                      {entry.catalyst.reviewStatus !== "reviewed" ? (
+                        <button
+                          name="reviewStatus"
+                          value="reviewed"
+                          className="action-button-secondary action-button-compact"
+                        >
                           Mark Reviewed
                         </button>
-                      </form>
-                    ) : null}
-                    {entry.catalyst.reviewStatus !== "resolved" ? (
-                      <form action={updateCatalystReviewStatusAction}>
-                        <input type="hidden" name="projectId" value={data.summary.project.id} />
-                        <input type="hidden" name="catalystId" value={entry.catalyst.id} />
-                        <input type="hidden" name="reviewStatus" value="resolved" />
-                        <input type="hidden" name="redirectTo" value={basePath} />
-                        <button className="action-button-secondary action-button-compact">
+                      ) : null}
+                      {entry.catalyst.reviewStatus !== "resolved" ? (
+                        <button
+                          name="reviewStatus"
+                          value="resolved"
+                          className="action-button-secondary action-button-compact"
+                        >
                           Mark Resolved
                         </button>
-                      </form>
-                    ) : null}
-                    {entry.catalyst.reviewStatus !== "invalidated" ? (
-                      <form action={updateCatalystReviewStatusAction}>
-                        <input type="hidden" name="projectId" value={data.summary.project.id} />
-                        <input type="hidden" name="catalystId" value={entry.catalyst.id} />
-                        <input type="hidden" name="reviewStatus" value="invalidated" />
-                        <input type="hidden" name="redirectTo" value={basePath} />
-                        <button className="action-button-secondary action-button-compact">
+                      ) : null}
+                      {entry.catalyst.reviewStatus !== "invalidated" ? (
+                        <button
+                          name="reviewStatus"
+                          value="invalidated"
+                          className="action-button-secondary action-button-compact"
+                        >
                           Invalidate Catalyst
                         </button>
-                      </form>
-                    ) : null}
-                  </div>
+                      ) : null}
+                    </div>
+                  </form>
                 </article>
               ))
             ) : (

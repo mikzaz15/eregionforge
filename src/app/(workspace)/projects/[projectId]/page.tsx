@@ -501,10 +501,25 @@ export default async function ProjectDetailPage({
               <StatusPill tone={projectData.summary.freshnessAlertCount > 0 ? "danger" : "neutral"}>
                 {projectData.summary.freshnessAlertCount} monitoring alerts
               </StatusPill>
+              <StatusPill
+                tone={
+                  projectData.summary.freshnessAlertNoteCount +
+                    projectData.summary.catalystNoteCount +
+                    projectData.summary.contradictionNoteCount >
+                  0
+                    ? "accent"
+                    : "neutral"
+                }
+              >
+                Operator notes{" "}
+                {projectData.summary.freshnessAlertNoteCount +
+                  projectData.summary.catalystNoteCount +
+                  projectData.summary.contradictionNoteCount}
+              </StatusPill>
             </div>
             <p className="mt-4 text-sm leading-6 text-foreground">
               {projectData.summary.thesisPostureSummary ??
-                `Stance: ${labelize(projectData.summary.thesisStance)}. Confidence: ${projectData.summary.thesisConfidence ?? "Not set"}. Catalysts: ${projectData.summary.catalystCount} total, ${projectData.summary.reviewedCatalystCount} reviewed. Contradictions: ${projectData.summary.unresolvedContradictionCount} unresolved, ${projectData.summary.reviewedContradictionCount} reviewed. Timeline: ${projectData.summary.timelineEventCount} events.`}
+                `Stance: ${labelize(projectData.summary.thesisStance)}. Confidence: ${projectData.summary.thesisConfidence ?? "Not set"}. Catalysts: ${projectData.summary.catalystCount} total, ${projectData.summary.reviewedCatalystCount} reviewed, ${projectData.summary.catalystNoteCount} with operator notes. Contradictions: ${projectData.summary.unresolvedContradictionCount} unresolved, ${projectData.summary.reviewedContradictionCount} reviewed, ${projectData.summary.contradictionNoteCount} with operator notes. Alerts: ${projectData.summary.freshnessAlertCount} open, ${projectData.summary.freshnessAlertNoteCount} with operator rationale. Timeline: ${projectData.summary.timelineEventCount} events.`}
             </p>
             {projectData.summary.thesisMajorTensionSummary ? (
               <p className="mt-3 text-sm leading-6 text-foreground">
@@ -654,10 +669,10 @@ export default async function ProjectDetailPage({
           {[
             { href: `/projects/${projectId}/thesis`, title: "Thesis", detail: `Revision ${projectData.summary.thesisRevisionNumber || 0} · ${labelize(projectData.summary.thesisStance)}` },
             { href: `/projects/${projectId}/dossier`, title: "Dossier", detail: projectData.summary.dossierSectionCoverageLabel },
-            { href: `/projects/${projectId}/catalysts`, title: "Catalysts", detail: `${projectData.summary.upcomingCatalystCount} upcoming / ${projectData.summary.reviewedCatalystCount} reviewed` },
+            { href: `/projects/${projectId}/catalysts`, title: "Catalysts", detail: `${projectData.summary.upcomingCatalystCount} upcoming / ${projectData.summary.catalystNoteCount} with notes` },
             { href: "/timeline", title: "Timeline", detail: `${projectData.summary.timelineEventCount} chronology events` },
-            { href: "/contradictions", title: "Contradictions", detail: `${projectData.summary.unresolvedContradictionCount} unresolved / ${projectData.summary.reviewedContradictionCount} reviewed` },
-            { href: isActiveWorkspace ? "/monitoring" : `/projects/${projectId}`, title: "Alerts", detail: `${projectData.summary.freshnessAlertCount} open / ${projectData.summary.acknowledgedFreshnessAlertCount} acknowledged` },
+            { href: "/contradictions", title: "Contradictions", detail: `${projectData.summary.unresolvedContradictionCount} unresolved / ${projectData.summary.contradictionNoteCount} with notes` },
+            { href: isActiveWorkspace ? "/monitoring" : `/projects/${projectId}`, title: "Alerts", detail: `${projectData.summary.freshnessAlertCount} open / ${projectData.summary.freshnessAlertNoteCount} with notes` },
             { href: "/artifacts", title: "Artifacts", detail: `${projectData.summary.artifactCount} durable outputs` },
             { href: "/ask", title: "Ask", detail: "Canon-first research query flow" },
           ].map((item) => (

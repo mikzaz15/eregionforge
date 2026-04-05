@@ -19,6 +19,7 @@ import {
   seedTimelineEvents,
   seedTimelineCompileStates,
   seedMonitoringAnalysisStates,
+  seedOperatorNotes,
   seedProjects,
   seedSourceFragments,
   seedSourceMonitoringRecords,
@@ -43,6 +44,7 @@ import type {
   LintIssue,
   MonitoringAnalysisState,
   OperationalAuditEvent,
+  OperatorNote,
   Project,
   ResearchEntity,
   Source,
@@ -338,6 +340,18 @@ function ensureSchema(database: SqliteDatabase) {
     );
     CREATE INDEX IF NOT EXISTS idx_operational_audit_events_store_project ON operational_audit_events_store(project_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_operational_audit_events_store_job ON operational_audit_events_store(related_job_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS operator_notes_store (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      target_object_type TEXT NOT NULL,
+      target_object_id TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_operator_notes_store_project ON operator_notes_store(project_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_operator_notes_store_target ON operator_notes_store(target_object_type, target_object_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS catalysts_store (
       id TEXT PRIMARY KEY,
@@ -719,6 +733,23 @@ function ensureSchema(database: SqliteDatabase) {
       event.relatedJobId,
       event.createdAt,
       serializeRecord(event),
+    );
+  }
+
+  const insertOperatorNote = database.prepare(`
+    INSERT OR IGNORE INTO operator_notes_store (
+      id, project_id, target_object_type, target_object_id, updated_at, created_at, payload
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const note of seedOperatorNotes) {
+    insertOperatorNote.run(
+      note.id,
+      note.projectId,
+      note.targetObjectType,
+      note.targetObjectId,
+      note.updatedAt,
+      note.createdAt,
+      serializeRecord(note),
     );
   }
 
@@ -1319,6 +1350,37 @@ export function upsertOperationalAuditEventRecord(event: OperationalAuditEvent):
       event.relatedJobId,
       event.createdAt,
       serializeRecord(event),
+    );
+}
+
+export function upsertOperatorNoteRecord(note: OperatorNote): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO operator_notes_store (
+        id, project_id, target_object_type, target_object_id, updated_at, created_at, payload
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        project_id = excluded.project_id,
+        target_object_type = excluded.target_object_type,
+        target_object_id = excluded.target_object_id,
+        updated_at = excluded.updated_at,
+        created_at = excluded.created_at,
+        payload = excluded.payload
+    `)
+    .run(
+      note.id,
+      note.projectId,
+      note.targetObjectType,
+      note.targetObjectId,
+      note.updatedAt,
+      note.createdAt,
+      serializeRecord(note),
     );
 }
 

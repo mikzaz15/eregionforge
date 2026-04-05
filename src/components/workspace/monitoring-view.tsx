@@ -272,6 +272,16 @@ export function MonitoringView({
                       Likely drivers: {entry.alert.metadata.driverSummary}
                     </p>
                   ) : null}
+                  {entry.noteSummary.noteCount > 0 ? (
+                    <div className="mt-3 rounded-2xl border border-border bg-background/60 px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                        Operator notes {entry.noteSummary.noteCount}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-foreground">
+                        {entry.noteSummary.latestNotePreview}
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="mt-4 flex flex-wrap gap-3">
                     <Link
                       href={alertTargetPath({
@@ -287,28 +297,6 @@ export function MonitoringView({
                       Inspect Surface
                     </Link>
                     <AlertRefreshAction alertType={entry.alert.alertType} />
-                    {entry.alert.status !== "acknowledged" ? (
-                      <form action={updateStaleAlertStatusAction}>
-                        <input type="hidden" name="projectId" value={data.summary.project.id} />
-                        <input type="hidden" name="alertId" value={entry.alert.id} />
-                        <input type="hidden" name="status" value="acknowledged" />
-                        <input type="hidden" name="redirectTo" value="/monitoring" />
-                        <button className="action-button-secondary action-button-compact">
-                          Acknowledge Alert
-                        </button>
-                      </form>
-                    ) : null}
-                    {entry.alert.status !== "dismissed" ? (
-                      <form action={updateStaleAlertStatusAction}>
-                        <input type="hidden" name="projectId" value={data.summary.project.id} />
-                        <input type="hidden" name="alertId" value={entry.alert.id} />
-                        <input type="hidden" name="status" value="dismissed" />
-                        <input type="hidden" name="redirectTo" value="/monitoring" />
-                        <button className="action-button-secondary action-button-compact">
-                          Dismiss Alert
-                        </button>
-                      </form>
-                    ) : null}
                     <Link
                       href={sourcesPath}
                       className="action-button-secondary action-button-compact"
@@ -316,6 +304,43 @@ export function MonitoringView({
                       Review Sources
                     </Link>
                   </div>
+                  <form action={updateStaleAlertStatusAction} className="mt-4 space-y-3">
+                    <input type="hidden" name="projectId" value={data.summary.project.id} />
+                    <input type="hidden" name="alertId" value={entry.alert.id} />
+                    <input type="hidden" name="redirectTo" value="/monitoring" />
+                    <label className="block">
+                      <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                        Operator note
+                      </span>
+                      <textarea
+                        name="reviewNote"
+                        rows={2}
+                        placeholder="Optional rationale for acknowledgment or dismissal"
+                        className="mt-2 w-full rounded-2xl border border-border bg-background/70 px-3 py-2 text-sm leading-6 text-foreground outline-none transition focus:border-foreground/30"
+                        defaultValue=""
+                      />
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                      {entry.alert.status !== "acknowledged" ? (
+                        <button
+                          name="status"
+                          value="acknowledged"
+                          className="action-button-secondary action-button-compact"
+                        >
+                          Acknowledge Alert
+                        </button>
+                      ) : null}
+                      {entry.alert.status !== "dismissed" ? (
+                        <button
+                          name="status"
+                          value="dismissed"
+                          className="action-button-secondary action-button-compact"
+                        >
+                          Dismiss Alert
+                        </button>
+                      ) : null}
+                    </div>
+                  </form>
                   <div className="mt-4 grid gap-3 lg:grid-cols-5">
                     <div className="rounded-2xl border border-border bg-background/65 px-4 py-4">
                       <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
@@ -452,6 +477,11 @@ export function MonitoringView({
                               ? "No longer active in the latest monitoring run"
                               : "Historical monitoring record"}
                         </p>
+                        {entry.noteSummary.latestNotePreview ? (
+                          <p className="text-sm leading-6 text-muted">
+                            {entry.noteSummary.latestNotePreview}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusPill tone={alertStatusTone(entry.alert.status)}>
