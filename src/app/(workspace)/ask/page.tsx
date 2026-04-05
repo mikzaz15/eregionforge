@@ -264,6 +264,11 @@ export default async function AskPage({
                 <p className="mt-3 text-sm leading-6 text-foreground">
                   {currentSession.session.prompt}
                 </p>
+                {currentSession.session.metadata?.confidenceSummary ? (
+                  <p className="mt-3 text-sm leading-6 text-muted">
+                    {currentSession.session.metadata.confidenceSummary}
+                  </p>
+                ) : null}
               </div>
               <MarkdownDocument content={currentSession.session.answer} />
               <form
@@ -332,6 +337,28 @@ export default async function AskPage({
                     <span>Sources: {currentSession.consultedSources.length}</span>
                     <span>Confidence: {currentSession.session.confidence}</span>
                   </div>
+                </div>
+                <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4 space-y-2">
+                  {currentSession.session.metadata?.consultedObjectSummary ? (
+                    <p className="text-sm leading-6 text-foreground">
+                      {currentSession.session.metadata.consultedObjectSummary}
+                    </p>
+                  ) : null}
+                  {currentSession.session.metadata?.trustSummary ? (
+                    <p className="text-sm leading-6 text-muted">
+                      {currentSession.session.metadata.trustSummary}
+                    </p>
+                  ) : null}
+                  {currentSession.session.metadata?.tensionSummary ? (
+                    <p className="text-sm leading-6 text-muted">
+                      {currentSession.session.metadata.tensionSummary}
+                    </p>
+                  ) : null}
+                  {currentSession.session.metadata?.freshnessCaveat ? (
+                    <p className="text-sm leading-6 text-muted">
+                      {currentSession.session.metadata.freshnessCaveat}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="space-y-3">
                   <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">

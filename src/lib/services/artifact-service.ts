@@ -71,6 +71,10 @@ function previewText(markdownContent: string, length = 180): string {
 }
 
 export function artifactTitleFromAskSession(session: AskSession): string {
+  if (session.metadata?.artifactTitle) {
+    return session.metadata.artifactTitle;
+  }
+
   const normalizedPrompt = session.prompt.replace(/\s+/g, " ").trim();
   const compactPrompt =
     normalizedPrompt.length > 60
