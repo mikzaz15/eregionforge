@@ -9,6 +9,7 @@ import type {
   SourceMonitoringRecord,
   StaleAlert,
   StaleAlertDraft,
+  StaleAlertStatus,
 } from "@/lib/domain/types";
 import {
   deleteRecordsByIds,
@@ -49,7 +50,25 @@ export interface SourceMonitoringRepository {
     alerts: StaleAlert[];
     analysisState: MonitoringAnalysisState;
   }>;
+  updateAlertStatus(
+    alertId: string,
+    status: StaleAlertStatus,
+    reviewNote?: string | null,
+    reviewedBy?: string | null,
+  ): Promise<StaleAlert | null>;
   getAnalysisState(projectId: string): Promise<MonitoringAnalysisState>;
+}
+
+function nextAlertMetadata(input: {
+  existing?: StaleAlert | null;
+  draftMetadata?: StaleAlertDraft["metadata"];
+  signalState: "active" | "inactive";
+}) {
+  return {
+    ...(input.existing?.metadata ? structuredClone(input.existing.metadata) : {}),
+    ...(input.draftMetadata ? structuredClone(input.draftMetadata) : {}),
+    signalState: input.signalState,
+  };
 }
 
 class InMemorySourceMonitoringRepository implements SourceMonitoringRepository {
@@ -148,7 +167,11 @@ class InMemorySourceMonitoringRepository implements SourceMonitoringRepository {
         existing.relatedDossierId = draft.relatedDossierId ?? null;
         existing.relatedCatalystIds = structuredClone(draft.relatedCatalystIds);
         existing.relatedTimelineIds = structuredClone(draft.relatedTimelineIds);
-        existing.metadata = draft.metadata ? structuredClone(draft.metadata) : {};
+        existing.metadata = nextAlertMetadata({
+          existing,
+          draftMetadata: draft.metadata,
+          signalState: "active",
+        });
         existing.updatedAt = now;
         return structuredClone(existing);
       }
@@ -161,12 +184,18 @@ class InMemorySourceMonitoringRepository implements SourceMonitoringRepository {
         description: draft.description,
         severity: draft.severity,
         status: draft.status ?? "open",
+        reviewedAt: null,
+        reviewedBy: null,
+        reviewNote: null,
         relatedSourceIds: structuredClone(draft.relatedSourceIds),
         relatedThesisId: draft.relatedThesisId ?? null,
         relatedDossierId: draft.relatedDossierId ?? null,
         relatedCatalystIds: structuredClone(draft.relatedCatalystIds),
         relatedTimelineIds: structuredClone(draft.relatedTimelineIds),
-        metadata: draft.metadata ? structuredClone(draft.metadata) : {},
+        metadata: nextAlertMetadata({
+          draftMetadata: draft.metadata,
+          signalState: "active",
+        }),
         createdAt: now,
         updatedAt: now,
       };
@@ -176,13 +205,13 @@ class InMemorySourceMonitoringRepository implements SourceMonitoringRepository {
     });
 
     const nextAlertIds = new Set(nextAlerts.map((alert) => alert.id));
-
-    for (let index = staleAlertsStore.length - 1; index >= 0; index -= 1) {
-      const alert = staleAlertsStore[index];
-      if (alert.projectId === input.projectId && !nextAlertIds.has(alert.id)) {
-        staleAlertsStore.splice(index, 1);
-      }
-    }
+    const historicalAlerts = staleAlertsStore
+      .filter((alert) => alert.projectId === input.projectId && !nextAlertIds.has(alert.id))
+      .map((alert) => {
+        alert.metadata = nextAlertMetadata({ existing: alert, signalState: "inactive" });
+        alert.updatedAt = now;
+        return structuredClone(alert);
+      });
 
     const analysisState: MonitoringAnalysisState = {
       projectId: input.projectId,
@@ -195,9 +224,34 @@ class InMemorySourceMonitoringRepository implements SourceMonitoringRepository {
 
     return {
       records: structuredClone(nextRecords),
-      alerts: structuredClone(nextAlerts),
+      alerts: structuredClone(
+        [...nextAlerts, ...historicalAlerts].sort((left, right) =>
+          right.updatedAt.localeCompare(left.updatedAt),
+        ),
+      ),
       analysisState: structuredClone(analysisState),
     };
+  }
+
+  async updateAlertStatus(
+    targetAlertId: string,
+    status: StaleAlertStatus,
+    reviewNote?: string | null,
+    reviewedBy = "workspace-operator",
+  ): Promise<StaleAlert | null> {
+    const alert = staleAlertsStore.find((candidate) => candidate.id === targetAlertId);
+
+    if (!alert) {
+      return null;
+    }
+
+    alert.status = status;
+    alert.reviewedAt = new Date().toISOString();
+    alert.reviewedBy = reviewedBy;
+    alert.reviewNote = reviewNote ?? alert.reviewNote ?? null;
+    alert.updatedAt = new Date().toISOString();
+
+    return structuredClone(alert);
   }
 
   async getAnalysisState(projectId: string): Promise<MonitoringAnalysisState> {
@@ -295,12 +349,19 @@ class SqliteSourceMonitoringRepository implements SourceMonitoringRepository {
         description: draft.description,
         severity: draft.severity,
         status: existing?.status ?? draft.status ?? "open",
+        reviewedAt: existing?.reviewedAt ?? null,
+        reviewedBy: existing?.reviewedBy ?? null,
+        reviewNote: existing?.reviewNote ?? null,
         relatedSourceIds: structuredClone(draft.relatedSourceIds),
         relatedThesisId: draft.relatedThesisId ?? null,
         relatedDossierId: draft.relatedDossierId ?? null,
         relatedCatalystIds: structuredClone(draft.relatedCatalystIds),
         relatedTimelineIds: structuredClone(draft.relatedTimelineIds),
-        metadata: draft.metadata ? structuredClone(draft.metadata) : {},
+        metadata: nextAlertMetadata({
+          existing,
+          draftMetadata: draft.metadata,
+          signalState: "active",
+        }),
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       };
@@ -310,12 +371,17 @@ class SqliteSourceMonitoringRepository implements SourceMonitoringRepository {
     });
 
     const nextAlertIds = new Set(nextAlerts.map((alert) => alert.id));
-    deleteRecordsByIds(
-      "stale_alerts_store",
-      existingAlerts
-        .filter((alert) => !nextAlertIds.has(alert.id))
-        .map((alert) => alert.id),
-    );
+    const historicalAlerts = existingAlerts
+      .filter((alert) => !nextAlertIds.has(alert.id))
+      .map((alert) => {
+        const historical: StaleAlert = {
+          ...alert,
+          metadata: nextAlertMetadata({ existing: alert, signalState: "inactive" }),
+          updatedAt: now,
+        };
+        upsertStaleAlertRecord(historical);
+        return historical;
+      });
 
     const analysisState: MonitoringAnalysisState = {
       projectId: input.projectId,
@@ -329,9 +395,41 @@ class SqliteSourceMonitoringRepository implements SourceMonitoringRepository {
 
     return {
       records: structuredClone(nextRecords),
-      alerts: structuredClone(nextAlerts),
+      alerts: structuredClone(
+        [...nextAlerts, ...historicalAlerts].sort((left, right) =>
+          right.updatedAt.localeCompare(left.updatedAt),
+        ),
+      ),
       analysisState: structuredClone(analysisState),
     };
+  }
+
+  async updateAlertStatus(
+    targetAlertId: string,
+    status: StaleAlertStatus,
+    reviewNote?: string | null,
+    reviewedBy = "workspace-operator",
+  ): Promise<StaleAlert | null> {
+    const alert = await getPersistedRecord<StaleAlert>(
+      "SELECT payload FROM stale_alerts_store WHERE id = ?",
+      targetAlertId,
+    );
+
+    if (!alert) {
+      return null;
+    }
+
+    const updated: StaleAlert = {
+      ...alert,
+      status,
+      reviewedAt: new Date().toISOString(),
+      reviewedBy,
+      reviewNote: reviewNote ?? alert.reviewNote ?? null,
+      updatedAt: new Date().toISOString(),
+    };
+
+    upsertStaleAlertRecord(updated);
+    return structuredClone(updated);
   }
 
   async getAnalysisState(projectId: string): Promise<MonitoringAnalysisState> {

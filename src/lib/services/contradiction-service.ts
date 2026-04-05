@@ -66,6 +66,7 @@ export type ProjectContradictionSummary = {
   totalContradictions: number;
   highSeverityContradictions: number;
   unresolvedContradictions: number;
+  reviewedContradictions: number;
 };
 
 export type ContradictionsPageData = {
@@ -357,6 +358,9 @@ function summarizeContradictions(
     ).length,
     unresolvedContradictions: contradictions.filter(
       (contradiction) => contradiction.status !== "resolved",
+    ).length,
+    reviewedContradictions: contradictions.filter(
+      (contradiction) => contradiction.status === "reviewed",
     ).length,
   };
 }
@@ -806,8 +810,40 @@ export async function runProjectContradictionAnalysis(
 export async function updateContradictionStatus(
   contradictionId: string,
   status: Contradiction["status"],
+  reviewNote?: string | null,
 ): Promise<Contradiction | null> {
-  return contradictionsRepository.updateStatus(contradictionId, status);
+  const contradiction = await contradictionsRepository.updateStatus(
+    contradictionId,
+    status,
+    reviewNote,
+  );
+
+  if (!contradiction) {
+    return null;
+  }
+
+  const eventType =
+    status === "resolved" ? "contradiction_resolved" : "contradiction_reviewed";
+  const title =
+    status === "resolved" ? "Contradiction resolved" : "Contradiction reviewed";
+  const description = reviewNote
+    ? `${title}: ${contradiction.title}. Note: ${reviewNote}`
+    : `${title}: ${contradiction.title}.`;
+
+  await recordOperationalAuditEvent({
+    projectId: contradiction.projectId,
+    eventType,
+    title,
+    description,
+    relatedObjectType: "contradictions",
+    relatedObjectId: contradiction.id,
+    metadata: {
+      contradictionType: contradiction.contradictionType,
+      status: contradiction.status,
+    },
+  });
+
+  return contradiction;
 }
 
 export async function listProjectContradictions(
@@ -889,6 +925,11 @@ export async function getProjectContradictionsPageData(
         label: "Unresolved",
         value: String(summary.unresolvedContradictions),
         note: "Reviewed and open items remain active integrity work until explicitly resolved.",
+      },
+      {
+        label: "Reviewed",
+        value: String(summary.reviewedContradictions),
+        note: "Reviewed contradictions remain visible so operator judgment does not disappear into a binary resolved state.",
       },
       {
         label: "Last Analysis",

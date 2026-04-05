@@ -501,7 +501,7 @@ export default async function ProjectDetailPage({
               </StatusPill>
             </div>
             <p className="mt-4 text-sm leading-6 text-foreground">
-              Stance: {labelize(projectData.summary.thesisStance)}. Confidence: {projectData.summary.thesisConfidence ?? "Not set"}. Catalysts: {projectData.summary.catalystCount}. Contradictions: {projectData.summary.unresolvedContradictionCount} unresolved. Timeline: {projectData.summary.timelineEventCount} events.
+              Stance: {labelize(projectData.summary.thesisStance)}. Confidence: {projectData.summary.thesisConfidence ?? "Not set"}. Catalysts: {projectData.summary.catalystCount} total, {projectData.summary.reviewedCatalystCount} reviewed. Contradictions: {projectData.summary.unresolvedContradictionCount} unresolved, {projectData.summary.reviewedContradictionCount} reviewed. Timeline: {projectData.summary.timelineEventCount} events.
             </p>
             <p className="mt-3 text-sm leading-6 text-muted">
               {projectData.summary.thesisFreshnessReason}
@@ -635,10 +635,10 @@ export default async function ProjectDetailPage({
           {[
             { href: `/projects/${projectId}/thesis`, title: "Thesis", detail: `Revision ${projectData.summary.thesisRevisionNumber || 0} · ${labelize(projectData.summary.thesisStance)}` },
             { href: `/projects/${projectId}/dossier`, title: "Dossier", detail: projectData.summary.dossierSectionCoverageLabel },
-            { href: `/projects/${projectId}/catalysts`, title: "Catalysts", detail: `${projectData.summary.upcomingCatalystCount} upcoming / ${projectData.summary.highImportanceCatalystCount} high importance` },
+            { href: `/projects/${projectId}/catalysts`, title: "Catalysts", detail: `${projectData.summary.upcomingCatalystCount} upcoming / ${projectData.summary.reviewedCatalystCount} reviewed` },
             { href: "/timeline", title: "Timeline", detail: `${projectData.summary.timelineEventCount} chronology events` },
-            { href: "/contradictions", title: "Contradictions", detail: `${projectData.summary.unresolvedContradictionCount} unresolved` },
-            { href: isActiveWorkspace ? "/monitoring" : `/projects/${projectId}`, title: "Alerts", detail: `${projectData.summary.freshnessAlertCount} active stale alerts` },
+            { href: "/contradictions", title: "Contradictions", detail: `${projectData.summary.unresolvedContradictionCount} unresolved / ${projectData.summary.reviewedContradictionCount} reviewed` },
+            { href: isActiveWorkspace ? "/monitoring" : `/projects/${projectId}`, title: "Alerts", detail: `${projectData.summary.freshnessAlertCount} open / ${projectData.summary.acknowledgedFreshnessAlertCount} acknowledged` },
             { href: "/artifacts", title: "Artifacts", detail: `${projectData.summary.artifactCount} durable outputs` },
             { href: "/ask", title: "Ask", detail: "Canon-first research query flow" },
           ].map((item) => (
@@ -710,6 +710,9 @@ export default async function ProjectDetailPage({
                   <StatusPill tone={projectData.summary.highSeverityFreshnessAlertCount > 0 ? "danger" : "neutral"}>
                     High {projectData.summary.highSeverityFreshnessAlertCount}
                   </StatusPill>
+                  <StatusPill tone={projectData.summary.acknowledgedFreshnessAlertCount > 0 ? "accent" : "neutral"}>
+                    Acknowledged {projectData.summary.acknowledgedFreshnessAlertCount}
+                  </StatusPill>
                   <StatusPill tone={projectData.summary.sourcesNeedingReviewCount > 0 ? "accent" : "neutral"}>
                     Review {projectData.summary.sourcesNeedingReviewCount}
                   </StatusPill>
@@ -755,7 +758,14 @@ export default async function ProjectDetailPage({
             </div>
             <div className="space-y-3">
               {projectData.monitoring.alerts.length > 0 ? (
-                projectData.monitoring.alerts.slice(0, 3).map((entry) => (
+                projectData.monitoring.alerts
+                  .filter(
+                    (entry) =>
+                      entry.alert.metadata?.signalState !== "inactive" &&
+                      entry.alert.status !== "dismissed",
+                  )
+                  .slice(0, 3)
+                  .map((entry) => (
                   <div
                     key={entry.alert.id}
                     className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4"
@@ -937,7 +947,13 @@ export default async function ProjectDetailPage({
                   Upcoming {projectData.summary.upcomingCatalystCount}
                 </StatusPill>
                 <StatusPill tone="accent">
+                  Reviewed {projectData.summary.reviewedCatalystCount}
+                </StatusPill>
+                <StatusPill tone="success">
                   Resolved {projectData.summary.resolvedCatalystCount}
+                </StatusPill>
+                <StatusPill tone={projectData.summary.invalidatedCatalystCount > 0 ? "danger" : "neutral"}>
+                  Invalidated {projectData.summary.invalidatedCatalystCount}
                 </StatusPill>
                 <StatusPill tone={projectData.summary.highImportanceCatalystCount > 0 ? "danger" : "neutral"}>
                   High {projectData.summary.highImportanceCatalystCount}
@@ -973,6 +989,9 @@ export default async function ProjectDetailPage({
                     </StatusPill>
                     <StatusPill tone={entry.catalyst.status === "resolved" ? "success" : entry.catalyst.status === "active" ? "accent" : "neutral"}>
                       {entry.catalyst.status}
+                    </StatusPill>
+                    <StatusPill tone={entry.catalyst.reviewStatus === "resolved" ? "success" : entry.catalyst.reviewStatus === "invalidated" ? "danger" : entry.catalyst.reviewStatus === "reviewed" ? "accent" : "neutral"}>
+                      {entry.catalyst.reviewStatus}
                     </StatusPill>
                   </div>
                   <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
@@ -1070,7 +1089,7 @@ export default async function ProjectDetailPage({
                 {projectData.summary.contradictionCount}
               </p>
               <p className="mt-3 text-sm leading-6 text-muted">
-                High severity: {projectData.summary.highSeverityContradictionCount}. Unresolved: {projectData.summary.unresolvedContradictionCount}.
+                High severity: {projectData.summary.highSeverityContradictionCount}. Unresolved: {projectData.summary.unresolvedContradictionCount}. Reviewed: {projectData.summary.reviewedContradictionCount}.
               </p>
               <Link
                 href="/contradictions"

@@ -10,6 +10,7 @@ import type {
   SourceMonitoringRecord,
   StaleAlert,
   StaleAlertDraft,
+  StaleAlertStatus,
   TimelineCompileState,
   TimelineEvent,
   Thesis,
@@ -71,6 +72,8 @@ export type ProjectMonitoringSnapshot = {
   };
   summary: {
     activeAlerts: number;
+    acknowledgedAlerts: number;
+    dismissedAlerts: number;
     highSeverityAlerts: number;
     sourcesNeedingReview: number;
     highImpactSourceChanges: number;
@@ -82,6 +85,18 @@ export type ProjectMonitoringSnapshot = {
 export type MonitoringPageData = ProjectMonitoringSnapshot & {
   metrics: Array<{ label: string; value: string; note: string }>;
 };
+
+function alertSignalState(alert: StaleAlert): "active" | "inactive" {
+  return alert.metadata?.signalState === "inactive" ? "inactive" : "active";
+}
+
+function isActiveAlert(alert: StaleAlert): boolean {
+  return alertSignalState(alert) === "active";
+}
+
+function isOpenAlert(alert: StaleAlert): boolean {
+  return isActiveAlert(alert) && alert.status === "open";
+}
 
 function maxTimestamp(...values: Array<string | null | undefined>): string | null {
   const filtered = values.filter((value): value is string => Boolean(value));
@@ -708,10 +723,14 @@ export async function runProjectMonitoringAnalysis(
     alerts,
     analysisState: syncResult.analysisState,
     summary: {
-      activeAlerts: alerts.filter((entry) => entry.alert.status === "open").length,
+      activeAlerts: alerts.filter((entry) => isOpenAlert(entry.alert)).length,
+      acknowledgedAlerts: alerts.filter(
+        (entry) => isActiveAlert(entry.alert) && entry.alert.status === "acknowledged",
+      ).length,
+      dismissedAlerts: alerts.filter((entry) => entry.alert.status === "dismissed").length,
       highSeverityAlerts: alerts.filter(
         (entry) =>
-          entry.alert.status === "open" &&
+          isOpenAlert(entry.alert) &&
           (entry.alert.severity === "high" || entry.alert.severity === "critical"),
       ).length,
       sourcesNeedingReview: sourceRecords.filter(
@@ -723,10 +742,10 @@ export async function runProjectMonitoringAnalysis(
           entry.record.possibleImpactLevel === "high",
       ).length,
       thesisAlerts: alerts.filter(
-        (entry) => entry.alert.alertType === "thesis_may_be_stale",
+        (entry) => isActiveAlert(entry.alert) && entry.alert.alertType === "thesis_may_be_stale",
       ).length,
       dossierAlerts: alerts.filter(
-        (entry) => entry.alert.alertType === "dossier_may_be_stale",
+        (entry) => isActiveAlert(entry.alert) && entry.alert.alertType === "dossier_may_be_stale",
       ).length,
     },
   };
@@ -734,7 +753,7 @@ export async function runProjectMonitoringAnalysis(
     if (job) {
       const openThesisAlert = alerts.find(
         (entry) =>
-          entry.alert.status === "open" &&
+          isOpenAlert(entry.alert) &&
           entry.alert.alertType === "thesis_may_be_stale",
       );
       const summary = `Monitoring evaluated ${sourceRecords.length} source record(s) and surfaced ${snapshot.summary.activeAlerts} active stale alert(s).`;
@@ -807,6 +826,11 @@ export async function getProjectMonitoringPageData(
         note: "High-severity alerts typically indicate thesis or other decision-driving views may need prompt refresh.",
       },
       {
+        label: "Acknowledged",
+        value: String(snapshot.summary.acknowledgedAlerts),
+        note: "Acknowledged alerts remain visible, but the operator has already reviewed the stale signal.",
+      },
+      {
         label: "Sources Needing Review",
         value: String(snapshot.summary.sourcesNeedingReview),
         note: "These source records arrived after the latest relevant compile or remain uncompiled.",
@@ -824,4 +848,48 @@ export async function getProjectMonitoringPageData(
       },
     ],
   };
+}
+
+export async function updateStaleAlertStatus(input: {
+  alertId: string;
+  status: StaleAlertStatus;
+  reviewNote?: string | null;
+  reviewedBy?: string | null;
+}): Promise<StaleAlert | null> {
+  const updatedAlert = await sourceMonitoringRepository.updateAlertStatus(
+    input.alertId,
+    input.status,
+    input.reviewNote,
+    input.reviewedBy,
+  );
+
+  if (!updatedAlert) {
+    return null;
+  }
+
+  const eventType =
+    input.status === "acknowledged" ? "alert_acknowledged" : "alert_dismissed";
+  const title =
+    input.status === "acknowledged" ? "Alert acknowledged" : "Alert dismissed";
+  const actionSummary =
+    input.status === "acknowledged"
+      ? `Operator acknowledged monitoring alert "${updatedAlert.title}".`
+      : `Operator dismissed monitoring alert "${updatedAlert.title}".`;
+
+  await recordOperationalAuditEvent({
+    projectId: updatedAlert.projectId,
+    eventType,
+    title,
+    description: input.reviewNote
+      ? `${actionSummary} Note: ${input.reviewNote}`
+      : actionSummary,
+    relatedObjectType: "monitoring",
+    relatedObjectId: updatedAlert.id,
+    metadata: {
+      alertType: updatedAlert.alertType,
+      status: updatedAlert.status,
+    },
+  });
+
+  return updatedAlert;
 }

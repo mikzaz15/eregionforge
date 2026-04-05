@@ -67,7 +67,7 @@ export type StaleAlertType =
   | "catalyst_tracker_needs_refresh"
   | "contradictions_should_rerun";
 export type StaleAlertSeverity = "critical" | "high" | "medium" | "low";
-export type StaleAlertStatus = "open" | "resolved" | "dismissed";
+export type StaleAlertStatus = "open" | "acknowledged" | "dismissed";
 export type CatalystType =
   | "earnings"
   | "product_launch"
@@ -83,6 +83,7 @@ export type CatalystStatus =
   | "resolved"
   | "invalidated"
   | "unknown";
+export type CatalystReviewStatus = "active" | "reviewed" | "invalidated" | "resolved";
 export type CatalystImportance = "high" | "medium" | "low";
 export type ThesisChangedSection =
   | "summary"
@@ -134,6 +135,13 @@ export type OperationalAuditEventType =
   | "monitoring_ran"
   | "stale_thesis_flagged"
   | "entities_extracted"
+  | "alert_acknowledged"
+  | "alert_dismissed"
+  | "contradiction_reviewed"
+  | "contradiction_resolved"
+  | "catalyst_reviewed"
+  | "catalyst_invalidated"
+  | "catalyst_resolved"
   | "job_failed";
 export type EntityType =
   | "company"
@@ -360,6 +368,10 @@ export interface Catalyst {
   timeframePrecision: TimelineEventDatePrecision;
   importance: CatalystImportance;
   confidence: RevisionConfidence;
+  reviewStatus: CatalystReviewStatus;
+  reviewedAt: Timestamp | null;
+  reviewedBy: string | null;
+  reviewNote: string | null;
   linkedThesisId?: string | null;
   linkedTimelineEventIds: string[];
   linkedClaimIds: string[];
@@ -372,7 +384,13 @@ export interface Catalyst {
 
 export type CatalystDraft = Omit<
   Catalyst,
-  "id" | "createdAt" | "updatedAt"
+  | "id"
+  | "reviewStatus"
+  | "reviewedAt"
+  | "reviewedBy"
+  | "reviewNote"
+  | "createdAt"
+  | "updatedAt"
 > & {
   stableKey: string;
 };
@@ -413,6 +431,9 @@ export interface StaleAlert {
   description: string;
   severity: StaleAlertSeverity;
   status: StaleAlertStatus;
+  reviewedAt: Timestamp | null;
+  reviewedBy: string | null;
+  reviewNote: string | null;
   relatedSourceIds: string[];
   relatedThesisId?: string | null;
   relatedDossierId?: string | null;
@@ -425,7 +446,13 @@ export interface StaleAlert {
 
 export type StaleAlertDraft = Omit<
   StaleAlert,
-  "id" | "status" | "createdAt" | "updatedAt"
+  | "id"
+  | "status"
+  | "reviewedAt"
+  | "reviewedBy"
+  | "reviewNote"
+  | "createdAt"
+  | "updatedAt"
 > & {
   stableKey: string;
   status?: StaleAlertStatus;
@@ -628,6 +655,9 @@ export interface Contradiction {
   description: string;
   severity: ContradictionSeverity;
   status: ContradictionStatus;
+  reviewedAt: Timestamp | null;
+  reviewedBy: string | null;
+  reviewNote: string | null;
   confidence: RevisionConfidence;
   leftClaimId?: string | null;
   rightClaimId?: string | null;
@@ -642,7 +672,13 @@ export interface Contradiction {
 
 export type ContradictionDraft = Omit<
   Contradiction,
-  "id" | "status" | "createdAt" | "updatedAt"
+  | "id"
+  | "status"
+  | "reviewedAt"
+  | "reviewedBy"
+  | "reviewNote"
+  | "createdAt"
+  | "updatedAt"
 > & {
   stableKey: string;
   status?: ContradictionStatus;

@@ -102,6 +102,7 @@ export type ProjectSummary = {
   contradictionCount: number;
   highSeverityContradictionCount: number;
   unresolvedContradictionCount: number;
+  reviewedContradictionCount: number;
   thesisStatus: Thesis["status"] | null;
   thesisStance: Thesis["overallStance"] | null;
   thesisConfidence: Thesis["confidence"] | null;
@@ -111,6 +112,8 @@ export type ProjectSummary = {
   thesisPotentiallyStale: boolean;
   thesisFreshnessReason: string;
   freshnessAlertCount: number;
+  acknowledgedFreshnessAlertCount: number;
+  dismissedFreshnessAlertCount: number;
   highSeverityFreshnessAlertCount: number;
   sourcesNeedingReviewCount: number;
   monitoringLastEvaluatedAt: string | null;
@@ -121,7 +124,9 @@ export type ProjectSummary = {
   dossierLastRefreshedAt: string | null;
   catalystCount: number;
   upcomingCatalystCount: number;
+  reviewedCatalystCount: number;
   resolvedCatalystCount: number;
+  invalidatedCatalystCount: number;
   highImportanceCatalystCount: number;
   catalystsLastCompiledAt: string | null;
   timelineLastCompiledAt: string | null;
@@ -794,6 +799,8 @@ const buildProjectSummary = cache(async function buildProjectSummary(
       contradictionSnapshot.summary.highSeverityContradictions,
     unresolvedContradictionCount:
       contradictionSnapshot.summary.unresolvedContradictions,
+    reviewedContradictionCount:
+      contradictionSnapshot.summary.reviewedContradictions,
     thesisStatus: thesis
       ? thesisSnapshot.freshness.potentiallyStale
         ? "stale"
@@ -807,6 +814,9 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     thesisPotentiallyStale: thesisSnapshot.freshness.potentiallyStale,
     thesisFreshnessReason: thesisSnapshot.freshness.reason,
     freshnessAlertCount: monitoringSnapshot.summary.activeAlerts,
+    acknowledgedFreshnessAlertCount:
+      monitoringSnapshot.summary.acknowledgedAlerts,
+    dismissedFreshnessAlertCount: monitoringSnapshot.summary.dismissedAlerts,
     highSeverityFreshnessAlertCount: monitoringSnapshot.summary.highSeverityAlerts,
     sourcesNeedingReviewCount: monitoringSnapshot.summary.sourcesNeedingReview,
     monitoringLastEvaluatedAt: monitoringSnapshot.analysisState.lastEvaluatedAt,
@@ -818,7 +828,9 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     dossierLastRefreshedAt: dossier?.updatedAt ?? null,
     catalystCount: catalystPageData.summary.totalCatalysts,
     upcomingCatalystCount: catalystPageData.summary.upcomingCatalysts,
+    reviewedCatalystCount: catalystPageData.summary.reviewedCatalysts,
     resolvedCatalystCount: catalystPageData.summary.resolvedCatalysts,
+    invalidatedCatalystCount: catalystPageData.summary.invalidatedCatalysts,
     highImportanceCatalystCount: catalystPageData.summary.highImportanceCatalysts,
     catalystsLastCompiledAt: catalystPageData.compileState.lastCompiledAt,
     timelineLastCompiledAt: timelineData.compileState.lastCompiledAt,
@@ -1400,6 +1412,7 @@ export async function getContradictionsPageData(
       totalContradictions: summary.contradictionCount,
       highSeverityContradictions: summary.highSeverityContradictionCount,
       unresolvedContradictions: summary.unresolvedContradictionCount,
+      reviewedContradictions: summary.reviewedContradictionCount,
     },
     contradictions: contradictionData.contradictions,
     analysisState: contradictionData.analysisState,

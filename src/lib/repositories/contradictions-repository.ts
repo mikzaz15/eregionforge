@@ -36,6 +36,8 @@ export interface ContradictionsRepository {
   updateStatus(
     contradictionId: string,
     status: ContradictionStatus,
+    reviewNote?: string | null,
+    reviewedBy?: string | null,
   ): Promise<Contradiction | null>;
   getAnalysisState(projectId: string): Promise<ContradictionAnalysisState>;
 }
@@ -70,6 +72,9 @@ class InMemoryContradictionsRepository implements ContradictionsRepository {
         existing.description = draft.description;
         existing.severity = draft.severity;
         existing.confidence = draft.confidence;
+        existing.reviewedAt = existing.reviewedAt ?? null;
+        existing.reviewedBy = existing.reviewedBy ?? null;
+        existing.reviewNote = existing.reviewNote ?? null;
         existing.leftClaimId = draft.leftClaimId ?? null;
         existing.rightClaimId = draft.rightClaimId ?? null;
         existing.relatedPageIds = structuredClone(draft.relatedPageIds);
@@ -89,6 +94,9 @@ class InMemoryContradictionsRepository implements ContradictionsRepository {
         description: draft.description,
         severity: draft.severity,
         status: draft.status ?? "open",
+        reviewedAt: null,
+        reviewedBy: null,
+        reviewNote: null,
         confidence: draft.confidence,
         leftClaimId: draft.leftClaimId ?? null,
         rightClaimId: draft.rightClaimId ?? null,
@@ -127,6 +135,8 @@ class InMemoryContradictionsRepository implements ContradictionsRepository {
   async updateStatus(
     targetContradictionId: string,
     status: ContradictionStatus,
+    reviewNote?: string | null,
+    reviewedBy = "workspace-operator",
   ): Promise<Contradiction | null> {
     const contradiction = contradictionsStore.find(
       (candidate) => candidate.id === targetContradictionId,
@@ -137,6 +147,9 @@ class InMemoryContradictionsRepository implements ContradictionsRepository {
     }
 
     contradiction.status = status;
+    contradiction.reviewedAt = new Date().toISOString();
+    contradiction.reviewedBy = reviewedBy;
+    contradiction.reviewNote = reviewNote ?? contradiction.reviewNote ?? null;
     contradiction.updatedAt = new Date().toISOString();
 
     return structuredClone(contradiction);
@@ -185,6 +198,9 @@ class SqliteContradictionsRepository implements ContradictionsRepository {
         description: draft.description,
         severity: draft.severity,
         status: previous?.status ?? draft.status ?? "open",
+        reviewedAt: previous?.reviewedAt ?? null,
+        reviewedBy: previous?.reviewedBy ?? null,
+        reviewNote: previous?.reviewNote ?? null,
         confidence: draft.confidence,
         leftClaimId: draft.leftClaimId ?? null,
         rightClaimId: draft.rightClaimId ?? null,
@@ -220,6 +236,8 @@ class SqliteContradictionsRepository implements ContradictionsRepository {
   async updateStatus(
     targetContradictionId: string,
     status: ContradictionStatus,
+    reviewNote?: string | null,
+    reviewedBy = "workspace-operator",
   ): Promise<Contradiction | null> {
     const contradiction = await getPersistedRecord<Contradiction>(
       "SELECT payload FROM contradictions_store WHERE id = ?",
@@ -233,6 +251,9 @@ class SqliteContradictionsRepository implements ContradictionsRepository {
     const updated: Contradiction = {
       ...contradiction,
       status,
+      reviewedAt: new Date().toISOString(),
+      reviewedBy,
+      reviewNote: reviewNote ?? contradiction.reviewNote ?? null,
       updatedAt: new Date().toISOString(),
     };
 

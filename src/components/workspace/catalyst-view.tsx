@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { updateCatalystReviewStatusAction } from "@/app/(workspace)/actions";
 import {
   MetricCard,
   PageFrame,
@@ -53,6 +54,22 @@ function statusTone(status: string): StatusTone {
   return "neutral";
 }
 
+function reviewStatusTone(status: string): StatusTone {
+  if (status === "resolved") {
+    return "success";
+  }
+
+  if (status === "invalidated") {
+    return "danger";
+  }
+
+  if (status === "reviewed") {
+    return "accent";
+  }
+
+  return "neutral";
+}
+
 function labelize(value: string): string {
   return value.replace(/([A-Z])/g, " $1").replaceAll("_", " ").replaceAll("-", " ");
 }
@@ -86,6 +103,7 @@ export function CatalystView({
   title,
   description,
   thesisPath,
+  basePath,
   actions,
 }: Readonly<{
   data: CatalystsPageData;
@@ -93,6 +111,7 @@ export function CatalystView({
   title: string;
   description: string;
   thesisPath: string;
+  basePath: string;
   actions?: ReactNode;
 }>) {
   return (
@@ -143,6 +162,9 @@ export function CatalystView({
                     <StatusPill tone={statusTone(entry.catalyst.status)}>
                       {entry.catalyst.status}
                     </StatusPill>
+                    <StatusPill tone={reviewStatusTone(entry.catalyst.reviewStatus)}>
+                      {entry.catalyst.reviewStatus}
+                    </StatusPill>
                     <StatusPill tone={importanceTone(entry.catalyst.importance)}>
                       {entry.catalyst.importance}
                     </StatusPill>
@@ -159,6 +181,11 @@ export function CatalystView({
                   <p className="mt-3 text-sm leading-6 text-foreground">
                     {entry.catalyst.description}
                   </p>
+                  {entry.catalyst.reviewNote ? (
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      Review note: {entry.catalyst.reviewNote}
+                    </p>
+                  ) : null}
                   <div className="mt-4 grid gap-3 lg:grid-cols-5">
                     <div className="rounded-2xl border border-border bg-background/65 px-4 py-4">
                       <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
@@ -257,6 +284,41 @@ export function CatalystView({
                         )}
                       </div>
                     </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    {entry.catalyst.reviewStatus !== "reviewed" ? (
+                      <form action={updateCatalystReviewStatusAction}>
+                        <input type="hidden" name="projectId" value={data.summary.project.id} />
+                        <input type="hidden" name="catalystId" value={entry.catalyst.id} />
+                        <input type="hidden" name="reviewStatus" value="reviewed" />
+                        <input type="hidden" name="redirectTo" value={basePath} />
+                        <button className="action-button-secondary action-button-compact">
+                          Mark Reviewed
+                        </button>
+                      </form>
+                    ) : null}
+                    {entry.catalyst.reviewStatus !== "resolved" ? (
+                      <form action={updateCatalystReviewStatusAction}>
+                        <input type="hidden" name="projectId" value={data.summary.project.id} />
+                        <input type="hidden" name="catalystId" value={entry.catalyst.id} />
+                        <input type="hidden" name="reviewStatus" value="resolved" />
+                        <input type="hidden" name="redirectTo" value={basePath} />
+                        <button className="action-button-secondary action-button-compact">
+                          Mark Resolved
+                        </button>
+                      </form>
+                    ) : null}
+                    {entry.catalyst.reviewStatus !== "invalidated" ? (
+                      <form action={updateCatalystReviewStatusAction}>
+                        <input type="hidden" name="projectId" value={data.summary.project.id} />
+                        <input type="hidden" name="catalystId" value={entry.catalyst.id} />
+                        <input type="hidden" name="reviewStatus" value="invalidated" />
+                        <input type="hidden" name="redirectTo" value={basePath} />
+                        <button className="action-button-secondary action-button-compact">
+                          Invalidate Catalyst
+                        </button>
+                      </form>
+                    ) : null}
                   </div>
                 </article>
               ))

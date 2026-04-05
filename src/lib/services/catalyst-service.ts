@@ -3,6 +3,7 @@ import type {
   CatalystCompileState,
   CatalystDraft,
   CatalystImportance,
+  CatalystReviewStatus,
   CatalystStatus,
   CatalystType,
   Claim,
@@ -56,7 +57,9 @@ export type CatalystPageData = {
   summary: {
     totalCatalysts: number;
     upcomingCatalysts: number;
+    reviewedCatalysts: number;
     resolvedCatalysts: number;
+    invalidatedCatalysts: number;
     highImportanceCatalysts: number;
   };
   metrics: Array<{ label: string; value: string; note: string }>;
@@ -786,6 +789,10 @@ export async function compileProjectCatalysts(projectId: string): Promise<Cataly
         timeframePrecision: draft.timeframePrecision,
         importance: draft.importance,
         confidence: draft.confidence,
+        reviewStatus: "active",
+        reviewedAt: null,
+        reviewedBy: null,
+        reviewNote: null,
         linkedThesisId: draft.linkedThesisId ?? null,
         linkedTimelineEventIds: draft.linkedTimelineEventIds,
         linkedClaimIds: draft.linkedClaimIds,
@@ -900,6 +907,52 @@ export async function listProjectCatalysts(
   });
 }
 
+export async function updateCatalystReviewStatus(input: {
+  catalystId: string;
+  reviewStatus: CatalystReviewStatus;
+  reviewNote?: string | null;
+}): Promise<Catalyst | null> {
+  const catalyst = await catalystsRepository.updateReviewStatus(
+    input.catalystId,
+    input.reviewStatus,
+    input.reviewNote,
+  );
+
+  if (!catalyst) {
+    return null;
+  }
+
+  const eventType =
+    input.reviewStatus === "resolved"
+      ? "catalyst_resolved"
+      : input.reviewStatus === "invalidated"
+        ? "catalyst_invalidated"
+        : "catalyst_reviewed";
+  const title =
+    input.reviewStatus === "resolved"
+      ? "Catalyst resolved"
+      : input.reviewStatus === "invalidated"
+        ? "Catalyst invalidated"
+        : "Catalyst reviewed";
+
+  await recordOperationalAuditEvent({
+    projectId: catalyst.projectId,
+    eventType,
+    title,
+    description: input.reviewNote
+      ? `${title}: ${catalyst.title}. Note: ${input.reviewNote}`
+      : `${title}: ${catalyst.title}.`,
+    relatedObjectType: "catalyst_tracker",
+    relatedObjectId: catalyst.id,
+    metadata: {
+      catalystType: catalyst.catalystType,
+      reviewStatus: catalyst.reviewStatus,
+    },
+  });
+
+  return catalyst;
+}
+
 export async function getProjectCatalystPageData(
   projectId: string,
 ): Promise<CatalystPageData> {
@@ -912,8 +965,15 @@ export async function getProjectCatalystPageData(
     totalCatalysts: catalysts.length,
     upcomingCatalysts: catalysts.filter((entry) => entry.catalyst.status === "upcoming")
       .length,
-    resolvedCatalysts: catalysts.filter((entry) => entry.catalyst.status === "resolved")
-      .length,
+    reviewedCatalysts: catalysts.filter(
+      (entry) => entry.catalyst.reviewStatus === "reviewed",
+    ).length,
+    resolvedCatalysts: catalysts.filter(
+      (entry) => entry.catalyst.reviewStatus === "resolved",
+    ).length,
+    invalidatedCatalysts: catalysts.filter(
+      (entry) => entry.catalyst.reviewStatus === "invalidated",
+    ).length,
     highImportanceCatalysts: catalysts.filter(
       (entry) => entry.catalyst.importance === "high",
     ).length,
@@ -933,6 +993,11 @@ export async function getProjectCatalystPageData(
         label: "Upcoming",
         value: String(summary.upcomingCatalysts),
         note: "Upcoming catalysts are those whose expected window still sits ahead of the current date.",
+      },
+      {
+        label: "Reviewed",
+        value: String(summary.reviewedCatalysts),
+        note: "Reviewed catalysts have already been assessed by the operator but remain live in the tracker.",
       },
       {
         label: "High Importance",

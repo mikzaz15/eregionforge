@@ -18,6 +18,7 @@ export default async function CatalystsPage() {
       title="Catalyst Tracker"
       description={`The catalyst tracker compiles source-grounded catalyst objects for ${data.summary.project.name} and connects them to thesis, timeline, contradictions, and supporting evidence.`}
       thesisPath={`/projects/${data.summary.project.id}/thesis`}
+      basePath="/catalysts"
       actions={
         <div className="flex flex-wrap gap-3">
           <form action={compileActiveProjectCatalystsAction}>

@@ -6,6 +6,7 @@ import {
   compileActiveProjectThesisAction,
   compileActiveProjectTimelineAction,
   runActiveProjectContradictionAnalysisAction,
+  updateStaleAlertStatusAction,
 } from "@/app/(workspace)/actions";
 import {
   MetricCard,
@@ -54,6 +55,18 @@ function impactTone(level: string): StatusTone {
   }
 
   return "neutral";
+}
+
+function alertStatusTone(status: string): StatusTone {
+  if (status === "dismissed") {
+    return "neutral";
+  }
+
+  if (status === "acknowledged") {
+    return "success";
+  }
+
+  return "accent";
 }
 
 function labelize(value: string): string {
@@ -176,6 +189,17 @@ export function MonitoringView({
   timelinePath: string;
   contradictionsPath: string;
 }>) {
+  const activeAlerts = data.alerts.filter(
+    (entry) =>
+      entry.alert.metadata?.signalState !== "inactive" &&
+      entry.alert.status !== "dismissed",
+  );
+  const historicalAlerts = data.alerts.filter(
+    (entry) =>
+      entry.alert.metadata?.signalState === "inactive" ||
+      entry.alert.status === "dismissed",
+  );
+
   return (
     <PageFrame
       eyebrow={eyebrow}
@@ -203,7 +227,10 @@ export function MonitoringView({
               {data.monitoringSummary.activeAlerts}
             </p>
             <p className="mt-3 text-sm leading-6 text-muted">
-              High severity: {data.monitoringSummary.highSeverityAlerts}. Sources needing review: {data.monitoringSummary.sourcesNeedingReview}. High-impact source changes: {data.monitoringSummary.highImpactSourceChanges}.
+              High severity: {data.monitoringSummary.highSeverityAlerts}. Acknowledged: {data.monitoringSummary.acknowledgedAlerts}. Dismissed history: {data.monitoringSummary.dismissedAlerts}.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              Sources needing review: {data.monitoringSummary.sourcesNeedingReview}. High-impact source changes: {data.monitoringSummary.highImpactSourceChanges}.
             </p>
             <p className="mt-3 text-sm leading-6 text-muted">
               {data.analysisState.summary}
@@ -213,8 +240,8 @@ export function MonitoringView({
             </p>
           </div>
           <div className="space-y-3">
-            {data.alerts.length > 0 ? (
-              data.alerts.map((entry) => (
+            {activeAlerts.length > 0 ? (
+              activeAlerts.map((entry) => (
                 <article
                   key={entry.alert.id}
                   id={entry.alert.id}
@@ -227,7 +254,7 @@ export function MonitoringView({
                     <StatusPill tone={severityTone(entry.alert.severity)}>
                       {entry.alert.severity}
                     </StatusPill>
-                    <StatusPill tone={entry.alert.status === "open" ? "accent" : "success"}>
+                    <StatusPill tone={alertStatusTone(entry.alert.status)}>
                       {entry.alert.status}
                     </StatusPill>
                     <StatusPill tone="neutral">
@@ -255,6 +282,28 @@ export function MonitoringView({
                       Inspect Surface
                     </Link>
                     <AlertRefreshAction alertType={entry.alert.alertType} />
+                    {entry.alert.status !== "acknowledged" ? (
+                      <form action={updateStaleAlertStatusAction}>
+                        <input type="hidden" name="projectId" value={data.summary.project.id} />
+                        <input type="hidden" name="alertId" value={entry.alert.id} />
+                        <input type="hidden" name="status" value="acknowledged" />
+                        <input type="hidden" name="redirectTo" value="/monitoring" />
+                        <button className="action-button-secondary action-button-compact">
+                          Acknowledge Alert
+                        </button>
+                      </form>
+                    ) : null}
+                    {entry.alert.status !== "dismissed" ? (
+                      <form action={updateStaleAlertStatusAction}>
+                        <input type="hidden" name="projectId" value={data.summary.project.id} />
+                        <input type="hidden" name="alertId" value={entry.alert.id} />
+                        <input type="hidden" name="status" value="dismissed" />
+                        <input type="hidden" name="redirectTo" value="/monitoring" />
+                        <button className="action-button-secondary action-button-compact">
+                          Dismiss Alert
+                        </button>
+                      </form>
+                    ) : null}
                     <Link
                       href={sourcesPath}
                       className="action-button-secondary action-button-compact"
@@ -377,6 +426,51 @@ export function MonitoringView({
                 No stale alerts are active right now. Current thesis, dossier, catalysts, and contradiction analysis appear aligned with the latest compiled project state.
               </div>
             )}
+
+            {historicalAlerts.length > 0 ? (
+              <div className="rounded-2xl border border-border bg-background/55 px-4 py-4">
+                <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                  Review history
+                </p>
+                <div className="mt-3 space-y-2">
+                  {historicalAlerts.map((entry) => (
+                    <div
+                      key={entry.alert.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-3"
+                    >
+                      <div className="space-y-1">
+                        <p className="font-medium text-foreground">{entry.alert.title}</p>
+                        <p className="text-sm leading-6 text-muted">
+                          {entry.alert.reviewedAt
+                            ? `Reviewed ${formatDateTime(entry.alert.reviewedAt)}`
+                            : entry.alert.metadata?.signalState === "inactive"
+                              ? "No longer active in the latest monitoring run"
+                              : "Historical monitoring record"}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusPill tone={alertStatusTone(entry.alert.status)}>
+                          {entry.alert.status}
+                        </StatusPill>
+                        <Link
+                          href={alertTargetPath({
+                            alertType: entry.alert.alertType,
+                            thesisPath,
+                            dossierPath,
+                            catalystsPath,
+                            timelinePath,
+                            contradictionsPath,
+                          })}
+                          className="action-button-secondary action-button-compact"
+                        >
+                          Inspect Surface
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </SectionCard>

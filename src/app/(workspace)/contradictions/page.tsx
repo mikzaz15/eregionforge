@@ -121,6 +121,8 @@ export default async function ContradictionsPage() {
               High severity: {data.contradictionSummary.highSeverityContradictions}
               <br />
               Unresolved: {data.contradictionSummary.unresolvedContradictions}
+              <br />
+              Reviewed: {data.contradictionSummary.reviewedContradictions}
             </div>
             <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
               <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
@@ -205,6 +207,11 @@ export default async function ContradictionsPage() {
                     <p className="mt-3 text-sm leading-6 text-muted">
                       Rationale: {entry.contradiction.rationale}
                     </p>
+                    {entry.contradiction.reviewNote ? (
+                      <p className="mt-2 text-sm leading-6 text-muted">
+                        Review note: {entry.contradiction.reviewNote}
+                      </p>
+                    ) : null}
 
                     <div className="mt-4 grid gap-3 lg:grid-cols-3">
                       <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
@@ -309,6 +316,7 @@ export default async function ContradictionsPage() {
                       </Link>
                       {entry.contradiction.status !== "reviewed" ? (
                         <form action={updateContradictionStatusAction}>
+                          <input type="hidden" name="projectId" value={data.summary.project.id} />
                           <input
                             type="hidden"
                             name="contradictionId"
@@ -323,6 +331,7 @@ export default async function ContradictionsPage() {
                       ) : null}
                       {entry.contradiction.status !== "resolved" ? (
                         <form action={updateContradictionStatusAction}>
+                          <input type="hidden" name="projectId" value={data.summary.project.id} />
                           <input
                             type="hidden"
                             name="contradictionId"

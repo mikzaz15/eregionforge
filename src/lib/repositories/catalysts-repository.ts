@@ -3,6 +3,7 @@ import type {
   Catalyst,
   CatalystCompileState,
   CatalystDraft,
+  CatalystReviewStatus,
 } from "@/lib/domain/types";
 import {
   deleteRecordsByIds,
@@ -30,6 +31,12 @@ export interface CatalystsRepository {
     summary: string,
   ): Promise<Catalyst[]>;
   getCompileState(projectId: string): Promise<CatalystCompileState>;
+  updateReviewStatus(
+    catalystId: string,
+    reviewStatus: CatalystReviewStatus,
+    reviewNote?: string | null,
+    reviewedBy?: string | null,
+  ): Promise<Catalyst | null>;
 }
 
 class InMemoryCatalystsRepository implements CatalystsRepository {
@@ -70,6 +77,10 @@ class InMemoryCatalystsRepository implements CatalystsRepository {
         existing.timeframePrecision = draft.timeframePrecision;
         existing.importance = draft.importance;
         existing.confidence = draft.confidence;
+        existing.reviewStatus = existing.reviewStatus ?? "active";
+        existing.reviewedAt = existing.reviewedAt ?? null;
+        existing.reviewedBy = existing.reviewedBy ?? null;
+        existing.reviewNote = existing.reviewNote ?? null;
         existing.linkedThesisId = draft.linkedThesisId ?? null;
         existing.linkedTimelineEventIds = structuredClone(draft.linkedTimelineEventIds);
         existing.linkedClaimIds = structuredClone(draft.linkedClaimIds);
@@ -91,6 +102,10 @@ class InMemoryCatalystsRepository implements CatalystsRepository {
         timeframePrecision: draft.timeframePrecision,
         importance: draft.importance,
         confidence: draft.confidence,
+        reviewStatus: "active",
+        reviewedAt: null,
+        reviewedBy: null,
+        reviewNote: null,
         linkedThesisId: draft.linkedThesisId ?? null,
         linkedTimelineEventIds: structuredClone(draft.linkedTimelineEventIds),
         linkedClaimIds: structuredClone(draft.linkedClaimIds),
@@ -134,6 +149,27 @@ class InMemoryCatalystsRepository implements CatalystsRepository {
       }
     );
   }
+
+  async updateReviewStatus(
+    targetCatalystId: string,
+    reviewStatus: CatalystReviewStatus,
+    reviewNote?: string | null,
+    reviewedBy = "workspace-operator",
+  ): Promise<Catalyst | null> {
+    const catalyst = catalystsStore.find((candidate) => candidate.id === targetCatalystId);
+
+    if (!catalyst) {
+      return null;
+    }
+
+    catalyst.reviewStatus = reviewStatus;
+    catalyst.reviewedAt = new Date().toISOString();
+    catalyst.reviewedBy = reviewedBy;
+    catalyst.reviewNote = reviewNote ?? catalyst.reviewNote ?? null;
+    catalyst.updatedAt = new Date().toISOString();
+
+    return structuredClone(catalyst);
+  }
 }
 
 class SqliteCatalystsRepository implements CatalystsRepository {
@@ -170,6 +206,10 @@ class SqliteCatalystsRepository implements CatalystsRepository {
         timeframePrecision: draft.timeframePrecision,
         importance: draft.importance,
         confidence: draft.confidence,
+        reviewStatus: previous?.reviewStatus ?? "active",
+        reviewedAt: previous?.reviewedAt ?? null,
+        reviewedBy: previous?.reviewedBy ?? null,
+        reviewNote: previous?.reviewNote ?? null,
         linkedThesisId: draft.linkedThesisId ?? null,
         linkedTimelineEventIds: structuredClone(draft.linkedTimelineEventIds),
         linkedClaimIds: structuredClone(draft.linkedClaimIds),
@@ -212,6 +252,34 @@ class SqliteCatalystsRepository implements CatalystsRepository {
         summary: "Catalysts have not been compiled for this project yet.",
       }
     );
+  }
+
+  async updateReviewStatus(
+    targetCatalystId: string,
+    reviewStatus: CatalystReviewStatus,
+    reviewNote?: string | null,
+    reviewedBy = "workspace-operator",
+  ): Promise<Catalyst | null> {
+    const catalyst = await getPersistedRecord<Catalyst>(
+      "SELECT payload FROM catalysts_store WHERE id = ?",
+      targetCatalystId,
+    );
+
+    if (!catalyst) {
+      return null;
+    }
+
+    const updated: Catalyst = {
+      ...catalyst,
+      reviewStatus,
+      reviewedAt: new Date().toISOString(),
+      reviewedBy,
+      reviewNote: reviewNote ?? catalyst.reviewNote ?? null,
+      updatedAt: new Date().toISOString(),
+    };
+
+    upsertCatalystRecord(updated);
+    return structuredClone(updated);
   }
 }
 

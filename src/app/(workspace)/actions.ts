@@ -5,14 +5,20 @@ import { redirect } from "next/navigation";
 import type { AskAnswerMode, ArtifactType, WikiPageType } from "@/lib/domain/types";
 import { runAskSession, saveAskSessionAsArtifact } from "@/lib/services/ask-service";
 import { setArtifactWikiFilingEligibility } from "@/lib/services/artifact-service";
-import { compileProjectCatalysts } from "@/lib/services/catalyst-service";
+import {
+  compileProjectCatalysts,
+  updateCatalystReviewStatus,
+} from "@/lib/services/catalyst-service";
 import { compileProjectCompanyDossier } from "@/lib/services/company-dossier-service";
 import {
   runProjectContradictionAnalysis,
   updateContradictionStatus,
 } from "@/lib/services/contradiction-service";
 import { compileProjectEntities } from "@/lib/services/entity-intelligence-service";
-import { runProjectMonitoringAnalysis } from "@/lib/services/source-monitoring-service";
+import {
+  runProjectMonitoringAnalysis,
+  updateStaleAlertStatus,
+} from "@/lib/services/source-monitoring-service";
 import { compileProjectThesis } from "@/lib/services/thesis-service";
 import { compileProjectTimeline } from "@/lib/services/timeline-service";
 import { getActiveProjectId } from "@/lib/services/workspace-service";
@@ -188,10 +194,31 @@ export async function runActiveProjectMonitoringAnalysisAction() {
   redirect("/monitoring");
 }
 
+export async function updateStaleAlertStatusAction(formData: FormData) {
+  const projectId = String(formData.get("projectId") ?? "") || (await getActiveProjectId());
+  const alertId = String(formData.get("alertId") ?? "");
+  const status = String(formData.get("status") ?? "");
+  const reviewNote = String(formData.get("reviewNote") ?? "").trim() || null;
+  const redirectTo = String(formData.get("redirectTo") ?? "/monitoring");
+
+  if (!alertId || !status) {
+    throw new Error("Alert id and status are required.");
+  }
+
+  await updateStaleAlertStatus({
+    alertId,
+    status: status as "open" | "acknowledged" | "dismissed",
+    reviewNote,
+  });
+  refreshWorkspacePaths(projectId);
+  redirect(redirectTo);
+}
+
 export async function updateContradictionStatusAction(formData: FormData) {
-  const projectId = await getActiveProjectId();
+  const projectId = String(formData.get("projectId") ?? "") || (await getActiveProjectId());
   const contradictionId = String(formData.get("contradictionId") ?? "");
   const status = String(formData.get("status") ?? "");
+  const reviewNote = String(formData.get("reviewNote") ?? "").trim() || null;
   const redirectTo = String(formData.get("redirectTo") ?? "/contradictions");
 
   if (!contradictionId || !status) {
@@ -201,6 +228,7 @@ export async function updateContradictionStatusAction(formData: FormData) {
   await updateContradictionStatus(
     contradictionId,
     status as "open" | "reviewed" | "resolved",
+    reviewNote,
   );
   refreshWorkspacePaths(projectId);
   redirect(redirectTo);
@@ -272,6 +300,26 @@ export async function compileProjectCatalystsAction(formData: FormData) {
   }
 
   await compileProjectCatalysts(projectId);
+  refreshWorkspacePaths(projectId);
+  redirect(redirectTo);
+}
+
+export async function updateCatalystReviewStatusAction(formData: FormData) {
+  const projectId = String(formData.get("projectId") ?? "") || (await getActiveProjectId());
+  const catalystId = String(formData.get("catalystId") ?? "");
+  const reviewStatus = String(formData.get("reviewStatus") ?? "");
+  const reviewNote = String(formData.get("reviewNote") ?? "").trim() || null;
+  const redirectTo = String(formData.get("redirectTo") ?? "/catalysts");
+
+  if (!catalystId || !reviewStatus) {
+    throw new Error("Catalyst id and review status are required.");
+  }
+
+  await updateCatalystReviewStatus({
+    catalystId,
+    reviewStatus: reviewStatus as "active" | "reviewed" | "invalidated" | "resolved",
+    reviewNote,
+  });
   refreshWorkspacePaths(projectId);
   redirect(redirectTo);
 }

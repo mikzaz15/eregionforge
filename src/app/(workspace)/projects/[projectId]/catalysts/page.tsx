@@ -26,6 +26,7 @@ export default async function ProjectCatalystsPage({
       title={`${projectData.summary.project.name} Catalysts`}
       description={`This catalyst tracker is scoped to ${projectData.summary.project.name}. It compiles first-class catalyst objects from current thesis, timeline, claims, contradictions, and supporting sources.`}
       thesisPath={`/projects/${projectId}/thesis`}
+      basePath={`/projects/${projectId}/catalysts`}
       actions={
         <div className="flex flex-wrap gap-3">
           <form action={compileProjectCatalystsAction}>
