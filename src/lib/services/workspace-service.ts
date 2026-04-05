@@ -112,6 +112,10 @@ export type ProjectSummary = {
   thesisStance: Thesis["overallStance"] | null;
   thesisConfidence: Thesis["confidence"] | null;
   thesisConfidenceSummary: string | null;
+  thesisPostureSummary: string | null;
+  thesisMajorTensionSummary: string | null;
+  thesisRecentChangeSummary: string | null;
+  thesisBestNextAction: string | null;
   thesisCatalystCount: number;
   thesisRevisionNumber: number;
   thesisLastRefreshedAt: string | null;
@@ -847,6 +851,10 @@ const buildProjectSummary = cache(async function buildProjectSummary(
     thesisStance: thesis?.overallStance ?? null,
     thesisConfidence: thesis?.confidence ?? null,
     thesisConfidenceSummary: thesis?.metadata?.confidenceSummary ?? null,
+    thesisPostureSummary: thesis?.metadata?.postureSummary ?? null,
+    thesisMajorTensionSummary: thesis?.metadata?.majorTensionSummary ?? null,
+    thesisRecentChangeSummary: thesis?.metadata?.currentChangeSummary ?? null,
+    thesisBestNextAction: thesis?.metadata?.bestNextAction ?? null,
     thesisCatalystCount: Number(thesis?.metadata?.catalystCount ?? "0"),
     thesisRevisionNumber: thesisSnapshot.revisionCount,
     thesisLastRefreshedAt: thesisSnapshot.freshness.lastRefreshedAt,
@@ -1514,7 +1522,9 @@ export async function getThesisPageData(
       {
         label: "Stance",
         value: summary.thesisStance ?? "Not set",
-        note: "Overall stance is derived from current canon, contradictions, timeline state, and supporting research outputs.",
+        note:
+          summary.thesisPostureSummary ??
+          "Overall stance is derived from current canon, contradictions, timeline state, and supporting research outputs.",
       },
       {
         label: "Confidence",

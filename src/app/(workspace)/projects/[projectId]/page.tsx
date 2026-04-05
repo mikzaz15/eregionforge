@@ -219,7 +219,9 @@ function buildRecommendedAction(input: {
     return {
       kind: "refresh-thesis",
       label: "Refresh Thesis",
-      detail: input.projectData.summary.thesisFreshnessReason,
+      detail:
+        input.projectData.summary.thesisBestNextAction ??
+        input.projectData.summary.thesisFreshnessReason,
       secondaryHref: `/projects/${input.projectId}/thesis`,
       secondaryLabel: "Open Thesis",
     };
@@ -501,11 +503,22 @@ export default async function ProjectDetailPage({
               </StatusPill>
             </div>
             <p className="mt-4 text-sm leading-6 text-foreground">
-              Stance: {labelize(projectData.summary.thesisStance)}. Confidence: {projectData.summary.thesisConfidence ?? "Not set"}. Catalysts: {projectData.summary.catalystCount} total, {projectData.summary.reviewedCatalystCount} reviewed. Contradictions: {projectData.summary.unresolvedContradictionCount} unresolved, {projectData.summary.reviewedContradictionCount} reviewed. Timeline: {projectData.summary.timelineEventCount} events.
+              {projectData.summary.thesisPostureSummary ??
+                `Stance: ${labelize(projectData.summary.thesisStance)}. Confidence: ${projectData.summary.thesisConfidence ?? "Not set"}. Catalysts: ${projectData.summary.catalystCount} total, ${projectData.summary.reviewedCatalystCount} reviewed. Contradictions: ${projectData.summary.unresolvedContradictionCount} unresolved, ${projectData.summary.reviewedContradictionCount} reviewed. Timeline: ${projectData.summary.timelineEventCount} events.`}
             </p>
+            {projectData.summary.thesisMajorTensionSummary ? (
+              <p className="mt-3 text-sm leading-6 text-foreground">
+                {projectData.summary.thesisMajorTensionSummary}
+              </p>
+            ) : null}
             <p className="mt-3 text-sm leading-6 text-muted">
               {projectData.summary.thesisFreshnessReason}
             </p>
+            {projectData.summary.thesisRecentChangeSummary ? (
+              <p className="mt-3 text-sm leading-6 text-muted">
+                Latest thesis change: {projectData.summary.thesisRecentChangeSummary}
+              </p>
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-3">
               <Link
                 href={`/projects/${projectId}/thesis`}
@@ -554,6 +567,12 @@ export default async function ProjectDetailPage({
               <p className="mt-3 text-sm leading-6 text-muted">
                 {recommendedAction.detail}
               </p>
+              {projectData.summary.thesisBestNextAction &&
+              projectData.summary.thesisBestNextAction !== recommendedAction.detail ? (
+                <p className="mt-3 text-sm leading-6 text-foreground">
+                  Thesis pressure note: {projectData.summary.thesisBestNextAction}
+                </p>
+              ) : null}
               <div className="mt-4 flex flex-wrap gap-3">
                 {recommendedAction.kind === "link" ? (
                   <Link href={recommendedAction.href} className="action-button-primary">
@@ -1046,17 +1065,29 @@ export default async function ProjectDetailPage({
                 ) : null}
               </div>
               <p className="mt-4 text-sm leading-6 text-foreground">
-                Catalysts: {projectData.summary.thesisCatalystCount}
+                {projectData.summary.thesisPostureSummary ??
+                  `Catalysts: ${projectData.summary.thesisCatalystCount}`}
               </p>
-              <p className="mt-2 text-sm leading-6 text-foreground">
-                Unresolved contradictions: {projectData.summary.unresolvedContradictionCount}
-              </p>
+              {projectData.summary.thesisMajorTensionSummary ? (
+                <p className="mt-2 text-sm leading-6 text-foreground">
+                  {projectData.summary.thesisMajorTensionSummary}
+                </p>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-foreground">
+                  Unresolved contradictions: {projectData.summary.unresolvedContradictionCount}
+                </p>
+              )}
               <p className="mt-2 text-sm leading-6 text-foreground">
                 Last refreshed: {formatDateTime(projectData.summary.thesisLastRefreshedAt)}
               </p>
               <p className="mt-2 text-sm leading-6 text-muted">
                 {projectData.summary.thesisFreshnessReason}
               </p>
+              {projectData.summary.thesisRecentChangeSummary ? (
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  {projectData.summary.thesisRecentChangeSummary}
+                </p>
+              ) : null}
               {projectData.summary.thesisConfidenceSummary ? (
                 <p className="mt-2 text-sm leading-6 text-muted">
                   {projectData.summary.thesisConfidenceSummary}

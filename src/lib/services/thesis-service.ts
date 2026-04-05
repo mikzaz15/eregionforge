@@ -1,5 +1,6 @@
 import type {
   Artifact,
+  Catalyst,
   Claim,
   Contradiction,
   ResearchEntity,
@@ -17,6 +18,7 @@ import type {
   WikiPageRevision,
 } from "@/lib/domain/types";
 import { artifactsRepository } from "@/lib/repositories/artifacts-repository";
+import { catalystsRepository } from "@/lib/repositories/catalysts-repository";
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { contradictionsRepository } from "@/lib/repositories/contradictions-repository";
 import { projectsRepository } from "@/lib/repositories/projects-repository";
@@ -25,6 +27,10 @@ import { thesisRevisionsRepository } from "@/lib/repositories/thesis-revisions-r
 import { thesesRepository } from "@/lib/repositories/theses-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import {
+  listProjectCatalysts,
+  type CatalystReferenceRecord,
+} from "@/lib/services/catalyst-service";
 import {
   completeOperationalJob,
   failOperationalJob,
@@ -75,6 +81,7 @@ type ThesisKnowledgeState = {
   claims: Claim[];
   sources: Source[];
   artifacts: Artifact[];
+  catalystEntries: CatalystReferenceRecord[];
   timelineEntries: TimelineReferenceRecord[];
   contradictionEntries: ContradictionReferenceRecord[];
 };
@@ -108,6 +115,7 @@ type DriverIdSet = {
   pageIds: string[];
   claimIds: string[];
   sourceIds: string[];
+  catalystIds: string[];
   timelineEventIds: string[];
   contradictionIds: string[];
   artifactIds: string[];
@@ -123,6 +131,7 @@ export type ThesisSupportRecord = {
 
 export type ThesisRevisionIntelligence = {
   changedSections: ThesisChangedSection[];
+  materiality: "material" | "meaningful" | "maintenance";
   confidenceShift: number;
   catalystCountShift: number;
   contradictionCountShift: number;
@@ -131,6 +140,7 @@ export type ThesisRevisionIntelligence = {
     pages: WikiPage[];
     claims: Claim[];
     sources: Source[];
+    catalysts: Catalyst[];
     timelineEvents: TimelineEvent[];
     contradictions: Contradiction[];
     artifacts: Artifact[];
@@ -330,6 +340,16 @@ function referencesFromTimeline(entry: TimelineReferenceRecord): ThesisSectionRe
   };
 }
 
+function referencesFromCatalyst(entry: CatalystReferenceRecord): ThesisSectionReferences {
+  return {
+    wikiPageIds: entry.relatedPages.map((page) => page.id),
+    claimIds: entry.relatedClaims.map((claim) => claim.id),
+    sourceIds: entry.relatedSources.map((source) => source.id),
+    timelineEventIds: entry.relatedTimelineEvents.map((event) => event.id),
+    contradictionIds: entry.relatedContradictions.map((contradiction) => contradiction.id),
+  };
+}
+
 function referencesFromContradiction(
   entry: ContradictionReferenceRecord,
 ): ThesisSectionReferences {
@@ -415,12 +435,38 @@ function compileSummaryLine(input: {
   subjectName: string;
   stance: ThesisStance;
   confidence: RevisionConfidence;
-  positiveCount: number;
-  negativeCount: number;
-  contradictionCount: number;
-  catalystCount: number;
+  postureSummary: string;
+  tensionSummary: string;
+  freshnessSummary: string;
 }): string {
-  return `${input.subjectName} currently compiles as a ${stanceLabel(input.stance).toLowerCase()} thesis with ${input.confidence} confidence. The current knowledge base surfaces ${input.positiveCount} constructive signal(s), ${input.negativeCount} risk or pressure signal(s), ${input.contradictionCount} contradiction record(s), and ${input.catalystCount} chronology-based catalyst candidate(s).`;
+  return `${input.subjectName} currently compiles as a ${stanceLabel(input.stance).toLowerCase()} investment posture with ${input.confidence} confidence. ${input.postureSummary} ${input.tensionSummary} ${input.freshnessSummary}`;
+}
+
+function formatList(items: string[]): string {
+  if (items.length === 0) {
+    return "";
+  }
+
+  if (items.length === 1) {
+    return items[0]!;
+  }
+
+  if (items.length === 2) {
+    return `${items[0]} and ${items[1]}`;
+  }
+
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+}
+
+function previewLine(value: string | null | undefined, length = 180): string {
+  if (!value) {
+    return "";
+  }
+
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > length
+    ? `${normalized.slice(0, length).trimEnd()}...`
+    : normalized;
 }
 
 async function buildPageContexts(projectId: string): Promise<PageContext[]> {
@@ -443,12 +489,21 @@ async function buildPageContexts(projectId: string): Promise<PageContext[]> {
 }
 
 async function buildKnowledgeState(projectId: string): Promise<ThesisKnowledgeState> {
-  const [pageContexts, claims, sources, artifacts, timelineEntries, contradictionEntries] =
+  const [
+    pageContexts,
+    claims,
+    sources,
+    artifacts,
+    catalystEntries,
+    timelineEntries,
+    contradictionEntries,
+  ] =
     await Promise.all([
       buildPageContexts(projectId),
       claimsRepository.listByProjectId(projectId),
       sourcesRepository.listByProjectId(projectId),
       artifactsRepository.listByProjectId(projectId),
+      listProjectCatalysts(projectId),
       listProjectTimelineEvents(projectId),
       listProjectContradictions(projectId),
     ]);
@@ -458,6 +513,7 @@ async function buildKnowledgeState(projectId: string): Promise<ThesisKnowledgeSt
     claims,
     sources,
     artifacts,
+    catalystEntries,
     timelineEntries,
     contradictionEntries,
   };
@@ -489,6 +545,10 @@ function buildKnowledgeFingerprint(state: ThesisKnowledgeState): KnowledgeFinger
     signature: `artifact:${artifact.id}:${artifact.updatedAt}`,
     timestamps: [artifact.updatedAt],
   }));
+  const catalystEntries = state.catalystEntries.map((entry) => ({
+    signature: `catalyst:${entry.catalyst.id}:${entry.catalyst.updatedAt}`,
+    timestamps: [entry.catalyst.updatedAt],
+  }));
   const timelineEntries = state.timelineEntries.map((entry) => ({
     signature: `timeline:${entry.event.id}:${entry.event.updatedAt}`,
     timestamps: [entry.event.updatedAt],
@@ -502,6 +562,7 @@ function buildKnowledgeFingerprint(state: ThesisKnowledgeState): KnowledgeFinger
     ...claimEntries,
     ...sourceEntries,
     ...artifactEntries,
+    ...catalystEntries,
     ...timelineEntries,
     ...contradictionEntries,
   ];
@@ -647,6 +708,7 @@ function detectLikelyDrivers(
         pageIds: [],
         claimIds: [],
         sourceIds: [],
+        catalystIds: [],
         timelineEventIds: [],
         contradictionIds: [],
         artifactIds: [],
@@ -669,6 +731,9 @@ function detectLikelyDrivers(
     sourceIds: state.sources
       .filter((source) => source.updatedAt > cutoff)
       .map((source) => source.id),
+    catalystIds: state.catalystEntries
+      .filter((entry) => entry.catalyst.updatedAt > cutoff)
+      .map((entry) => entry.catalyst.id),
     timelineEventIds: state.timelineEntries
       .filter((entry) => entry.event.updatedAt > cutoff)
       .map((entry) => entry.event.id),
@@ -684,6 +749,9 @@ function detectLikelyDrivers(
     ids.pageIds.length > 0 ? pluralize(ids.pageIds.length, "updated wiki page") : null,
     ids.claimIds.length > 0 ? pluralize(ids.claimIds.length, "new or updated claim") : null,
     ids.sourceIds.length > 0 ? pluralize(ids.sourceIds.length, "updated source") : null,
+    ids.catalystIds.length > 0
+      ? pluralize(ids.catalystIds.length, "new or updated catalyst")
+      : null,
     ids.timelineEventIds.length > 0
       ? pluralize(ids.timelineEventIds.length, "new timeline event")
       : null,
@@ -704,10 +772,13 @@ function detectLikelyDrivers(
 
 function buildChangeSummary(input: {
   previousRevision: ThesisRevision | null;
+  previousStance: ThesisStance | null;
+  nextStance: ThesisStance;
   changedSections: ThesisChangedSection[];
   confidenceShift: number;
   contradictionCountShift: number;
   catalystCountShift: number;
+  currentMajorTensionSummary: string | null;
   likelyDriverSummary: string | null;
 }): string {
   if (!input.previousRevision) {
@@ -715,6 +786,32 @@ function buildChangeSummary(input: {
   }
 
   const segments: string[] = [];
+  const stanceChanged =
+    input.previousStance !== null && input.previousStance !== input.nextStance;
+
+  const materiality = determineRevisionMateriality({
+    changedSections: input.changedSections,
+    stanceChanged,
+    confidenceShift: input.confidenceShift,
+    contradictionCountShift: input.contradictionCountShift,
+    catalystCountShift: input.catalystCountShift,
+  });
+
+  segments.push(
+    materiality === "material"
+      ? "Material thesis change detected."
+      : materiality === "meaningful"
+        ? "Meaningful thesis update recorded."
+        : "Maintenance thesis refresh recorded.",
+  );
+
+  if (stanceChanged && input.previousStance) {
+    segments.push(
+      `Stance moved from ${stanceLabel(input.previousStance).toLowerCase()} to ${stanceLabel(
+        input.nextStance,
+      ).toLowerCase()}.`,
+    );
+  }
 
   if (input.changedSections.length > 0) {
     segments.push(
@@ -748,11 +845,44 @@ function buildChangeSummary(input: {
     );
   }
 
+  if (input.currentMajorTensionSummary) {
+    segments.push(input.currentMajorTensionSummary);
+  }
+
   if (input.likelyDriverSummary) {
     segments.push(input.likelyDriverSummary);
   }
 
   return segments.join(" ");
+}
+
+function determineRevisionMateriality(input: {
+  changedSections: ThesisChangedSection[];
+  stanceChanged: boolean;
+  confidenceShift: number;
+  contradictionCountShift: number;
+  catalystCountShift: number;
+}): "material" | "meaningful" | "maintenance" {
+  const materialityScore =
+    (input.stanceChanged ? 3 : 0) +
+    (input.changedSections.some((section) =>
+      ["summary", "bullCase", "bearCase", "variantView"].includes(section),
+    )
+      ? 2
+      : 0) +
+    (Math.abs(input.confidenceShift) > 0 ? 1 : 0) +
+    (Math.abs(input.contradictionCountShift) >= 2 ? 1 : 0) +
+    (Math.abs(input.catalystCountShift) >= 2 ? 1 : 0);
+
+  if (materialityScore >= 4) {
+    return "material";
+  }
+
+  if (materialityScore >= 2) {
+    return "meaningful";
+  }
+
+  return "maintenance";
 }
 
 function buildCompiledThesisCandidate(
@@ -766,6 +896,14 @@ function buildCompiledThesisCandidate(
     entities,
   );
   const ticker = detectTickerFromEntities(detectTicker(state.sources), entities);
+  const companyEntity = entities.find((entity) => entity.entityType === "company") ?? null;
+  const productEntities = entities.filter((entity) => entity.entityType === "product_or_segment");
+  const operatorEntities = entities.filter((entity) => entity.entityType === "operator");
+  const marketEntities = entities.filter(
+    (entity) => entity.entityType === "market_or_competitor",
+  );
+  const metricEntities = entities.filter((entity) => entity.entityType === "metric");
+  const riskEntities = entities.filter((entity) => entity.entityType === "risk_theme");
   const positiveClaims = state.claims.filter(
     (claim) => claim.supportStatus === "supported" && textSignalScore(claim.text) > 0,
   );
@@ -774,14 +912,28 @@ function buildCompiledThesisCandidate(
     (claim) =>
       claim.supportStatus === "unresolved" || claim.claimType === "open-question",
   );
-  const contradictionCount = state.contradictionEntries.filter(
+  const unresolvedContradictions = state.contradictionEntries.filter(
     (entry) => entry.contradiction.status !== "resolved",
-  ).length;
-  const highSeverityContradictionCount = state.contradictionEntries.filter(
+  );
+  const reviewedContradictions = state.contradictionEntries.filter(
+    (entry) => entry.contradiction.status === "reviewed",
+  );
+  const contradictionCount = unresolvedContradictions.length;
+  const highSeverityContradictionCount = unresolvedContradictions.filter(
     (entry) =>
-      entry.contradiction.status !== "resolved" &&
       (entry.contradiction.severity === "high" ||
         entry.contradiction.severity === "critical"),
+  ).length;
+  const activeCatalystEntries = state.catalystEntries.filter(
+    (entry) =>
+      entry.catalyst.reviewStatus !== "invalidated" &&
+      entry.catalyst.reviewStatus !== "resolved",
+  );
+  const reviewedCatalystEntries = state.catalystEntries.filter(
+    (entry) => entry.catalyst.reviewStatus === "reviewed",
+  );
+  const invalidatedCatalystCount = state.catalystEntries.filter(
+    (entry) => entry.catalyst.reviewStatus === "invalidated",
   ).length;
   const supportedClaimsCount = state.claims.filter(
     (claim) => claim.supportStatus === "supported",
@@ -818,6 +970,14 @@ function buildCompiledThesisCandidate(
     ).length / 5,
     1,
   );
+  const reviewPosture = safeRatio(
+    reviewedContradictions.length + reviewedCatalystEntries.length,
+    Math.max(
+      unresolvedContradictions.length + activeCatalystEntries.length,
+      1,
+    ),
+  );
+  const stalePosture = freshnessBurden >= 0.24 ? Math.min(freshnessBurden + 0.18, 1) : 0;
   const confidenceAssessment = buildConfidenceAssessment({
     supportDensity,
     sourceDiversityCount,
@@ -825,6 +985,8 @@ function buildCompiledThesisCandidate(
     freshnessBurden,
     entityClarity,
     datePrecision: safeRatio(preciseTimelineCount, Math.max(state.timelineEntries.length, 1)),
+    stalePosture,
+    reviewPosture,
   });
   const confidence = confidenceAssessment.label;
   const positivePageBullets = state.pageContexts
@@ -901,7 +1063,7 @@ function buildCompiledThesisCandidate(
     references: referencesFromClaim(claim),
     score: 2 + confidenceRank(claim.confidence),
   }));
-  const contradictionBullets = state.contradictionEntries.map<Bullet>((entry) => ({
+  const contradictionBullets = unresolvedContradictions.map<Bullet>((entry) => ({
     text: `${entry.contradiction.title}. ${entry.contradiction.rationale}`,
     references: referencesFromContradiction(entry),
     score:
@@ -911,6 +1073,25 @@ function buildCompiledThesisCandidate(
         ? 1
         : 0),
   }));
+  const catalystEntryBullets = activeCatalystEntries.map<Bullet>((entry) => {
+    const timeframeLabel = entry.catalyst.expectedTimeframe
+      ? new Intl.DateTimeFormat("en-US", {
+          month: "short",
+          day: entry.catalyst.timeframePrecision === "exact_day" ? "numeric" : undefined,
+          year: "numeric",
+        }).format(new Date(entry.catalyst.expectedTimeframe))
+      : "timing open";
+
+    return {
+      text: `${entry.catalyst.title} (${timeframeLabel}): ${previewLine(entry.catalyst.description, 150)}`,
+      references: referencesFromCatalyst(entry),
+      score:
+        2 +
+        confidenceRank(entry.catalyst.confidence) +
+        (entry.catalyst.importance === "high" ? 1 : 0) +
+        (entry.catalyst.reviewStatus === "reviewed" ? 1 : 0),
+    };
+  });
   const timelineBullets = state.timelineEntries
     .filter((entry) =>
       ["milestone", "planning", "financial", "system"].includes(entry.event.eventType),
@@ -929,6 +1110,13 @@ function buildCompiledThesisCandidate(
           ? 1
           : 0),
     }));
+  const fuzzyTimelineBullets = state.timelineEntries
+    .filter((entry) => entry.event.eventDatePrecision !== "exact_day")
+    .map<Bullet>((entry) => ({
+      text: `${entry.event.title}: timing is still ${entry.event.eventDatePrecision.replaceAll("_", " ")} and may move the underwriting timeline.`,
+      references: referencesFromTimeline(entry),
+      score: 2 + confidenceRank(entry.event.confidence),
+    }));
   const unknownBullets = [
     ...unknownClaims.map<Bullet>((claim) => ({
       text: claim.text,
@@ -942,17 +1130,22 @@ function buildCompiledThesisCandidate(
         references: referencesFromPage(context),
         score: 2 + confidenceRank(context.revision?.confidence),
       })),
+    ...fuzzyTimelineBullets,
   ];
   const artifactSignalScore = state.artifacts.reduce(
     (sum, artifact) => sum + textSignalScore(`${artifact.title} ${artifact.previewText}`),
     0,
   );
   const positiveCount =
-    positiveClaims.length + positivePageBullets.length + Math.max(artifactSignalScore, 0);
+    positiveClaims.length +
+    positivePageBullets.length +
+    activeCatalystEntries.length +
+    Math.max(artifactSignalScore, 0);
   const negativeCount =
     negativeClaims.length +
     negativePageBullets.length +
     contradictionCount +
+    invalidatedCatalystCount +
     Math.max(-artifactSignalScore, 0);
   const stance: ThesisStance =
     positiveCount >= negativeCount + 3
@@ -963,7 +1156,12 @@ function buildCompiledThesisCandidate(
           ? "mixed"
           : "monitor";
   const bullBullets = chooseTopBullets(
-    [...positiveClaimBullets, ...positivePageBullets, ...positiveEntityBullets],
+    [
+      ...positiveClaimBullets,
+      ...positivePageBullets,
+      ...positiveEntityBullets,
+      ...catalystEntryBullets,
+    ],
     4,
   );
   const bearBullets = chooseTopBullets(
@@ -978,6 +1176,7 @@ function buildCompiledThesisCandidate(
   const variantBullets = chooseTopBullets(
     [
       ...contradictionBullets,
+      ...catalystEntryBullets,
       ...timelineBullets.filter((entry) => entry.score >= 2),
       ...variantEntityBullets,
     ],
@@ -989,10 +1188,58 @@ function buildCompiledThesisCandidate(
       ...negativeClaimBullets,
       ...contradictionBullets.filter((entry) => entry.score >= 3),
       ...riskEntityBullets,
+      ...fuzzyTimelineBullets,
     ],
     4,
   );
-  const catalystBullets = chooseTopBullets(timelineBullets, 4);
+  const catalystBullets = chooseTopBullets(
+    [...catalystEntryBullets, ...timelineBullets],
+    4,
+  );
+  const topBull = bullBullets[0]?.text ?? null;
+  const topBear = bearBullets[0]?.text ?? null;
+  const topCatalyst = catalystBullets[0]?.text ?? null;
+  const topTension =
+    contradictionBullets[0]?.text ??
+    riskBullets[0]?.text ??
+    unknownBullets[0]?.text ??
+    null;
+  const operatorPostureSummary =
+    reviewedContradictions.length > 0 || reviewedCatalystEntries.length > 0
+      ? `Operator review has already touched ${reviewedContradictions.length} contradiction(s) and ${reviewedCatalystEntries.length} catalyst(s).`
+      : "No explicit operator review is currently attached to the highest-signal thesis objects.";
+  const postureSummary =
+    stance === "bullish"
+      ? `The constructive case is led by ${topBull ?? "current supported canon and catalyst posture"}, with ${topCatalyst ? `the next catalyst centered on ${topCatalyst}.` : "the next catalyst picture still forming."}`
+      : stance === "bearish"
+        ? `The downside case currently dominates, led by ${topBear ?? "the active contradiction and risk stack"}. ${topCatalyst ? `The main dated watchpoint remains ${topCatalyst}.` : "There is not yet a clean dated release valve in the catalyst set."}`
+        : stance === "mixed"
+          ? `Upside still runs through ${topBull ?? "the strongest constructive canon inputs"}, but current pressure centers on ${topBear ?? "the active contradiction stack"}. ${topCatalyst ? `The next swing factor is ${topCatalyst}.` : "The next swing factor still needs clearer catalyst definition."}`
+          : `The thesis remains in monitor mode because conviction is still distributed across incomplete support, unresolved risk, and timing uncertainty. ${topCatalyst ? `The clearest watchpoint is ${topCatalyst}.` : "No catalyst currently dominates the monitoring posture."}`;
+  const majorTensionSummary = topTension
+    ? `Major tension: ${topTension}`
+    : contradictionCount > 0
+      ? `Major tension: ${contradictionCount} unresolved contradiction record(s) remain in play.`
+      : freshnessBurden > 0.2
+        ? "Major tension: newer or unstable inputs still pressure the thesis refresh cadence."
+        : "Major tension is currently contained; the thesis pressure is more about confirmation than conflict.";
+  const freshnessSummary =
+    freshnessBurden > 0.4
+      ? "Freshness burden is high because pending, failed, or newer inputs could still move the current view materially."
+      : freshnessBurden > 0.16
+        ? "Freshness burden is moderate, so the thesis should be read with some recency caution."
+        : "Freshness burden is limited, so the current thesis mostly reflects the latest compiled knowledge.";
+  const bestNextAction =
+    highSeverityContradictionCount > 0
+      ? "Reconcile the highest-severity contradiction before treating the current thesis as stable underwriting posture."
+      : freshnessBurden > 0.24
+        ? "Review the newest source and monitoring pressure, then refresh the thesis to bring posture back in line with current knowledge."
+        : unresolvedClaimsCount > supportedClaimsCount
+          ? "Tighten support on unresolved claims before increasing conviction."
+          : activeCatalystEntries.length === 0
+            ? "Refresh catalysts so the thesis has a cleaner set of dated watchpoints."
+            : "Continue from the current thesis into catalysts and contradictions, then use Ask mode to pressure-test the live view.";
+  const stanceSummary = `Current stance is ${stanceLabel(stance).toLowerCase()} because the constructive stack contributes ${positiveCount} signal(s) against ${negativeCount} risk or pressure signal(s).`;
   const summaryReferences = mergeReferences(
     ...[
       bullBullets[0]?.references ?? emptyReferences(),
@@ -1004,10 +1251,9 @@ function buildCompiledThesisCandidate(
     subjectName,
     stance,
     confidence,
-    positiveCount,
-    negativeCount,
-    contradictionCount,
-    catalystCount: catalystBullets.length,
+    postureSummary,
+    tensionSummary: majorTensionSummary,
+    freshnessSummary,
   });
   const supportBySection: ThesisSectionSupportMap = {
     summary: summaryReferences,
@@ -1069,20 +1315,38 @@ function buildCompiledThesisCandidate(
       catalystCount: String(catalystBullets.length),
       contradictionCount: String(contradictionCount),
       highSeverityContradictionCount: String(highSeverityContradictionCount),
+      reviewedContradictionCount: String(reviewedContradictions.length),
       positiveSignalCount: String(positiveCount),
       negativeSignalCount: String(negativeCount),
       artifactSignalScore: String(artifactSignalScore),
       supportedClaimCount: String(supportedClaimsCount),
       weakClaimCount: String(weakClaimsCount),
       unresolvedClaimCount: String(unresolvedClaimsCount),
+      activeCatalystCount: String(activeCatalystEntries.length),
+      reviewedCatalystCount: String(reviewedCatalystEntries.length),
+      invalidatedCatalystCount: String(invalidatedCatalystCount),
       sourceDiversityCount: String(sourceDiversityCount),
       preciseTimelineCount: String(preciseTimelineCount),
       supportDensity: supportDensity.toFixed(2),
       freshnessBurden: freshnessBurden.toFixed(2),
       entityClarity: entityClarity.toFixed(2),
+      stalePosture: stalePosture.toFixed(2),
+      reviewPosture: reviewPosture.toFixed(2),
       confidenceScore: confidenceAssessment.score.toFixed(2),
       confidenceSummary: confidenceAssessment.summary,
       confidenceFactors: serializeConfidenceFactors(confidenceAssessment.factors),
+      stanceSummary,
+      postureSummary,
+      majorTensionSummary,
+      freshnessSummary,
+      bestNextAction,
+      operatorPostureSummary,
+      companyEntityName: companyEntity?.canonicalName ?? "",
+      productSummary: formatList(productEntities.slice(0, 3).map((entity) => entity.canonicalName)),
+      operatorSummary: formatList(operatorEntities.slice(0, 2).map((entity) => entity.canonicalName)),
+      marketSummary: formatList(marketEntities.slice(0, 2).map((entity) => entity.canonicalName)),
+      metricSummary: formatList(metricEntities.slice(0, 3).map((entity) => entity.canonicalName)),
+      riskThemeSummary: formatList(riskEntities.slice(0, 3).map((entity) => entity.canonicalName)),
       latestKnowledgeUpdateAt: fingerprint.latestKnowledgeUpdateAt ?? "",
     },
   };
@@ -1092,6 +1356,7 @@ function buildRevisionLookup(input: {
   pages: WikiPage[];
   claims: Claim[];
   sources: Source[];
+  catalysts: Catalyst[];
   timelineEvents: TimelineEvent[];
   contradictions: Contradiction[];
   artifacts: Artifact[];
@@ -1100,6 +1365,7 @@ function buildRevisionLookup(input: {
     pagesById: new Map(input.pages.map((page) => [page.id, page] as const)),
     claimsById: new Map(input.claims.map((claim) => [claim.id, claim] as const)),
     sourcesById: new Map(input.sources.map((source) => [source.id, source] as const)),
+    catalystsById: new Map(input.catalysts.map((catalyst) => [catalyst.id, catalyst] as const)),
     timelineById: new Map(
       input.timelineEvents.map((event) => [event.id, event] as const),
     ),
@@ -1120,6 +1386,12 @@ function hydrateIntelligence(
 
   return {
     changedSections,
+    materiality:
+      metadata?.materiality === "material" ||
+      metadata?.materiality === "meaningful" ||
+      metadata?.materiality === "maintenance"
+        ? metadata.materiality
+        : "maintenance",
     confidenceShift: parseInteger(metadata?.confidenceShift),
     catalystCountShift: parseInteger(metadata?.catalystCountShift),
     contradictionCountShift: parseInteger(metadata?.contradictionCountShift),
@@ -1134,6 +1406,9 @@ function hydrateIntelligence(
       sources: parseJsonArray(metadata?.driverSourceIds)
         .map((id) => lookup.sourcesById.get(id) ?? null)
         .filter((value): value is Source => Boolean(value)),
+      catalysts: parseJsonArray(metadata?.driverCatalystIds)
+        .map((id) => lookup.catalystsById.get(id) ?? null)
+        .filter((value): value is Catalyst => Boolean(value)),
       timelineEvents: parseJsonArray(metadata?.driverTimelineEventIds)
         .map((id) => lookup.timelineById.get(id) ?? null)
         .filter((value): value is TimelineEvent => Boolean(value)),
@@ -1244,13 +1519,26 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
     const contradictionCountShift = contradictionCount - previousContradictionCount;
     const catalystCountShift = catalystCount - previousCatalystCount;
     const likelyDrivers = detectLikelyDrivers(previousRevision, state);
+    const majorTensionSummary = candidate.metadata.majorTensionSummary ?? null;
+    const nextStance = candidate.overallStance;
+    const previousStance = previousRevision?.stance ?? null;
     const changeSummary = buildChangeSummary({
       previousRevision,
+      previousStance,
+      nextStance,
       changedSections,
       confidenceShift,
       contradictionCountShift,
       catalystCountShift,
+      currentMajorTensionSummary: majorTensionSummary,
       likelyDriverSummary: likelyDrivers.summary,
+    });
+    const materiality = determineRevisionMateriality({
+      changedSections,
+      stanceChanged: previousStance !== null && previousStance !== nextStance,
+      confidenceShift,
+      contradictionCountShift,
+      catalystCountShift,
     });
     const revisionNumber = (existingThesis?.revisionCount ?? existingRevisions.length) + 1;
     const thesisId = existingThesis?.id ?? `thesis-${projectId}`;
@@ -1276,10 +1564,12 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
         confidenceShift: String(confidenceShift),
         contradictionCountShift: String(contradictionCountShift),
         catalystCountShift: String(catalystCountShift),
+        materiality,
         likelyDriverSummary: likelyDrivers.summary ?? "",
         driverPageIds: JSON.stringify(likelyDrivers.ids.pageIds),
         driverClaimIds: JSON.stringify(likelyDrivers.ids.claimIds),
         driverSourceIds: JSON.stringify(likelyDrivers.ids.sourceIds),
+        driverCatalystIds: JSON.stringify(likelyDrivers.ids.catalystIds),
         driverTimelineEventIds: JSON.stringify(likelyDrivers.ids.timelineEventIds),
         driverContradictionIds: JSON.stringify(likelyDrivers.ids.contradictionIds),
         driverArtifactIds: JSON.stringify(likelyDrivers.ids.artifactIds),
@@ -1309,6 +1599,7 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
         ...candidate.metadata,
         currentChangeSummary: changeSummary,
         currentRevisionNumber: String(revisionNumber),
+        currentRevisionMateriality: materiality,
         latestKnowledgeUpdateAt: candidate.latestKnowledgeUpdateAt ?? "",
       },
     });
@@ -1323,6 +1614,7 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
         changedSectionCount: String(changedSections.length),
         stance: candidate.overallStance,
         confidence: candidate.confidence,
+        materiality,
       },
     });
     await recordOperationalAuditEvent({
@@ -1336,6 +1628,7 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
       metadata: {
         revisionNumber: String(revisionNumber),
         changedSections: JSON.stringify(changedSections),
+        materiality,
       },
     });
 
@@ -1465,13 +1758,25 @@ export async function getProjectThesisDetail(
   projectId: string,
   selectedRevisionId?: string | null,
 ): Promise<ThesisDetailRecord | null> {
-  const [thesis, revisions, pages, claims, sources, timelineEvents, contradictions, artifacts, snapshot] =
+  const [
+    thesis,
+    revisions,
+    pages,
+    claims,
+    sources,
+    catalysts,
+    timelineEvents,
+    contradictions,
+    artifacts,
+    snapshot,
+  ] =
     await Promise.all([
       thesesRepository.getByProjectId(projectId),
       thesisRevisionsRepository.listByProjectId(projectId),
       wikiRepository.listPagesByProjectId(projectId),
       claimsRepository.listByProjectId(projectId),
       sourcesRepository.listByProjectId(projectId),
+      catalystsRepository.listByProjectId(projectId),
       timelineEventsRepository.listByProjectId(projectId),
       contradictionsRepository.listByProjectId(projectId),
       artifactsRepository.listByProjectId(projectId),
@@ -1486,6 +1791,7 @@ export async function getProjectThesisDetail(
     pages,
     claims,
     sources,
+    catalysts,
     timelineEvents,
     contradictions,
     artifacts,

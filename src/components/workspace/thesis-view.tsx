@@ -69,6 +69,18 @@ function severityTone(severity: string): StatusTone {
   return "neutral";
 }
 
+function revisionMaterialityTone(materiality: string | null | undefined): StatusTone {
+  if (materiality === "material") {
+    return "danger";
+  }
+
+  if (materiality === "meaningful") {
+    return "accent";
+  }
+
+  return "neutral";
+}
+
 function labelize(value: string | null): string {
   if (!value) {
     return "Not set";
@@ -232,6 +244,7 @@ export function ThesisView({
   const thesisConfidenceFactors = parseConfidenceFactors(
     thesis?.metadata?.confidenceFactors,
   );
+  const currentRevisionMateriality = currentRevision?.intelligence.materiality ?? "maintenance";
 
   return (
     <PageFrame
@@ -279,10 +292,25 @@ export function ThesisView({
                     Subject: {thesis.subjectName}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-foreground">
-                    Unresolved contradictions: {data.summary.unresolvedContradictionCount}
+                    {thesis.metadata?.postureSummary ??
+                      `Unresolved contradictions: ${data.summary.unresolvedContradictionCount}`}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-foreground">
-                    Catalyst count: {data.summary.thesisCatalystCount}
+                    {thesis.metadata?.majorTensionSummary ??
+                      `Catalyst count: ${data.summary.thesisCatalystCount}`}
+                  </p>
+                  {thesis.metadata?.bestNextAction ? (
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      Next move: {thesis.metadata.bestNextAction}
+                    </p>
+                  ) : null}
+                  {thesis.metadata?.operatorPostureSummary ? (
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      {thesis.metadata.operatorPostureSummary}
+                    </p>
+                  ) : null}
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    Current revision change class: {currentRevisionMateriality}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted">
                     Last refreshed {formatDateTime(thesisDetail.freshness.lastRefreshedAt)}
@@ -373,7 +401,17 @@ export function ThesisView({
                 <div className="rounded-2xl border border-border bg-surface-strong/75 px-4 py-4 text-sm leading-6 text-foreground">
                   {currentRevision.revision.changeSummary}
                 </div>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                    <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                      Change class
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <StatusPill tone={revisionMaterialityTone(currentRevisionMateriality)}>
+                        {currentRevisionMateriality}
+                      </StatusPill>
+                    </div>
+                  </div>
                   <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
                     <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
                       Changed sections
@@ -418,7 +456,7 @@ export function ThesisView({
                   <p className="mt-3 text-sm leading-6 text-foreground">
                     {currentRevision.intelligence.likelyDriverSummary ?? "No likely drivers isolated."}
                   </p>
-                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                  <div className="mt-4 grid gap-3 lg:grid-cols-4">
                     <div className="space-y-2 text-sm leading-6">
                       <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
                         Wiki and claims
@@ -448,15 +486,15 @@ export function ThesisView({
                     </div>
                     <div className="space-y-2 text-sm leading-6">
                       <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-                        Sources and timeline
+                        Catalysts and timeline
                       </p>
-                      {currentRevision.intelligence.likelyDrivers.sources.map((source) => (
+                      {currentRevision.intelligence.likelyDrivers.catalysts.map((catalyst) => (
                         <Link
-                          key={source.id}
-                          href={`/sources#${source.id}`}
+                          key={catalyst.id}
+                          href={catalystsPath}
                           className="block text-foreground underline-offset-4 hover:underline"
                         >
-                          {source.title}
+                          {catalyst.title}
                         </Link>
                       ))}
                       {currentRevision.intelligence.likelyDrivers.timelineEvents.map((event) => (
@@ -468,8 +506,25 @@ export function ThesisView({
                           {event.title}
                         </Link>
                       ))}
-                      {currentRevision.intelligence.likelyDrivers.sources.length === 0 &&
+                      {currentRevision.intelligence.likelyDrivers.catalysts.length === 0 &&
                       currentRevision.intelligence.likelyDrivers.timelineEvents.length === 0 ? (
+                        <p className="text-muted">None isolated</p>
+                      ) : null}
+                    </div>
+                    <div className="space-y-2 text-sm leading-6">
+                      <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                        Sources
+                      </p>
+                      {currentRevision.intelligence.likelyDrivers.sources.map((source) => (
+                        <Link
+                          key={source.id}
+                          href={`/sources#${source.id}`}
+                          className="block text-foreground underline-offset-4 hover:underline"
+                        >
+                          {source.title}
+                        </Link>
+                      ))}
+                      {currentRevision.intelligence.likelyDrivers.sources.length === 0 ? (
                         <p className="text-muted">None isolated</p>
                       ) : null}
                     </div>
@@ -536,6 +591,9 @@ export function ThesisView({
                           {isCurrent ? "current" : "prior"}
                         </StatusPill>
                         {isSelected ? <StatusPill tone="accent">selected</StatusPill> : null}
+                        <StatusPill tone={revisionMaterialityTone(entry.intelligence.materiality)}>
+                          {entry.intelligence.materiality}
+                        </StatusPill>
                         <StatusPill tone={stanceTone(entry.revision.stance)}>
                           {labelize(entry.revision.stance)}
                         </StatusPill>
