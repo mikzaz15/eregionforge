@@ -36,6 +36,8 @@ These repositories now persist to the local SQLite store:
 14. `timeline-events-repository.ts`
 15. `company-dossiers-repository.ts`
 16. `lint-issues-repository.ts`
+17. `compile-jobs-repository.ts`
+18. `operational-audit-events-repository.ts`
 
 This means the following now survive app restarts:
 
@@ -55,18 +57,14 @@ This means the following now survive app restarts:
 - timeline events and timeline compile state
 - company dossiers
 - lint issues and local workflow status
+- compile jobs
+- operational audit events
 
 ## Still In Memory
 
-These repositories remain in-memory for now:
+No first-class repositories remain in-memory in the current main product path.
 
-1. `compile-jobs-repository.ts`
-
-That remaining object is still safe to keep in-memory for the current product story because:
-
-- the seeded Northstar demo is still the canonical showcase
-- compile jobs act more like operational telemetry than research state
-- the durable research objects now survive restarts across the main demo loop
+What remains non-durable is deeper lineage and audit detail that has not yet been modeled as its own repository layer.
 
 ## Seed And Demo Strategy
 
@@ -98,9 +96,11 @@ The intended migration order remains:
 12. timeline events
 13. dossier records
 14. lint issues
-15. compile jobs and deeper operational history
+15. compile jobs
+16. operational audit history
+17. deeper object-level refresh lineage
 
-The first fourteen are now on the durable path.
+The first sixteen are now on the durable path.
 
 ## Why SQLite First
 
@@ -115,17 +115,16 @@ SQLite is the safest hardening step right now because:
 
 For now, these can remain seeded or showcase-oriented:
 
-- compile job history
 - any future richer audit trails beyond current object snapshots
+- deeper object-to-object lineage for refresh causality
 
-The main research surfaces now persist. The remaining migration work is operational rather than product-defining.
+The main research surfaces and first-pass operations history now persist. The remaining migration work is about richer explanation, not basic durability.
 
 ## Near-Term Next Step
 
 The next persistence sprint should focus on operational durability:
 
-- compile jobs
-- object refresh ledgers or audit trails
+- object refresh ledgers or audit trails beyond the current job/event layer
 - explicit revision history for catalysts, dossiers, contradictions, and timeline compiles where needed
 
-EregionForge now has a durable canon and durable derived intelligence objects. The next gap is durable operations history.
+EregionForge now has a durable canon, durable derived intelligence objects, and durable first-pass operational history. The next gap is richer lineage and revision semantics.

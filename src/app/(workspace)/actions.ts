@@ -180,7 +180,10 @@ export async function runActiveProjectContradictionAnalysisAction() {
 
 export async function runActiveProjectMonitoringAnalysisAction() {
   const projectId = await getActiveProjectId();
-  await runProjectMonitoringAnalysis(projectId);
+  await runProjectMonitoringAnalysis(projectId, {
+    recordOperation: true,
+    triggeredBy: "workspace-user",
+  });
   refreshWorkspacePaths(projectId);
   redirect("/monitoring");
 }
@@ -232,7 +235,10 @@ export async function compileActiveProjectDossierAction() {
 
 export async function compileActiveProjectEntitiesAction() {
   const projectId = await getActiveProjectId();
-  await compileProjectEntities(projectId);
+  await compileProjectEntities(projectId, {
+    recordOperation: true,
+    triggeredBy: "workspace-user",
+  });
   refreshWorkspacePaths(projectId);
   redirect("/entities");
 }

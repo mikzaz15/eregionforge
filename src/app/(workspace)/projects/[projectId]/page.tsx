@@ -290,77 +290,35 @@ function buildRecentChanges(input: {
   isActiveWorkspace: boolean;
   projectData: NonNullable<Awaited<ReturnType<typeof getProjectDetailData>>>;
 }): RecentChangeRecord[] {
-  const entries: RecentChangeRecord[] = [];
+  return input.projectData.operationalEvents
+    .map((event) => {
+      let href = `/projects/${input.projectId}`;
 
-  if (input.projectData.thesis?.currentRevision) {
-    entries.push({
-      title: `Thesis revised to R${input.projectData.thesis.currentRevision.revision.revisionNumber}`,
-      detail:
-        input.projectData.thesis.currentRevision.revision.changeSummary ||
-        "A new thesis revision is now active.",
-      timestamp: input.projectData.thesis.currentRevision.revision.createdAt,
-      href: `/projects/${input.projectId}/thesis`,
-    });
-  }
+      if (event.relatedObjectType === "thesis") {
+        href = `/projects/${input.projectId}/thesis`;
+      } else if (event.relatedObjectType === "dossier") {
+        href = `/projects/${input.projectId}/dossier`;
+      } else if (event.relatedObjectType === "catalyst_tracker") {
+        href = `/projects/${input.projectId}/catalysts`;
+      } else if (event.relatedObjectType === "timeline") {
+        href = input.isActiveWorkspace ? "/timeline" : `/projects/${input.projectId}`;
+      } else if (event.relatedObjectType === "contradictions") {
+        href = input.isActiveWorkspace ? "/contradictions" : `/projects/${input.projectId}`;
+      } else if (event.relatedObjectType === "monitoring") {
+        href = input.isActiveWorkspace ? "/monitoring" : `/projects/${input.projectId}`;
+      } else if (event.relatedObjectType === "entity_layer") {
+        href = input.isActiveWorkspace ? "/entities" : `/projects/${input.projectId}`;
+      } else if (event.relatedObjectType === "wiki") {
+        href = input.isActiveWorkspace ? "/wiki" : `/projects/${input.projectId}`;
+      }
 
-  if (input.projectData.dossier) {
-    entries.push({
-      title: "Dossier refreshed",
-      detail: `Coverage is ${input.projectData.dossier.readiness.sectionCoverageLabel} with ${input.projectData.summary.dossierConfidence ?? "not set"} confidence.`,
-      timestamp: input.projectData.dossier.dossier.updatedAt,
-      href: `/projects/${input.projectId}/dossier`,
-    });
-  }
-
-  if (input.projectData.entityAnalysisState.lastCompiledAt) {
-    entries.push({
-      title: "Entity layer refreshed",
-      detail: `${input.projectData.summary.entityCount} entity record(s) now sharpen dossier, thesis, catalysts, and contradictions.`,
-      timestamp: input.projectData.entityAnalysisState.lastCompiledAt,
-      href: input.isActiveWorkspace ? "/entities" : `/projects/${input.projectId}`,
-    });
-  }
-
-  if (input.projectData.summary.catalystsLastCompiledAt) {
-    entries.push({
-      title: "Catalysts refreshed",
-      detail: `${input.projectData.summary.catalystCount} catalyst(s), ${input.projectData.summary.upcomingCatalystCount} upcoming, ${input.projectData.summary.highImportanceCatalystCount} high importance.`,
-      timestamp: input.projectData.summary.catalystsLastCompiledAt,
-      href: `/projects/${input.projectId}/catalysts`,
-    });
-  }
-
-  if (input.projectData.summary.contradictionsLastAnalyzedAt) {
-    entries.push({
-      title: "Contradictions re-ran",
-      detail: `${input.projectData.summary.contradictionCount} contradiction record(s), ${input.projectData.summary.unresolvedContradictionCount} unresolved.`,
-      timestamp: input.projectData.summary.contradictionsLastAnalyzedAt,
-      href: "/contradictions",
-    });
-  }
-
-  if (input.projectData.summary.timelineLastCompiledAt) {
-    entries.push({
-      title: "Timeline rebuilt",
-      detail: `${input.projectData.summary.timelineEventCount} chronology event(s) currently support catalysts and thesis timing.`,
-      timestamp: input.projectData.summary.timelineLastCompiledAt,
-      href: "/timeline",
-    });
-  }
-
-  if (input.projectData.summary.monitoringLastEvaluatedAt) {
-    entries.push({
-      title: "Alert queue refreshed",
-      detail:
-        input.projectData.monitoring.alerts[0]?.alert.title ??
-        `${input.projectData.summary.freshnessAlertCount} active stale alert(s) remain open.`,
-      timestamp: input.projectData.summary.monitoringLastEvaluatedAt,
-      href: input.isActiveWorkspace ? "/monitoring" : `/projects/${input.projectId}`,
-    });
-  }
-
-  return entries
-    .sort((left, right) => (right.timestamp ?? "").localeCompare(left.timestamp ?? ""))
+      return {
+        title: event.title,
+        detail: event.description,
+        timestamp: event.createdAt,
+        href,
+      };
+    })
     .slice(0, 5);
 }
 

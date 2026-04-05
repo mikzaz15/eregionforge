@@ -21,6 +21,12 @@ import { thesesRepository } from "@/lib/repositories/theses-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
 import { compileProjectEntities } from "@/lib/services/entity-intelligence-service";
 import {
+  completeOperationalJob,
+  failOperationalJob,
+  recordOperationalAuditEvent,
+  startOperationalJob,
+} from "@/lib/services/operational-history-service";
+import {
   confidenceLabelFromScore,
   deriveConfidenceScore,
   safeRatio,
@@ -592,160 +598,212 @@ export async function compileProjectCompanyDossier(
     throw new Error("Project is required to compile a company dossier.");
   }
 
-  const [pageContexts, claims, sources, artifacts, thesis, contradictions, entityCompileResult] =
-    await Promise.all([
-    buildPageContexts(projectId),
-    claimsRepository.listByProjectId(projectId),
-    sourcesRepository.listByProjectId(projectId),
-    artifactsRepository.listByProjectId(projectId),
-    thesesRepository.getByProjectId(projectId),
-    contradictionsRepository.listByProjectId(projectId),
-    compileProjectEntities(projectId),
-  ]);
-  const entities = entityCompileResult.entities;
-
-  const companyName = detectCompanyName(project.name, sources, entities);
-  const ticker = detectTicker(sources, entities);
-  const sector = detectSector(project.domain, sources, claims);
-  const geography = detectGeography(sources, claims);
-  const businessOverviewBullets = buildBusinessOverviewBullets({
-    pageContexts,
-    claims,
-    thesis,
-    entities,
-  });
-  const productsBullets = buildProductsBullets({
-    pageContexts,
-    claims,
-    sources,
-    artifacts,
-    entities,
-  });
-  const managementBullets = buildManagementBullets({
-    pageContexts,
-    claims,
-    sources,
-    entities,
-  });
-  const marketBullets = buildMarketBullets({
-    pageContexts,
-    claims,
-    sources,
-    artifacts,
-    entities,
-  });
-  const metricsBullets = buildMetricsBullets({
-    claims,
-    sources,
-    thesis,
-    entities,
-  });
-  const coverageBullets = buildCoverageBullets({
-    pageContexts,
-    claims,
-    sources,
-    artifacts,
-  });
-  const supportBySection: DossierSectionSupportMap = {
-    businessOverview: mergeReferences(
-      ...businessOverviewBullets.map((bullet) => bullet.references),
-    ),
-    productsAndSegments: mergeReferences(
-      ...productsBullets.map((bullet) => bullet.references),
-    ),
-    managementAndOperators: mergeReferences(
-      ...managementBullets.map((bullet) => bullet.references),
-    ),
-    marketAndCompetition: mergeReferences(
-      ...marketBullets.map((bullet) => bullet.references),
-    ),
-    keyMetricsAndFacts: mergeReferences(
-      ...metricsBullets.map((bullet) => bullet.references),
-    ),
-    sourceCoverageSummary: mergeReferences(
-      ...coverageBullets.map((bullet) => bullet.references),
-    ),
-  };
-  const coveredSections = Object.values(supportBySection).filter(
-    (refs) =>
-      refs.wikiPageIds.length > 0 ||
-      refs.claimIds.length > 0 ||
-      refs.sourceIds.length > 0 ||
-      refs.artifactIds.length > 0,
-  ).length;
-  const supportedClaimsCount = claims.filter(
-    (claim) => claim.supportStatus === "supported",
-  ).length;
-  const sourceDiversityCount = new Set(
-    Object.values(supportBySection).flatMap((refs) => refs.sourceIds),
-  ).size;
-  const openContradictions = contradictions.filter(
-    (entry) => entry.status !== "resolved",
-  ).length;
-  const freshnessBurden = safeRatio(
-    sources.filter((source) => source.status === "failed" || source.status === "pending")
-      .length,
-    sources.length,
-  );
-  const confidence: RevisionConfidence = confidenceLabelFromScore(
-    deriveConfidenceScore({
-      supportDensity: safeRatio(supportedClaimsCount, Math.max(claims.length, 1)),
-      sourceDiversityCount,
-      contradictionBurden: safeRatio(openContradictions, 4),
-      freshnessBurden,
-      precisionSupport: safeRatio(coveredSections, 6),
-    }),
-  );
-
-  return companyDossiersRepository.upsertForProject({
+  const job = await startOperationalJob({
     projectId,
-    companyName,
-    ticker,
-    sector,
-    geography,
-    status: pageContexts.length > 0 || claims.length > 0 ? "active" : "draft",
-    businessOverviewMarkdown: renderSectionMarkdown(
-      "Business Overview",
-      businessOverviewBullets,
-      "Core business description has not been strongly compiled yet.",
-    ),
-    productsAndSegmentsMarkdown: renderSectionMarkdown(
-      "Products And Segments",
-      productsBullets,
-      "Products, segments, and commercial mix are still thinly covered.",
-    ),
-    managementAndOperatorsMarkdown: renderSectionMarkdown(
-      "Management And Operators",
-      managementBullets,
-      "Leadership and operating posture remain lightly documented.",
-    ),
-    marketAndCompetitionMarkdown: renderSectionMarkdown(
-      "Market And Competition",
-      marketBullets,
-      "Market structure and competition still need broader compiled coverage.",
-    ),
-    keyMetricsAndFactsMarkdown: renderSectionMarkdown(
-      "Key Metrics And Facts",
-      metricsBullets,
-      "Key metrics and operating facts have not yet been densely compiled.",
-    ),
-    sourceCoverageSummaryMarkdown: renderSectionMarkdown(
-      "Source Coverage Summary",
-      coverageBullets,
-      "Source coverage is still sparse and should be expanded before heavier diligence.",
-    ),
-    confidence,
-    supportBySection,
-    metadata: {
-      coveredSections: String(coveredSections),
-      totalSections: "6",
-      sectionCoverageLabel: `${coveredSections}/6 sections supported`,
-      supportedClaimCount: String(supportedClaimsCount),
-      sourceDiversityCount: String(sourceDiversityCount),
-      openContradictionCount: String(openContradictions),
-      freshnessBurden: freshnessBurden.toFixed(2),
-    },
+    jobType: "refresh_dossier",
+    targetObjectType: "dossier",
+    targetObjectId: `dossier-${projectId}`,
+    triggeredBy: "workspace-user",
+    summary: "Dossier refresh started.",
   });
+
+  try {
+    const [pageContexts, claims, sources, artifacts, thesis, contradictions, entityCompileResult] =
+      await Promise.all([
+        buildPageContexts(projectId),
+        claimsRepository.listByProjectId(projectId),
+        sourcesRepository.listByProjectId(projectId),
+        artifactsRepository.listByProjectId(projectId),
+        thesesRepository.getByProjectId(projectId),
+        contradictionsRepository.listByProjectId(projectId),
+        compileProjectEntities(projectId),
+      ]);
+    const entities = entityCompileResult.entities;
+
+    const companyName = detectCompanyName(project.name, sources, entities);
+    const ticker = detectTicker(sources, entities);
+    const sector = detectSector(project.domain, sources, claims);
+    const geography = detectGeography(sources, claims);
+    const businessOverviewBullets = buildBusinessOverviewBullets({
+      pageContexts,
+      claims,
+      thesis,
+      entities,
+    });
+    const productsBullets = buildProductsBullets({
+      pageContexts,
+      claims,
+      sources,
+      artifacts,
+      entities,
+    });
+    const managementBullets = buildManagementBullets({
+      pageContexts,
+      claims,
+      sources,
+      entities,
+    });
+    const marketBullets = buildMarketBullets({
+      pageContexts,
+      claims,
+      sources,
+      artifacts,
+      entities,
+    });
+    const metricsBullets = buildMetricsBullets({
+      claims,
+      sources,
+      thesis,
+      entities,
+    });
+    const coverageBullets = buildCoverageBullets({
+      pageContexts,
+      claims,
+      sources,
+      artifacts,
+    });
+    const supportBySection: DossierSectionSupportMap = {
+      businessOverview: mergeReferences(
+        ...businessOverviewBullets.map((bullet) => bullet.references),
+      ),
+      productsAndSegments: mergeReferences(
+        ...productsBullets.map((bullet) => bullet.references),
+      ),
+      managementAndOperators: mergeReferences(
+        ...managementBullets.map((bullet) => bullet.references),
+      ),
+      marketAndCompetition: mergeReferences(
+        ...marketBullets.map((bullet) => bullet.references),
+      ),
+      keyMetricsAndFacts: mergeReferences(
+        ...metricsBullets.map((bullet) => bullet.references),
+      ),
+      sourceCoverageSummary: mergeReferences(
+        ...coverageBullets.map((bullet) => bullet.references),
+      ),
+    };
+    const coveredSections = Object.values(supportBySection).filter(
+      (refs) =>
+        refs.wikiPageIds.length > 0 ||
+        refs.claimIds.length > 0 ||
+        refs.sourceIds.length > 0 ||
+        refs.artifactIds.length > 0,
+    ).length;
+    const supportedClaimsCount = claims.filter(
+      (claim) => claim.supportStatus === "supported",
+    ).length;
+    const sourceDiversityCount = new Set(
+      Object.values(supportBySection).flatMap((refs) => refs.sourceIds),
+    ).size;
+    const openContradictions = contradictions.filter(
+      (entry) => entry.status !== "resolved",
+    ).length;
+    const freshnessBurden = safeRatio(
+      sources.filter((source) => source.status === "failed" || source.status === "pending")
+        .length,
+      sources.length,
+    );
+    const confidence: RevisionConfidence = confidenceLabelFromScore(
+      deriveConfidenceScore({
+        supportDensity: safeRatio(supportedClaimsCount, Math.max(claims.length, 1)),
+        sourceDiversityCount,
+        contradictionBurden: safeRatio(openContradictions, 4),
+        freshnessBurden,
+        precisionSupport: safeRatio(coveredSections, 6),
+      }),
+    );
+
+    const dossier = await companyDossiersRepository.upsertForProject({
+      projectId,
+      companyName,
+      ticker,
+      sector,
+      geography,
+      status: pageContexts.length > 0 || claims.length > 0 ? "active" : "draft",
+      businessOverviewMarkdown: renderSectionMarkdown(
+        "Business Overview",
+        businessOverviewBullets,
+        "Core business description has not been strongly compiled yet.",
+      ),
+      productsAndSegmentsMarkdown: renderSectionMarkdown(
+        "Products And Segments",
+        productsBullets,
+        "Products, segments, and commercial mix are still thinly covered.",
+      ),
+      managementAndOperatorsMarkdown: renderSectionMarkdown(
+        "Management And Operators",
+        managementBullets,
+        "Leadership and operating posture remain lightly documented.",
+      ),
+      marketAndCompetitionMarkdown: renderSectionMarkdown(
+        "Market And Competition",
+        marketBullets,
+        "Market structure and competition still need broader compiled coverage.",
+      ),
+      keyMetricsAndFactsMarkdown: renderSectionMarkdown(
+        "Key Metrics And Facts",
+        metricsBullets,
+        "Key metrics and operating facts have not yet been densely compiled.",
+      ),
+      sourceCoverageSummaryMarkdown: renderSectionMarkdown(
+        "Source Coverage Summary",
+        coverageBullets,
+        "Source coverage is still sparse and should be expanded before heavier diligence.",
+      ),
+      confidence,
+      supportBySection,
+      metadata: {
+        coveredSections: String(coveredSections),
+        totalSections: "6",
+        sectionCoverageLabel: `${coveredSections}/6 sections supported`,
+        supportedClaimCount: String(supportedClaimsCount),
+        sourceDiversityCount: String(sourceDiversityCount),
+        openContradictionCount: String(openContradictions),
+        freshnessBurden: freshnessBurden.toFixed(2),
+      },
+    });
+
+    const summary = `Dossier refresh compiled ${coveredSections}/6 supported section(s) for ${companyName} with ${confidence} confidence.`;
+    await completeOperationalJob({
+      jobId: job.id,
+      summary,
+      targetObjectId: dossier.id,
+      metadata: {
+        coveredSections: String(coveredSections),
+        confidence,
+        companyName,
+      },
+    });
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "dossier_refreshed",
+      title: "Dossier refreshed",
+      description: summary,
+      relatedObjectType: "dossier",
+      relatedObjectId: dossier.id,
+      relatedJobId: job.id,
+      metadata: {
+        coveredSections: String(coveredSections),
+        confidence,
+      },
+    });
+
+    return dossier;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown dossier refresh failure.";
+    await failOperationalJob(job.id, `Dossier refresh failed: ${message}`);
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "job_failed",
+      title: "Dossier refresh failed",
+      description: `Dossier refresh failed for ${project.name}: ${message}`,
+      relatedObjectType: "dossier",
+      relatedObjectId: `dossier-${projectId}`,
+      relatedJobId: job.id,
+      metadata: { jobType: "refresh_dossier" },
+    });
+    throw error;
+  }
 }
 
 export async function getStoredProjectCompanyDossier(

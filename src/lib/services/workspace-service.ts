@@ -14,6 +14,7 @@ import type {
   CompileJobStatus,
   EvidenceLink,
   LintIssue,
+  OperationalAuditEvent,
   Project,
   Thesis,
   Source,
@@ -25,6 +26,7 @@ import { askSessionsRepository } from "@/lib/repositories/ask-sessions-repositor
 import { claimsRepository } from "@/lib/repositories/claims-repository";
 import { compileJobsRepository } from "@/lib/repositories/compile-jobs-repository";
 import { evidenceLinksRepository } from "@/lib/repositories/evidence-links-repository";
+import { operationalAuditEventsRepository } from "@/lib/repositories/operational-audit-events-repository";
 import { projectsRepository } from "@/lib/repositories/projects-repository";
 import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-repository";
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
@@ -167,6 +169,7 @@ export type ProjectDetailData = {
   dossier: CompanyDossierDetailRecord | null;
   monitoring: ProjectMonitoringSnapshot;
   latestCompile: CompileJob | null;
+  operationalEvents: OperationalAuditEvent[];
 };
 
 export type ProjectLintIssueRecord = {
@@ -433,11 +436,11 @@ export const settingsGroups: SettingsGroup[] = [
     items: [
       {
         label: "Current adapter",
-        value: "Hybrid repository layer: local SQLite for canon, outputs, monitoring, and derived intelligence objects, with only compile jobs remaining in-memory.",
+        value: "Hybrid repository layer: local SQLite for canon, outputs, monitoring, derived intelligence objects, compile jobs, and operational audit history.",
       },
       {
         label: "Next adapter",
-        value: "Promote compile jobs and any future audit-history layers next, then add a production database adapter behind the same interfaces.",
+        value: "Promote richer audit trails and object-level refresh lineage next, then add a production database adapter behind the same interfaces.",
       },
       {
         label: "Guiding rule",
@@ -1012,7 +1015,7 @@ export async function getProjectDetailData(
     return null;
   }
 
-  const [sources, wikiPages, artifacts, entitySnapshot, timelineEvents, contradictions, catalysts, thesis, dossier, monitoring] =
+  const [sources, wikiPages, artifacts, entitySnapshot, timelineEvents, contradictions, catalysts, thesis, dossier, monitoring, operationalEvents] =
     await Promise.all([
       sourcesRepository.listByProjectId(projectId),
       buildWikiPageSummaries(projectId),
@@ -1024,6 +1027,7 @@ export async function getProjectDetailData(
       getProjectThesisDetail(projectId),
       getProjectCompanyDossierDetail(projectId),
       getProjectMonitoringSnapshot(projectId),
+      operationalAuditEventsRepository.listByProjectId(projectId),
     ]);
   const latestCompile = await compileJobsRepository.getLatestByProjectId(projectId);
 
@@ -1041,6 +1045,7 @@ export async function getProjectDetailData(
     dossier,
     monitoring,
     latestCompile,
+    operationalEvents: operationalEvents.slice(0, 8),
   };
 }
 
@@ -1580,7 +1585,7 @@ export async function getSettingsPageData(projectId: string) {
           {
             label: "Repository Mode",
             value: "Hybrid",
-            note: "Projects, sources, source fragments, canon pages, claims, evidence, artifacts, ask sessions, thesis records, thesis revisions, monitoring, catalysts, contradictions, timeline events, dossiers, and lint issues now persist locally while compile jobs remain in-memory.",
+            note: "Projects, sources, source fragments, canon pages, claims, evidence, artifacts, ask sessions, thesis records, thesis revisions, monitoring, catalysts, contradictions, timeline events, dossiers, lint issues, and compile jobs now persist locally with operational audit history attached.",
           },
           {
             label: "Domain Center",
@@ -1590,7 +1595,7 @@ export async function getSettingsPageData(projectId: string) {
           {
             label: "Compile Jobs",
             value: latestCompile?.status ?? "pending",
-            note: "Compile jobs are now a first-class repository seam and can later map directly onto persisted job records.",
+            note: "Compile jobs now persist locally with job type, target object, status, and timestamps so refresh history survives restarts.",
           },
         ],
       }

@@ -25,6 +25,12 @@ import { thesisRevisionsRepository } from "@/lib/repositories/thesis-revisions-r
 import { thesesRepository } from "@/lib/repositories/theses-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import {
+  completeOperationalJob,
+  failOperationalJob,
+  recordOperationalAuditEvent,
+  startOperationalJob,
+} from "@/lib/services/operational-history-service";
 import { compileProjectEntities } from "@/lib/services/entity-intelligence-service";
 import {
   listProjectContradictions,
@@ -1187,101 +1193,154 @@ export async function compileProjectThesis(projectId: string): Promise<Thesis> {
     throw new Error("Project is required to compile a thesis.");
   }
 
-  const [state, existingThesis, existingRevisions, entityCompileResult] = await Promise.all([
-    buildKnowledgeState(projectId),
-    thesesRepository.getByProjectId(projectId),
-    thesisRevisionsRepository.listByProjectId(projectId),
-    compileProjectEntities(projectId),
-  ]);
-  const previousRevision = existingThesis?.currentRevisionId
-    ? (await thesisRevisionsRepository.getById(existingThesis.currentRevisionId)) ??
-      existingRevisions[0] ??
-      null
-    : existingRevisions[0] ?? null;
-  const candidate = buildCompiledThesisCandidate(
-    project.name,
-    state,
-    entityCompileResult.entities,
-  );
-  const changedSections = buildChangedSections(previousRevision, candidate);
-  const contradictionCount = parseInteger(candidate.metadata.contradictionCount);
-  const catalystCount = parseInteger(candidate.metadata.catalystCount);
-  const previousContradictionCount = parseInteger(previousRevision?.metadata?.contradictionCount);
-  const previousCatalystCount = parseInteger(previousRevision?.metadata?.catalystCount);
-  const confidenceShift =
-    confidenceValue(candidate.confidence) -
-    confidenceValue(previousRevision?.confidence ?? candidate.confidence);
-  const contradictionCountShift = contradictionCount - previousContradictionCount;
-  const catalystCountShift = catalystCount - previousCatalystCount;
-  const likelyDrivers = detectLikelyDrivers(previousRevision, state);
-  const changeSummary = buildChangeSummary({
-    previousRevision,
-    changedSections,
-    confidenceShift,
-    contradictionCountShift,
-    catalystCountShift,
-    likelyDriverSummary: likelyDrivers.summary,
-  });
-  const revisionNumber = (existingThesis?.revisionCount ?? existingRevisions.length) + 1;
-  const thesisId = existingThesis?.id ?? `thesis-${projectId}`;
-  const revision = await thesisRevisionsRepository.create({
-    thesisId,
+  const job = await startOperationalJob({
     projectId,
-    revisionNumber,
-    status: candidate.status,
-    stance: candidate.overallStance,
-    confidence: candidate.confidence,
-    summary: candidate.summary,
-    bullCaseMarkdown: candidate.bullCaseMarkdown,
-    bearCaseMarkdown: candidate.bearCaseMarkdown,
-    variantViewMarkdown: candidate.variantViewMarkdown,
-    keyRisksMarkdown: candidate.keyRisksMarkdown,
-    keyUnknownsMarkdown: candidate.keyUnknownsMarkdown,
-    catalystSummaryMarkdown: candidate.catalystSummaryMarkdown,
-    changeSummary,
-    supportBySection: candidate.supportBySection,
-    metadata: {
-      ...candidate.metadata,
-      changedSections: JSON.stringify(changedSections),
-      confidenceShift: String(confidenceShift),
-      contradictionCountShift: String(contradictionCountShift),
-      catalystCountShift: String(catalystCountShift),
-      likelyDriverSummary: likelyDrivers.summary ?? "",
-      driverPageIds: JSON.stringify(likelyDrivers.ids.pageIds),
-      driverClaimIds: JSON.stringify(likelyDrivers.ids.claimIds),
-      driverSourceIds: JSON.stringify(likelyDrivers.ids.sourceIds),
-      driverTimelineEventIds: JSON.stringify(likelyDrivers.ids.timelineEventIds),
-      driverContradictionIds: JSON.stringify(likelyDrivers.ids.contradictionIds),
-      driverArtifactIds: JSON.stringify(likelyDrivers.ids.artifactIds),
-    },
+    jobType: "refresh_thesis",
+    targetObjectType: "thesis",
+    targetObjectId: `thesis-${projectId}`,
+    triggeredBy: "workspace-user",
+    summary: "Thesis refresh started.",
   });
 
-  return thesesRepository.upsertForProject({
-    projectId,
-    currentRevisionId: revision.id,
-    revisionCount: revisionNumber,
-    title: candidate.title,
-    subjectName: candidate.subjectName,
-    ticker: candidate.ticker,
-    status: candidate.status,
-    overallStance: candidate.overallStance,
-    summary: candidate.summary,
-    bullCaseMarkdown: candidate.bullCaseMarkdown,
-    bearCaseMarkdown: candidate.bearCaseMarkdown,
-    variantViewMarkdown: candidate.variantViewMarkdown,
-    keyRisksMarkdown: candidate.keyRisksMarkdown,
-    keyUnknownsMarkdown: candidate.keyUnknownsMarkdown,
-    catalystSummaryMarkdown: candidate.catalystSummaryMarkdown,
-    confidence: candidate.confidence,
-    supportBySection: candidate.supportBySection,
-    latestInputSignature: candidate.latestInputSignature,
-    metadata: {
-      ...candidate.metadata,
-      currentChangeSummary: changeSummary,
-      currentRevisionNumber: String(revisionNumber),
-      latestKnowledgeUpdateAt: candidate.latestKnowledgeUpdateAt ?? "",
-    },
-  });
+  try {
+    const [state, existingThesis, existingRevisions, entityCompileResult] = await Promise.all([
+      buildKnowledgeState(projectId),
+      thesesRepository.getByProjectId(projectId),
+      thesisRevisionsRepository.listByProjectId(projectId),
+      compileProjectEntities(projectId),
+    ]);
+    const previousRevision = existingThesis?.currentRevisionId
+      ? (await thesisRevisionsRepository.getById(existingThesis.currentRevisionId)) ??
+        existingRevisions[0] ??
+        null
+      : existingRevisions[0] ?? null;
+    const candidate = buildCompiledThesisCandidate(
+      project.name,
+      state,
+      entityCompileResult.entities,
+    );
+    const changedSections = buildChangedSections(previousRevision, candidate);
+    const contradictionCount = parseInteger(candidate.metadata.contradictionCount);
+    const catalystCount = parseInteger(candidate.metadata.catalystCount);
+    const previousContradictionCount = parseInteger(previousRevision?.metadata?.contradictionCount);
+    const previousCatalystCount = parseInteger(previousRevision?.metadata?.catalystCount);
+    const confidenceShift =
+      confidenceValue(candidate.confidence) -
+      confidenceValue(previousRevision?.confidence ?? candidate.confidence);
+    const contradictionCountShift = contradictionCount - previousContradictionCount;
+    const catalystCountShift = catalystCount - previousCatalystCount;
+    const likelyDrivers = detectLikelyDrivers(previousRevision, state);
+    const changeSummary = buildChangeSummary({
+      previousRevision,
+      changedSections,
+      confidenceShift,
+      contradictionCountShift,
+      catalystCountShift,
+      likelyDriverSummary: likelyDrivers.summary,
+    });
+    const revisionNumber = (existingThesis?.revisionCount ?? existingRevisions.length) + 1;
+    const thesisId = existingThesis?.id ?? `thesis-${projectId}`;
+    const revision = await thesisRevisionsRepository.create({
+      thesisId,
+      projectId,
+      revisionNumber,
+      status: candidate.status,
+      stance: candidate.overallStance,
+      confidence: candidate.confidence,
+      summary: candidate.summary,
+      bullCaseMarkdown: candidate.bullCaseMarkdown,
+      bearCaseMarkdown: candidate.bearCaseMarkdown,
+      variantViewMarkdown: candidate.variantViewMarkdown,
+      keyRisksMarkdown: candidate.keyRisksMarkdown,
+      keyUnknownsMarkdown: candidate.keyUnknownsMarkdown,
+      catalystSummaryMarkdown: candidate.catalystSummaryMarkdown,
+      changeSummary,
+      supportBySection: candidate.supportBySection,
+      metadata: {
+        ...candidate.metadata,
+        changedSections: JSON.stringify(changedSections),
+        confidenceShift: String(confidenceShift),
+        contradictionCountShift: String(contradictionCountShift),
+        catalystCountShift: String(catalystCountShift),
+        likelyDriverSummary: likelyDrivers.summary ?? "",
+        driverPageIds: JSON.stringify(likelyDrivers.ids.pageIds),
+        driverClaimIds: JSON.stringify(likelyDrivers.ids.claimIds),
+        driverSourceIds: JSON.stringify(likelyDrivers.ids.sourceIds),
+        driverTimelineEventIds: JSON.stringify(likelyDrivers.ids.timelineEventIds),
+        driverContradictionIds: JSON.stringify(likelyDrivers.ids.contradictionIds),
+        driverArtifactIds: JSON.stringify(likelyDrivers.ids.artifactIds),
+      },
+    });
+
+    const thesis = await thesesRepository.upsertForProject({
+      projectId,
+      currentRevisionId: revision.id,
+      revisionCount: revisionNumber,
+      title: candidate.title,
+      subjectName: candidate.subjectName,
+      ticker: candidate.ticker,
+      status: candidate.status,
+      overallStance: candidate.overallStance,
+      summary: candidate.summary,
+      bullCaseMarkdown: candidate.bullCaseMarkdown,
+      bearCaseMarkdown: candidate.bearCaseMarkdown,
+      variantViewMarkdown: candidate.variantViewMarkdown,
+      keyRisksMarkdown: candidate.keyRisksMarkdown,
+      keyUnknownsMarkdown: candidate.keyUnknownsMarkdown,
+      catalystSummaryMarkdown: candidate.catalystSummaryMarkdown,
+      confidence: candidate.confidence,
+      supportBySection: candidate.supportBySection,
+      latestInputSignature: candidate.latestInputSignature,
+      metadata: {
+        ...candidate.metadata,
+        currentChangeSummary: changeSummary,
+        currentRevisionNumber: String(revisionNumber),
+        latestKnowledgeUpdateAt: candidate.latestKnowledgeUpdateAt ?? "",
+      },
+    });
+
+    const summary = `Thesis refresh produced revision R${revisionNumber} with ${candidate.confidence} confidence and ${changedSections.length} changed section(s).`;
+    await completeOperationalJob({
+      jobId: job.id,
+      summary,
+      targetObjectId: thesis.id,
+      metadata: {
+        revisionNumber: String(revisionNumber),
+        changedSectionCount: String(changedSections.length),
+        stance: candidate.overallStance,
+        confidence: candidate.confidence,
+      },
+    });
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "thesis_refreshed",
+      title: `Thesis refreshed to R${revisionNumber}`,
+      description: changeSummary,
+      relatedObjectType: "thesis",
+      relatedObjectId: thesis.id,
+      relatedJobId: job.id,
+      metadata: {
+        revisionNumber: String(revisionNumber),
+        changedSections: JSON.stringify(changedSections),
+      },
+    });
+
+    return thesis;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown thesis refresh failure.";
+    await failOperationalJob(job.id, `Thesis refresh failed: ${message}`);
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "job_failed",
+      title: "Thesis refresh failed",
+      description: `Thesis refresh failed for ${project.name}: ${message}`,
+      relatedObjectType: "thesis",
+      relatedObjectId: `thesis-${projectId}`,
+      relatedJobId: job.id,
+      metadata: { jobType: "refresh_thesis" },
+    });
+    throw error;
+  }
 }
 
 export async function getStoredProjectThesis(projectId: string): Promise<Thesis | null> {

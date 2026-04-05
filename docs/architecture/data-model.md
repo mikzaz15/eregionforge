@@ -13,6 +13,7 @@
 - wiki_page_revisions
 - artifacts
 - compile_jobs
+- operational_audit_events
 - ask_sessions
 - lint_issues
 
@@ -21,5 +22,5 @@
 - extracted: fragments, entities, concepts, claims
 - canonical: wiki pages, revisions
 - evidential: evidence links, confidence
-- operational: compile jobs, lint issues, ask sessions
+- operational: compile jobs, operational audit events, lint issues, ask sessions
 - output: artifacts

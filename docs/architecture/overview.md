@@ -105,12 +105,14 @@ Durable now:
 - timeline events and timeline compile state
 - company dossiers
 - lint issues
+- compile jobs
+- operational audit events
 
 Still in-memory:
 
-- compile jobs and deeper operational audit history that has not yet been promoted into the durable path
+- deeper operational lineage that has not yet been promoted beyond the current job and event snapshots
 
-That split is intentional. The compiled canon and main derived intelligence objects are now durable, while operational telemetry can migrate next without changing the route contracts.
+That split is intentional. The compiled canon, derived intelligence objects, and first-pass operational history are now durable, while richer telemetry can migrate next without changing the route contracts.
 
 ## How The Major Views Fit Together
 

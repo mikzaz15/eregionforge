@@ -12,8 +12,10 @@ import {
   seedContradictions,
   seedContradictionAnalysisStates,
   seedEvidenceLinks,
+  seedCompileJobs,
   seedArtifacts,
   seedAskSessions,
+  seedOperationalAuditEvents,
   seedTimelineEvents,
   seedTimelineCompileStates,
   seedMonitoringAnalysisStates,
@@ -34,11 +36,13 @@ import type {
   Catalyst,
   CatalystCompileState,
   CompanyDossier,
+  CompileJob,
   Contradiction,
   ContradictionAnalysisState,
   EntityAnalysisState,
   LintIssue,
   MonitoringAnalysisState,
+  OperationalAuditEvent,
   Project,
   ResearchEntity,
   Source,
@@ -305,6 +309,35 @@ function ensureSchema(database: SqliteDatabase) {
       last_evaluated_at TEXT,
       payload TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS compile_jobs_store (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      job_type TEXT NOT NULL,
+      target_object_type TEXT NOT NULL,
+      target_object_id TEXT,
+      status TEXT NOT NULL,
+      started_at TEXT,
+      completed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_compile_jobs_store_project ON compile_jobs_store(project_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_compile_jobs_store_project_status ON compile_jobs_store(project_id, status, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS operational_audit_events_store (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      related_object_type TEXT,
+      related_object_id TEXT,
+      related_job_id TEXT,
+      created_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_operational_audit_events_store_project ON operational_audit_events_store(project_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_operational_audit_events_store_job ON operational_audit_events_store(related_job_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS catalysts_store (
       id TEXT PRIMARY KEY,
@@ -647,6 +680,45 @@ function ensureSchema(database: SqliteDatabase) {
       state.projectId,
       state.lastEvaluatedAt,
       serializeRecord(state),
+    );
+  }
+
+  const insertCompileJob = database.prepare(`
+    INSERT OR IGNORE INTO compile_jobs_store (
+      id, project_id, job_type, target_object_type, target_object_id, status, started_at, completed_at, created_at, updated_at, payload
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const job of seedCompileJobs) {
+    insertCompileJob.run(
+      job.id,
+      job.projectId,
+      job.jobType,
+      job.targetObjectType,
+      job.targetObjectId,
+      job.status,
+      job.startedAt,
+      job.completedAt,
+      job.createdAt,
+      job.updatedAt,
+      serializeRecord(job),
+    );
+  }
+
+  const insertOperationalAuditEvent = database.prepare(`
+    INSERT OR IGNORE INTO operational_audit_events_store (
+      id, project_id, event_type, related_object_type, related_object_id, related_job_id, created_at, payload
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const event of seedOperationalAuditEvents) {
+    insertOperationalAuditEvent.run(
+      event.id,
+      event.projectId,
+      event.eventType,
+      event.relatedObjectType,
+      event.relatedObjectId,
+      event.relatedJobId,
+      event.createdAt,
+      serializeRecord(event),
     );
   }
 
@@ -1175,6 +1247,78 @@ export function upsertMonitoringAnalysisStateRecord(
       state.projectId,
       state.lastEvaluatedAt,
       serializeRecord(state),
+    );
+}
+
+export function upsertCompileJobRecord(job: CompileJob): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO compile_jobs_store (
+        id, project_id, job_type, target_object_type, target_object_id, status, started_at, completed_at, created_at, updated_at, payload
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        project_id = excluded.project_id,
+        job_type = excluded.job_type,
+        target_object_type = excluded.target_object_type,
+        target_object_id = excluded.target_object_id,
+        status = excluded.status,
+        started_at = excluded.started_at,
+        completed_at = excluded.completed_at,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at,
+        payload = excluded.payload
+    `)
+    .run(
+      job.id,
+      job.projectId,
+      job.jobType,
+      job.targetObjectType,
+      job.targetObjectId,
+      job.status,
+      job.startedAt,
+      job.completedAt,
+      job.createdAt,
+      job.updatedAt,
+      serializeRecord(job),
+    );
+}
+
+export function upsertOperationalAuditEventRecord(event: OperationalAuditEvent): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO operational_audit_events_store (
+        id, project_id, event_type, related_object_type, related_object_id, related_job_id, created_at, payload
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        project_id = excluded.project_id,
+        event_type = excluded.event_type,
+        related_object_type = excluded.related_object_type,
+        related_object_id = excluded.related_object_id,
+        related_job_id = excluded.related_job_id,
+        created_at = excluded.created_at,
+        payload = excluded.payload
+    `)
+    .run(
+      event.id,
+      event.projectId,
+      event.eventType,
+      event.relatedObjectType,
+      event.relatedObjectId,
+      event.relatedJobId,
+      event.createdAt,
+      serializeRecord(event),
     );
 }
 

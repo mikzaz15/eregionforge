@@ -21,6 +21,12 @@ import {
   matchEntitiesToText,
 } from "@/lib/services/entity-intelligence-service";
 import {
+  completeOperationalJob,
+  failOperationalJob,
+  recordOperationalAuditEvent,
+  startOperationalJob,
+} from "@/lib/services/operational-history-service";
+import {
   buildSemanticProfile,
   dominantConflictTheme,
   formatThemeLabel,
@@ -737,10 +743,64 @@ async function computeContradictionDrafts(projectId: string): Promise<Contradict
 export async function runProjectContradictionAnalysis(
   projectId: string,
 ): Promise<Contradiction[]> {
-  const drafts = await computeContradictionDrafts(projectId);
-  const summary = `Contradiction analysis produced ${drafts.length} record(s) across claims, sources, page summaries, and timeline events.`;
+  const job = await startOperationalJob({
+    projectId,
+    jobType: "rerun_contradictions",
+    targetObjectType: "contradictions",
+    targetObjectId: projectId,
+    triggeredBy: "workspace-user",
+    summary: "Contradiction analysis started.",
+  });
 
-  return contradictionsRepository.syncProjectContradictions(projectId, drafts, summary);
+  try {
+    const drafts = await computeContradictionDrafts(projectId);
+    const summary = `Contradiction analysis produced ${drafts.length} record(s) across claims, sources, page summaries, and timeline events.`;
+    const contradictions = await contradictionsRepository.syncProjectContradictions(
+      projectId,
+      drafts,
+      summary,
+    );
+    await completeOperationalJob({
+      jobId: job.id,
+      summary,
+      targetObjectId: projectId,
+      metadata: {
+        contradictionCount: String(contradictions.length),
+        unresolvedCount: String(
+          contradictions.filter((entry) => entry.status !== "resolved").length,
+        ),
+      },
+    });
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "contradictions_reran",
+      title: "Contradictions re-ran",
+      description: summary,
+      relatedObjectType: "contradictions",
+      relatedObjectId: projectId,
+      relatedJobId: job.id,
+      metadata: {
+        contradictionCount: String(contradictions.length),
+      },
+    });
+
+    return contradictions;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown contradiction analysis failure.";
+    await failOperationalJob(job.id, `Contradiction analysis failed: ${message}`);
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "job_failed",
+      title: "Contradiction analysis failed",
+      description: `Contradiction analysis failed for project ${projectId}: ${message}`,
+      relatedObjectType: "contradictions",
+      relatedObjectId: projectId,
+      relatedJobId: job.id,
+      metadata: { jobType: "rerun_contradictions" },
+    });
+    throw error;
+  }
 }
 
 export async function updateContradictionStatus(

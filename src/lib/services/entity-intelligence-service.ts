@@ -23,6 +23,12 @@ import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { thesesRepository } from "@/lib/repositories/theses-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
 import {
+  completeOperationalJob,
+  failOperationalJob,
+  recordOperationalAuditEvent,
+  startOperationalJob,
+} from "@/lib/services/operational-history-service";
+import {
   confidenceLabelFromScore,
   deriveConfidenceScore,
   detectSemanticThemes,
@@ -529,21 +535,36 @@ function buildEntitySummary(entities: ResearchEntityDraft[]): string {
   return `Compiled ${entities.length} entity record(s): ${counts.company} company, ${counts.product} product or segment, ${counts.operator} operator, ${counts.market} market or competitor, ${counts.metric} metric, and ${counts.risk} risk-theme entity(ies).`;
 }
 
-export async function compileProjectEntities(projectId: string) {
+export async function compileProjectEntities(
+  projectId: string,
+  options?: { recordOperation?: boolean; triggeredBy?: string },
+) {
   const project = await projectsRepository.getById(projectId);
 
   if (!project) {
     throw new Error("Project is required to compile entities.");
   }
 
-  const [sources, claims, pageContexts, thesis, dossier] = await Promise.all([
-    sourcesRepository.listByProjectId(projectId),
-    claimsRepository.listByProjectId(projectId),
-    buildPageContexts(projectId),
-    thesesRepository.getByProjectId(projectId),
-    companyDossiersRepository.getByProjectId(projectId),
-  ]);
-  const entities = new Map<string, EntityAccumulator>();
+  const job = options?.recordOperation
+    ? await startOperationalJob({
+        projectId,
+        jobType: "extract_entities",
+        targetObjectType: "entity_layer",
+        targetObjectId: projectId,
+        triggeredBy: options.triggeredBy ?? "workspace-user",
+        summary: "Entity extraction started.",
+      })
+    : null;
+
+  try {
+    const [sources, claims, pageContexts, thesis, dossier] = await Promise.all([
+      sourcesRepository.listByProjectId(projectId),
+      claimsRepository.listByProjectId(projectId),
+      buildPageContexts(projectId),
+      thesesRepository.getByProjectId(projectId),
+      companyDossiersRepository.getByProjectId(projectId),
+    ]);
+    const entities = new Map<string, EntityAccumulator>();
 
   for (const source of sources) {
     if (source.metadata.issuer) {
@@ -695,8 +716,55 @@ export async function compileProjectEntities(projectId: string) {
     }
   }
 
-  const drafts = finalizeEntities(projectId, entities);
-  return entitiesRepository.syncProjectEntities(projectId, drafts, buildEntitySummary(drafts));
+    const drafts = finalizeEntities(projectId, entities);
+    const result = await entitiesRepository.syncProjectEntities(
+      projectId,
+      drafts,
+      buildEntitySummary(drafts),
+    );
+
+    if (job) {
+      const summary = `Entity extraction compiled ${result.entities.length} entity record(s) for ${project.name}.`;
+      await completeOperationalJob({
+        jobId: job.id,
+        summary,
+        targetObjectId: projectId,
+        metadata: {
+          entityCount: String(result.entities.length),
+        },
+      });
+      await recordOperationalAuditEvent({
+        projectId,
+        eventType: "entities_extracted",
+        title: "Entities extracted",
+        description: summary,
+        relatedObjectType: "entity_layer",
+        relatedObjectId: projectId,
+        relatedJobId: job.id,
+        metadata: {
+          entityCount: String(result.entities.length),
+        },
+      });
+    }
+
+    return result;
+  } catch (error) {
+    if (job) {
+      const message = error instanceof Error ? error.message : "Unknown entity extraction failure.";
+      await failOperationalJob(job.id, `Entity extraction failed: ${message}`);
+      await recordOperationalAuditEvent({
+        projectId,
+        eventType: "job_failed",
+        title: "Entity extraction failed",
+        description: `Entity extraction failed for ${project.name}: ${message}`,
+        relatedObjectType: "entity_layer",
+        relatedObjectId: projectId,
+        relatedJobId: job.id,
+        metadata: { jobType: "extract_entities" },
+      });
+    }
+    throw error;
+  }
 }
 
 export async function listProjectEntities(projectId: string): Promise<ResearchEntity[]> {

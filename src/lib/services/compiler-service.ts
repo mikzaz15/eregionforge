@@ -22,6 +22,12 @@ import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-r
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
 import { compileProjectEntities } from "@/lib/services/entity-intelligence-service";
+import {
+  completeOperationalJob,
+  failOperationalJob,
+  recordOperationalAuditEvent,
+  startOperationalJob,
+} from "@/lib/services/operational-history-service";
 
 type CompileTarget = {
   pageId: string;
@@ -1154,43 +1160,45 @@ export async function compileProject(projectId: string, triggeredBy: string) {
     throw new Error("Cannot compile a missing project.");
   }
 
-  const job = await compileJobsRepository.create({
+  const job = await startOperationalJob({
     projectId,
+    jobType: "compile_wiki",
+    targetObjectType: "wiki",
+    targetObjectId: projectId,
     triggeredBy,
-    status: "running",
-    summary: "Compile started.",
-    startedAt: new Date().toISOString(),
+    summary: "Wiki compile started.",
     metadata: { mode: "deterministic-claim-compiler" },
   });
 
-  const eligibleSources = (await sourcesRepository.listByProjectId(projectId)).filter(
-    (source) => source.status !== "failed",
-  );
-  const sourceInputs = await Promise.all(
-    eligibleSources.map(async (source) => ({
-      source,
-      fragments: await ensureSourceFragments(source),
-    })),
-  );
-
-  for (const sourceInput of sourceInputs) {
-    const updatedSource = await sourcesRepository.updateStatus(
-      sourceInput.source.id,
-      "compiled",
+  try {
+    const eligibleSources = (await sourcesRepository.listByProjectId(projectId)).filter(
+      (source) => source.status !== "failed",
+    );
+    const sourceInputs = await Promise.all(
+      eligibleSources.map(async (source) => ({
+        source,
+        fragments: await ensureSourceFragments(source),
+      })),
     );
 
-    if (updatedSource) {
-      sourceInput.source = updatedSource;
+    for (const sourceInput of sourceInputs) {
+      const updatedSource = await sourcesRepository.updateStatus(
+        sourceInput.source.id,
+        "compiled",
+      );
+
+      if (updatedSource) {
+        sourceInput.source = updatedSource;
+      }
     }
-  }
 
-  const entityCompileResult = await compileProjectEntities(projectId);
-  const entities = entityCompileResult.entities;
+    const entityCompileResult = await compileProjectEntities(projectId);
+    const entities = entityCompileResult.entities;
 
-  const targets: CompileTarget[] = [];
-  let totalClaims = 0;
-  let totalEvidenceLinks = 0;
-  let unresolvedClaims = 0;
+    const targets: CompileTarget[] = [];
+    let totalClaims = 0;
+    let totalEvidenceLinks = 0;
+    let unresolvedClaims = 0;
 
   for (const sourceInput of sourceInputs) {
     const fragmentIds = sourceInput.fragments.map((fragment) => fragment.id);
@@ -1373,33 +1381,78 @@ export async function compileProject(projectId: string, triggeredBy: string) {
   unresolvedClaims += openQuestionTrust.unresolvedCount;
   targets.push(openQuestionsTarget);
 
-  const affectedPageIds = targets.map((target) => target.pageId);
-  const sourceSummaryPages = targets.filter(
-    (target) => target.pageType === "source-summary",
-  ).length;
-  const completedAt = new Date().toISOString();
-  const summary = `Compile produced ${affectedPageIds.length} canonical pages from ${eligibleSources.length} source records and ${allFragmentIds.length} parsed fragments, yielding ${totalClaims} claims and ${totalEvidenceLinks} evidence links across ${sourceSummaryPages} source-summary pages.`;
+    const affectedPageIds = targets.map((target) => target.pageId);
+    const sourceSummaryPages = targets.filter(
+      (target) => target.pageType === "source-summary",
+    ).length;
+    const summary = `Compile produced ${affectedPageIds.length} canonical pages from ${eligibleSources.length} source records and ${allFragmentIds.length} parsed fragments, yielding ${totalClaims} claims and ${totalEvidenceLinks} evidence links across ${sourceSummaryPages} source-summary pages.`;
 
-  const updatedJob = await compileJobsRepository.update(job.id, {
-    status: "completed",
-    completedAt,
-    summary,
-    affectedPageIds,
-    sourceCount: eligibleSources.length,
-    metadata: {
+    const updatedJob = await completeOperationalJob({
+      jobId: job.id,
+      summary,
+      targetObjectId: projectId,
+      metadata: {
+        mode: "deterministic-claim-compiler",
+        projectSlug: project.slug,
+        sourceSummaryPages: String(sourceSummaryPages),
+        fragmentCount: String(allFragmentIds.length),
+        claimCount: String(totalClaims),
+        unresolvedClaimCount: String(unresolvedClaims),
+        evidenceLinkCount: String(totalEvidenceLinks),
+        affectedPageCount: String(affectedPageIds.length),
+      },
+    });
+
+    await compileJobsRepository.update(job.id, {
+      affectedPageIds,
+      sourceCount: eligibleSources.length,
+      metadata: {
+        mode: "deterministic-claim-compiler",
+        projectSlug: project.slug,
+        sourceSummaryPages: String(sourceSummaryPages),
+        fragmentCount: String(allFragmentIds.length),
+        claimCount: String(totalClaims),
+        unresolvedClaimCount: String(unresolvedClaims),
+        evidenceLinkCount: String(totalEvidenceLinks),
+        affectedPageCount: String(affectedPageIds.length),
+      },
+    });
+
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "wiki_compiled",
+      title: "Wiki compiled",
+      description: summary,
+      relatedObjectType: "wiki",
+      relatedObjectId: projectId,
+      relatedJobId: job.id,
+      metadata: {
+        affectedPageCount: String(affectedPageIds.length),
+        sourceCount: String(eligibleSources.length),
+      },
+    });
+
+    if (!updatedJob) {
+      throw new Error("Compile job disappeared before completion.");
+    }
+
+    return updatedJob;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown compile failure.";
+    await failOperationalJob(job.id, `Wiki compile failed: ${message}`, {
       mode: "deterministic-claim-compiler",
       projectSlug: project.slug,
-      sourceSummaryPages: String(sourceSummaryPages),
-      fragmentCount: String(allFragmentIds.length),
-      claimCount: String(totalClaims),
-      unresolvedClaimCount: String(unresolvedClaims),
-      evidenceLinkCount: String(totalEvidenceLinks),
-    },
-  });
-
-  if (!updatedJob) {
-    throw new Error("Compile job disappeared before completion.");
+    });
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "job_failed",
+      title: "Wiki compile failed",
+      description: `Wiki compile failed for ${project.name}: ${message}`,
+      relatedObjectType: "wiki",
+      relatedObjectId: projectId,
+      relatedJobId: job.id,
+      metadata: { jobType: "compile_wiki" },
+    });
+    throw error;
   }
-
-  return updatedJob;
 }

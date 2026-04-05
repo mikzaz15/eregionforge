@@ -25,6 +25,12 @@ import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { sourceMonitoringRepository } from "@/lib/repositories/source-monitoring-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import {
+  completeOperationalJob,
+  failOperationalJob,
+  recordOperationalAuditEvent,
+  startOperationalJob,
+} from "@/lib/services/operational-history-service";
 import { getProjectThesisSnapshot } from "@/lib/services/thesis-service";
 import {
   detectSemanticThemes,
@@ -566,7 +572,24 @@ function buildContradictionsAlert(input: {
 
 export async function runProjectMonitoringAnalysis(
   projectId: string,
+  options?: {
+    recordOperation?: boolean;
+    triggeredBy?: string;
+  },
 ): Promise<ProjectMonitoringSnapshot> {
+  const shouldRecord = options?.recordOperation ?? false;
+  const job = shouldRecord
+    ? await startOperationalJob({
+        projectId,
+        jobType: "run_monitoring",
+        targetObjectType: "monitoring",
+        targetObjectId: projectId,
+        triggeredBy: options?.triggeredBy ?? "workspace-user",
+        summary: "Monitoring run started.",
+      })
+    : null;
+
+  try {
   const [
     sources,
     latestCompile,
@@ -680,7 +703,7 @@ export async function runProjectMonitoringAnalysis(
       .filter((entry): entry is TimelineEvent => Boolean(entry)),
   }));
 
-  return {
+  const snapshot = {
     sourceRecords,
     alerts,
     analysisState: syncResult.analysisState,
@@ -707,12 +730,62 @@ export async function runProjectMonitoringAnalysis(
       ).length,
     },
   };
+
+    if (job) {
+      const openThesisAlert = alerts.find(
+        (entry) =>
+          entry.alert.status === "open" &&
+          entry.alert.alertType === "thesis_may_be_stale",
+      );
+      const summary = `Monitoring evaluated ${sourceRecords.length} source record(s) and surfaced ${snapshot.summary.activeAlerts} active stale alert(s).`;
+      await completeOperationalJob({
+        jobId: job.id,
+        summary,
+        targetObjectId: projectId,
+        metadata: {
+          activeAlerts: String(snapshot.summary.activeAlerts),
+          highSeverityAlerts: String(snapshot.summary.highSeverityAlerts),
+          sourcesNeedingReview: String(snapshot.summary.sourcesNeedingReview),
+        },
+      });
+      await recordOperationalAuditEvent({
+        projectId,
+        eventType: openThesisAlert ? "stale_thesis_flagged" : "monitoring_ran",
+        title: openThesisAlert ? "Monitoring flagged stale thesis" : "Monitoring refreshed",
+        description: openThesisAlert ? openThesisAlert.alert.description : summary,
+        relatedObjectType: "monitoring",
+        relatedObjectId: projectId,
+        relatedJobId: job.id,
+        metadata: {
+          activeAlerts: String(snapshot.summary.activeAlerts),
+        },
+      });
+    }
+
+    return snapshot;
+  } catch (error) {
+    if (job) {
+      const message = error instanceof Error ? error.message : "Unknown monitoring failure.";
+      await failOperationalJob(job.id, `Monitoring run failed: ${message}`);
+      await recordOperationalAuditEvent({
+        projectId,
+        eventType: "job_failed",
+        title: "Monitoring run failed",
+        description: `Monitoring failed for project ${projectId}: ${message}`,
+        relatedObjectType: "monitoring",
+        relatedObjectId: projectId,
+        relatedJobId: job.id,
+        metadata: { jobType: "run_monitoring" },
+      });
+    }
+    throw error;
+  }
 }
 
 export async function getProjectMonitoringSnapshot(
   projectId: string,
 ): Promise<ProjectMonitoringSnapshot> {
-  return runProjectMonitoringAnalysis(projectId);
+  return runProjectMonitoringAnalysis(projectId, { recordOperation: false });
 }
 
 export async function getProjectMonitoringPageData(

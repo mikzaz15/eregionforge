@@ -27,6 +27,12 @@ import {
   matchEntitiesToText,
 } from "@/lib/services/entity-intelligence-service";
 import {
+  completeOperationalJob,
+  failOperationalJob,
+  recordOperationalAuditEvent,
+  startOperationalJob,
+} from "@/lib/services/operational-history-service";
+import {
   buildSemanticProfile,
   confidenceLabelFromScore,
   deriveConfidenceScore,
@@ -728,60 +734,114 @@ function buildCatalystSummary(catalysts: Catalyst[]): string {
 }
 
 export async function compileProjectCatalysts(projectId: string): Promise<Catalyst[]> {
-  const [thesis, timelineEvents, claims, contradictions, sources, entityCompileResult] = await Promise.all([
-    thesesRepository.getByProjectId(projectId),
-    timelineEventsRepository.listByProjectId(projectId),
-    claimsRepository.listByProjectId(projectId),
-    contradictionsRepository.listByProjectId(projectId),
-    sourcesRepository.listByProjectId(projectId),
-    compileProjectEntities(projectId),
-  ]);
+  const job = await startOperationalJob({
+    projectId,
+    jobType: "refresh_catalysts",
+    targetObjectType: "catalyst_tracker",
+    targetObjectId: projectId,
+    triggeredBy: "workspace-user",
+    summary: "Catalyst refresh started.",
+  });
 
-  const input: CandidateInput = {
-    thesis,
-    timelineEvents,
-    claims,
-    contradictions,
-    sources,
-    entities: entityCompileResult.entities,
-  };
-  const drafts = [
-    ...(thesis ? buildDraftFromThesis(thesis, input.entities) : []),
-    ...timelineEvents
-      .map((event) => buildDraftFromTimelineEvent(event, input))
-      .filter((draft): draft is CatalystDraft => Boolean(draft)),
-    ...claims
-      .map((claim) => buildDraftFromClaim(claim, input))
-      .filter((draft): draft is CatalystDraft => Boolean(draft)),
-    ...sources
-      .map((source) => buildDraftFromSource(source, input))
-      .filter((draft): draft is CatalystDraft => Boolean(draft)),
-  ];
-  const mergedDrafts = mergeDrafts(drafts);
-  const summary = buildCatalystSummary(
-    mergedDrafts.map((draft) => ({
-      id: draft.stableKey,
+  try {
+    const [thesis, timelineEvents, claims, contradictions, sources, entityCompileResult] = await Promise.all([
+      thesesRepository.getByProjectId(projectId),
+      timelineEventsRepository.listByProjectId(projectId),
+      claimsRepository.listByProjectId(projectId),
+      contradictionsRepository.listByProjectId(projectId),
+      sourcesRepository.listByProjectId(projectId),
+      compileProjectEntities(projectId),
+    ]);
+
+    const input: CandidateInput = {
+      thesis,
+      timelineEvents,
+      claims,
+      contradictions,
+      sources,
+      entities: entityCompileResult.entities,
+    };
+    const drafts = [
+      ...(thesis ? buildDraftFromThesis(thesis, input.entities) : []),
+      ...timelineEvents
+        .map((event) => buildDraftFromTimelineEvent(event, input))
+        .filter((draft): draft is CatalystDraft => Boolean(draft)),
+      ...claims
+        .map((claim) => buildDraftFromClaim(claim, input))
+        .filter((draft): draft is CatalystDraft => Boolean(draft)),
+      ...sources
+        .map((source) => buildDraftFromSource(source, input))
+        .filter((draft): draft is CatalystDraft => Boolean(draft)),
+    ];
+    const mergedDrafts = mergeDrafts(drafts);
+    const summary = buildCatalystSummary(
+      mergedDrafts.map((draft) => ({
+        id: draft.stableKey,
+        projectId,
+        title: draft.title,
+        description: draft.description,
+        catalystType: draft.catalystType,
+        status: draft.status,
+        expectedTimeframe: draft.expectedTimeframe,
+        timeframePrecision: draft.timeframePrecision,
+        importance: draft.importance,
+        confidence: draft.confidence,
+        linkedThesisId: draft.linkedThesisId ?? null,
+        linkedTimelineEventIds: draft.linkedTimelineEventIds,
+        linkedClaimIds: draft.linkedClaimIds,
+        linkedSourceIds: draft.linkedSourceIds,
+        linkedContradictionIds: draft.linkedContradictionIds,
+        createdAt: "",
+        updatedAt: "",
+        metadata: draft.metadata,
+      })),
+    );
+
+    const catalysts = await catalystsRepository.syncProjectCatalysts(
       projectId,
-      title: draft.title,
-      description: draft.description,
-      catalystType: draft.catalystType,
-      status: draft.status,
-      expectedTimeframe: draft.expectedTimeframe,
-      timeframePrecision: draft.timeframePrecision,
-      importance: draft.importance,
-      confidence: draft.confidence,
-      linkedThesisId: draft.linkedThesisId ?? null,
-      linkedTimelineEventIds: draft.linkedTimelineEventIds,
-      linkedClaimIds: draft.linkedClaimIds,
-      linkedSourceIds: draft.linkedSourceIds,
-      linkedContradictionIds: draft.linkedContradictionIds,
-      createdAt: "",
-      updatedAt: "",
-      metadata: draft.metadata,
-    })),
-  );
+      mergedDrafts,
+      summary,
+    );
+    await completeOperationalJob({
+      jobId: job.id,
+      summary,
+      targetObjectId: projectId,
+      metadata: {
+        catalystCount: String(catalysts.length),
+        highImportanceCount: String(
+          catalysts.filter((entry) => entry.importance === "high").length,
+        ),
+      },
+    });
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "catalysts_refreshed",
+      title: "Catalysts refreshed",
+      description: summary,
+      relatedObjectType: "catalyst_tracker",
+      relatedObjectId: projectId,
+      relatedJobId: job.id,
+      metadata: {
+        catalystCount: String(catalysts.length),
+      },
+    });
 
-  return catalystsRepository.syncProjectCatalysts(projectId, mergedDrafts, summary);
+    return catalysts;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown catalyst refresh failure.";
+    await failOperationalJob(job.id, `Catalyst refresh failed: ${message}`);
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "job_failed",
+      title: "Catalyst refresh failed",
+      description: `Catalyst refresh failed for project ${projectId}: ${message}`,
+      relatedObjectType: "catalyst_tracker",
+      relatedObjectId: projectId,
+      relatedJobId: job.id,
+      metadata: { jobType: "refresh_catalysts" },
+    });
+    throw error;
+  }
 }
 
 export async function listProjectCatalysts(

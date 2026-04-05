@@ -94,12 +94,47 @@ export type ThesisChangedSection =
   | "catalystSummary";
 export type RevisionConfidence = "low" | "medium" | "high";
 export type CompileJobStatus = "pending" | "running" | "completed" | "failed";
+export type CompileJobType =
+  | "compile_wiki"
+  | "refresh_thesis"
+  | "refresh_dossier"
+  | "refresh_catalysts"
+  | "rerun_contradictions"
+  | "rebuild_timeline"
+  | "run_monitoring"
+  | "extract_entities"
+  | "ask_session";
 export type AskAnswerMode =
   | "concise-answer"
   | "research-memo"
   | "compare-viewpoints"
   | "identify-contradictions"
   | "follow-up-questions";
+export type OperationalObjectType =
+  | "project"
+  | "wiki"
+  | "wiki_page"
+  | "thesis"
+  | "dossier"
+  | "catalyst_tracker"
+  | "contradictions"
+  | "timeline"
+  | "monitoring"
+  | "entity_layer"
+  | "ask_session"
+  | "artifact"
+  | "source";
+export type OperationalAuditEventType =
+  | "wiki_compiled"
+  | "thesis_refreshed"
+  | "dossier_refreshed"
+  | "catalysts_refreshed"
+  | "contradictions_reran"
+  | "timeline_rebuilt"
+  | "monitoring_ran"
+  | "stale_thesis_flagged"
+  | "entities_extracted"
+  | "job_failed";
 export type EntityType =
   | "company"
   | "product_or_segment"
@@ -471,6 +506,9 @@ export interface ThesisRevision {
 export interface CompileJob {
   id: string;
   projectId: string;
+  jobType: CompileJobType;
+  targetObjectType: OperationalObjectType;
+  targetObjectId: string | null;
   status: CompileJobStatus;
   triggeredBy: string;
   startedAt: Timestamp | null;
@@ -480,7 +518,23 @@ export interface CompileJob {
   sourceCount: number;
   metadata: StringMetadata;
   createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
+
+export interface OperationalAuditEvent {
+  id: string;
+  projectId: string;
+  eventType: OperationalAuditEventType;
+  title: string;
+  description: string;
+  relatedObjectType: OperationalObjectType | null;
+  relatedObjectId: string | null;
+  relatedJobId: string | null;
+  metadata?: StringMetadata;
+  createdAt: Timestamp;
+}
+
+export type OperationalAuditEventPayload = Omit<OperationalAuditEvent, "id" | "createdAt">;
 
 export interface WikiPageSourceLink {
   pageId: string;

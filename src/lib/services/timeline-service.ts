@@ -16,6 +16,12 @@ import { sourceFragmentsRepository } from "@/lib/repositories/source-fragments-r
 import { sourcesRepository } from "@/lib/repositories/sources-repository";
 import { timelineEventsRepository } from "@/lib/repositories/timeline-events-repository";
 import { wikiRepository } from "@/lib/repositories/wiki-repository";
+import {
+  completeOperationalJob,
+  failOperationalJob,
+  recordOperationalAuditEvent,
+  startOperationalJob,
+} from "@/lib/services/operational-history-service";
 
 type DateCandidate = {
   eventDate: string;
@@ -482,43 +488,95 @@ function mergeDrafts(drafts: TimelineEventDraft[]): TimelineEventDraft[] {
 }
 
 export async function compileProjectTimeline(projectId: string): Promise<TimelineEvent[]> {
-  const [sources, claims, pages] = await Promise.all([
-    sourcesRepository.listByProjectId(projectId),
-    claimsRepository.listByProjectId(projectId),
-    wikiRepository.listPagesByProjectId(projectId),
-  ]);
-  const sourceDrafts = (
-    await Promise.all(
-      sources.map(async (source) => {
-        const fragments = await sourceFragmentsRepository.listBySourceId(source.id);
-        const explicitDrafts = buildExplicitSourceEvents({ source, fragments });
+  const job = await startOperationalJob({
+    projectId,
+    jobType: "rebuild_timeline",
+    targetObjectType: "timeline",
+    targetObjectId: projectId,
+    triggeredBy: "workspace-user",
+    summary: "Timeline rebuild started.",
+  });
 
-        return explicitDrafts.length > 0
-          ? explicitDrafts
-          : [buildSourceFallbackEvent(source)];
-      }),
-    )
-  ).flat();
-  const claimDrafts = buildClaimEvents(claims);
-  const wikiDrafts = (
-    await Promise.all(
-      pages.map(async (page) => {
-        const [revision, sourceIds] = await Promise.all([
-          wikiRepository.getCurrentRevision(page.id),
-          wikiRepository.listSourceIdsForPage(page.id),
-        ]);
-        const explicitDrafts = buildWikiExplicitEvents({ page, revision, sourceIds });
+  try {
+    const [sources, claims, pages] = await Promise.all([
+      sourcesRepository.listByProjectId(projectId),
+      claimsRepository.listByProjectId(projectId),
+      wikiRepository.listPagesByProjectId(projectId),
+    ]);
+    const sourceDrafts = (
+      await Promise.all(
+        sources.map(async (source) => {
+          const fragments = await sourceFragmentsRepository.listBySourceId(source.id);
+          const explicitDrafts = buildExplicitSourceEvents({ source, fragments });
 
-        return explicitDrafts.length > 0
-          ? explicitDrafts
-          : [buildWikiFallbackEvent({ page, revision, sourceIds })];
-      }),
-    )
-  ).flat();
-  const mergedDrafts = mergeDrafts([...sourceDrafts, ...claimDrafts, ...wikiDrafts]);
-  const summary = `Timeline compile produced ${mergedDrafts.length} canonical event(s) from ${sources.length} source record(s), ${claims.length} claim(s), and ${pages.length} wiki page(s).`;
+          return explicitDrafts.length > 0
+            ? explicitDrafts
+            : [buildSourceFallbackEvent(source)];
+        }),
+      )
+    ).flat();
+    const claimDrafts = buildClaimEvents(claims);
+    const wikiDrafts = (
+      await Promise.all(
+        pages.map(async (page) => {
+          const [revision, sourceIds] = await Promise.all([
+            wikiRepository.getCurrentRevision(page.id),
+            wikiRepository.listSourceIdsForPage(page.id),
+          ]);
+          const explicitDrafts = buildWikiExplicitEvents({ page, revision, sourceIds });
 
-  return timelineEventsRepository.syncProjectEvents(projectId, mergedDrafts, summary);
+          return explicitDrafts.length > 0
+            ? explicitDrafts
+            : [buildWikiFallbackEvent({ page, revision, sourceIds })];
+        }),
+      )
+    ).flat();
+    const mergedDrafts = mergeDrafts([...sourceDrafts, ...claimDrafts, ...wikiDrafts]);
+    const summary = `Timeline compile produced ${mergedDrafts.length} canonical event(s) from ${sources.length} source record(s), ${claims.length} claim(s), and ${pages.length} wiki page(s).`;
+
+    const events = await timelineEventsRepository.syncProjectEvents(
+      projectId,
+      mergedDrafts,
+      summary,
+    );
+    await completeOperationalJob({
+      jobId: job.id,
+      summary,
+      targetObjectId: projectId,
+      metadata: {
+        eventCount: String(events.length),
+        sourceCount: String(sources.length),
+      },
+    });
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "timeline_rebuilt",
+      title: "Timeline rebuilt",
+      description: summary,
+      relatedObjectType: "timeline",
+      relatedObjectId: projectId,
+      relatedJobId: job.id,
+      metadata: {
+        eventCount: String(events.length),
+      },
+    });
+
+    return events;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown timeline rebuild failure.";
+    await failOperationalJob(job.id, `Timeline rebuild failed: ${message}`);
+    await recordOperationalAuditEvent({
+      projectId,
+      eventType: "job_failed",
+      title: "Timeline rebuild failed",
+      description: `Timeline rebuild failed for project ${projectId}: ${message}`,
+      relatedObjectType: "timeline",
+      relatedObjectId: projectId,
+      relatedJobId: job.id,
+      metadata: { jobType: "rebuild_timeline" },
+    });
+    throw error;
+  }
 }
 
 export async function listProjectTimelineEvents(
