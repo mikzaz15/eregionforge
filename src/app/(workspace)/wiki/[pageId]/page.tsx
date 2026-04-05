@@ -40,6 +40,37 @@ function claimTone(status: string): StatusTone {
   return "neutral";
 }
 
+function supportTone(label: string): StatusTone {
+  if (label === "strong") {
+    return "success";
+  }
+
+  if (label === "mixed") {
+    return "accent";
+  }
+
+  if (label === "weak") {
+    return "danger";
+  }
+
+  return "neutral";
+}
+
+function parseChangedSections(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((entry): entry is string => typeof entry === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export default async function WikiPageDetail({
   params,
 }: Readonly<{
@@ -62,7 +93,7 @@ export default async function WikiPageDetail({
         <div className="flex flex-wrap gap-3">
           <Link
             href="/wiki"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Back To Wiki
           </Link>
@@ -71,6 +102,12 @@ export default async function WikiPageDetail({
             tone={data.page.generationMetadata?.generatedBy ? "success" : "neutral"}
           >
             {data.page.generationMetadata?.generatedBy ? "generated" : "seeded"}
+          </StatusPill>
+          <StatusPill tone={supportTone(data.supportSummary.supportDensityLabel)}>
+            {data.supportSummary.supportDensityLabel} support
+          </StatusPill>
+          <StatusPill tone={data.freshness.isStale ? "danger" : "success"}>
+            {data.freshness.isStale ? "stale" : "current"}
           </StatusPill>
         </div>
       }
@@ -86,9 +123,9 @@ export default async function WikiPageDetail({
           </p>
         </SectionCard>
         <SectionCard
-          eyebrow="Revisions"
+          eyebrow="Revision Quality"
           title={String(data.revisions.length)}
-          description="Lightweight revision history is available below without full diffing."
+          description="Revision handling now tracks materially changed sections and avoids churn when page content has not materially changed."
         >
           <p className="text-sm leading-6 text-muted">
             Latest revision: {data.currentRevision?.createdAt
@@ -101,6 +138,11 @@ export default async function WikiPageDetail({
                 }).format(new Date(data.currentRevision.createdAt))
               : "Not available"}
           </p>
+          {data.changedSections.length > 0 ? (
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Material changes: {data.changedSections.join(", ")}
+            </p>
+          ) : null}
         </SectionCard>
         <SectionCard
           eyebrow="Source Linkage"
@@ -159,7 +201,7 @@ export default async function WikiPageDetail({
           <SectionCard
             eyebrow="Trust"
             title="Claims and evidence"
-            description="This page now carries deterministic claims with fragment-level evidence links as a first-pass trust layer."
+            description="This page now carries deterministic claims with fragment-level evidence links and page-level support posture."
           >
             <div className="space-y-3">
               <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
@@ -168,7 +210,11 @@ export default async function WikiPageDetail({
                   <span>Weak: {data.supportSummary.weakSupport}</span>
                   <span>Unresolved: {data.supportSummary.unresolved}</span>
                   <span>Evidence links: {data.supportSummary.evidenceLinks}</span>
+                  <span>Source diversity: {data.supportSummary.sourceDiversityCount}</span>
                 </div>
+                <p className="mt-3 text-sm leading-6 text-foreground">
+                  {data.supportSummary.supportPosture}
+                </p>
               </div>
               {data.claims.length > 0 ? (
                 data.claims.map((entry) => (
@@ -201,6 +247,34 @@ export default async function WikiPageDetail({
                   This page does not yet carry deterministic claims or evidence links.
                 </p>
               )}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            eyebrow="Freshness"
+            title={data.freshness.isStale ? "Needs refresh" : "Current"}
+            description="Canon pages now evaluate whether linked source or claim changes likely outpace the current revision."
+          >
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-border bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                <p className="text-sm leading-6 text-foreground">{data.freshness.reason}</p>
+                <p className="mt-3 text-sm leading-6 text-muted">
+                  Latest linked source update: {data.freshness.latestSourceAt
+                    ? new Intl.DateTimeFormat("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      }).format(new Date(data.freshness.latestSourceAt))
+                    : "Not available"}
+                </p>
+                {data.currentRevision ? (
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    Revision note: {data.currentRevision.changeNote ?? "No revision note is available."}
+                  </p>
+                ) : null}
+              </div>
             </div>
           </SectionCard>
 
@@ -273,6 +347,11 @@ export default async function WikiPageDetail({
                   <p className="mt-2 text-sm leading-6 text-muted">
                     {revision.summary}
                   </p>
+                  {parseChangedSections(revision.generationMetadata?.changedSections).length > 0 ? (
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      Changed sections: {parseChangedSections(revision.generationMetadata?.changedSections).join(", ")}
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>

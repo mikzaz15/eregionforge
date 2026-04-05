@@ -21,6 +21,22 @@ function pageTone(status: string): StatusTone {
   return "neutral";
 }
 
+function supportTone(label: string): StatusTone {
+  if (label === "strong") {
+    return "success";
+  }
+
+  if (label === "mixed") {
+    return "accent";
+  }
+
+  if (label === "weak") {
+    return "danger";
+  }
+
+  return "neutral";
+}
+
 export default async function WikiPage() {
   const projectId = await getActiveProjectId();
   const data = await getWikiPageData(projectId);
@@ -37,25 +53,25 @@ export default async function WikiPage() {
       actions={
         <div className="flex flex-wrap gap-3">
           <form action={compileActiveProjectWikiAction}>
-            <button className="rounded-full border border-border-strong bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:bg-[#2b3135]">
+            <button className="action-button-primary">
               Compile Wiki
             </button>
           </form>
           <a
             href="#revision-feed"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Review Revisions
           </a>
           <Link
             href={`/projects/${data.summary.project.id}`}
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Project Detail
           </Link>
           <Link
             href="/lint"
-            className="rounded-full border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-background"
+            className="action-button-secondary"
           >
             Open Lint
           </Link>
@@ -154,7 +170,7 @@ export default async function WikiPage() {
               <Link
                 key={entry.page.id}
                 href={`/wiki/${entry.page.id}`}
-                className="grid gap-3 rounded-2xl border border-border bg-surface-strong/75 px-4 py-4 transition hover:border-border-strong hover:bg-background/80 lg:grid-cols-[minmax(0,1.25fr)_120px_120px_120px_120px_140px]"
+                className="grid gap-3 rounded-2xl border border-border bg-surface-strong/75 px-4 py-4 transition hover:border-border-strong hover:bg-background/80 lg:grid-cols-[minmax(0,1.25fr)_120px_120px_120px_120px_120px_140px]"
               >
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
@@ -167,13 +183,40 @@ export default async function WikiPage() {
                     <StatusPill tone={entry.isGenerated ? "success" : "neutral"}>
                       {entry.isGenerated ? "generated" : "seeded"}
                     </StatusPill>
+                    <StatusPill tone={supportTone(entry.supportDensityLabel)}>
+                      {entry.supportDensityLabel} support
+                    </StatusPill>
+                    {entry.isStale ? (
+                      <StatusPill tone="danger">stale</StatusPill>
+                    ) : (
+                      <StatusPill tone="success">current</StatusPill>
+                    )}
                   </div>
                   <p className="text-sm leading-6 text-muted">
-                    {entry.currentRevision?.summary}
+                    {entry.currentRevision?.summary ?? "No current revision summary is available."}
                   </p>
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                    Claims {entry.claimCount} · Supported {entry.supportedClaimCount} · Unresolved {entry.unresolvedClaimCount} · Evidence {entry.evidenceLinkCount} · Revisions {entry.revisionCount}
+                  <p className="text-sm leading-6 text-muted">
+                    {entry.supportPosture}
                   </p>
+                  {entry.isStale ? (
+                    <p className="text-sm leading-6 text-[var(--danger-ink)]">
+                      {entry.staleReason}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                    <span>Claims {entry.claimCount}</span>
+                    <span>Supported {entry.supportedClaimCount}</span>
+                    <span>Weak {entry.weakSupportClaimCount}</span>
+                    <span>Unresolved {entry.unresolvedClaimCount}</span>
+                    <span>Evidence {entry.evidenceLinkCount}</span>
+                    <span>Sources {entry.sourceDiversityCount || entry.sourceCount}</span>
+                    <span>Revisions {entry.revisionCount}</span>
+                  </div>
+                  {entry.changedSections.length > 0 ? (
+                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                      Changed sections: {entry.changedSections.join(", ")}
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
@@ -205,6 +248,14 @@ export default async function WikiPage() {
                   </p>
                   <p className="mt-2 text-sm font-medium text-foreground">
                     {entry.page.sourceId ? "Yes" : "No"}
+                  </p>
+                </div>
+                <div>
+                  <p className="mono-label text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                    Freshness
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-foreground">
+                    {entry.isStale ? "Needs review" : "Current"}
                   </p>
                 </div>
                 <div>

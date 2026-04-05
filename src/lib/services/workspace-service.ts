@@ -134,8 +134,16 @@ export type WikiPageSummary = {
   sourceCount: number;
   claimCount: number;
   supportedClaimCount: number;
+  weakSupportClaimCount: number;
   unresolvedClaimCount: number;
   evidenceLinkCount: number;
+  sourceDiversityCount: number;
+  supportPosture: string;
+  supportDensityLabel: string;
+  isStale: boolean;
+  staleReason: string;
+  changedSections: string[];
+  revisionChangeSummary: string;
   latestRevisionAt: string | null;
   isGenerated: boolean;
 };
@@ -328,7 +336,16 @@ export type WikiPageDetailData = {
     weakSupport: number;
     unresolved: number;
     evidenceLinks: number;
+    sourceDiversityCount: number;
+    supportPosture: string;
+    supportDensityLabel: string;
   };
+  freshness: {
+    isStale: boolean;
+    reason: string;
+    latestSourceAt: string | null;
+  };
+  changedSections: string[];
 };
 
 export type SettingsGroup = {
@@ -529,11 +546,112 @@ function previewText(value: string | null, length = 180): string | null {
     : normalized;
 }
 
+function parseJsonArray(value: string | null | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((entry): entry is string => typeof entry === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function countClaimStatus(
   claims: Claim[],
   target: ClaimSupportStatus,
 ): number {
   return claims.filter((claim) => claim.supportStatus === target).length;
+}
+
+function buildWikiSupportSignals(input: {
+  claimCount: number;
+  supportedClaimCount: number;
+  weakSupportClaimCount: number;
+  unresolvedClaimCount: number;
+  sourceDiversityCount: number;
+}): { supportDensityLabel: string; supportPosture: string } {
+  const supportDensityLabel =
+    input.claimCount === 0
+      ? "thin"
+      : input.supportedClaimCount / input.claimCount >= 0.75 &&
+          input.sourceDiversityCount >= 2
+        ? "strong"
+        : input.supportedClaimCount / input.claimCount >= 0.45
+          ? "mixed"
+          : "weak";
+
+  if (input.claimCount === 0) {
+    return {
+      supportDensityLabel,
+      supportPosture: "No deterministic claims are attached to this page yet.",
+    };
+  }
+
+  if (supportDensityLabel === "strong") {
+    return {
+      supportDensityLabel,
+      supportPosture: `Support is strong across ${input.supportedClaimCount}/${input.claimCount} claims with evidence drawn from ${input.sourceDiversityCount} source record(s).`,
+    };
+  }
+
+  if (supportDensityLabel === "mixed") {
+    return {
+      supportDensityLabel,
+      supportPosture: `Support is mixed: ${input.supportedClaimCount} supported, ${input.weakSupportClaimCount} weak, and ${input.unresolvedClaimCount} unresolved claim(s).`,
+    };
+  }
+
+  return {
+    supportDensityLabel,
+    supportPosture: `Support is weak: unresolved or thinly grounded claims still materially affect this page.`,
+  };
+}
+
+function buildWikiFreshnessSignals(input: {
+  currentRevision: WikiPageRevision | null;
+  latestSourceAt: string | null;
+  latestClaimAt: string | null;
+  isGenerated: boolean;
+}): { isStale: boolean; staleReason: string } {
+  if (!input.currentRevision) {
+    return {
+      isStale: true,
+      staleReason: "This page does not have a current revision yet.",
+    };
+  }
+
+  const latestDependencyAt = [input.latestSourceAt, input.latestClaimAt]
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.localeCompare(left))[0] ?? null;
+
+  if (
+    latestDependencyAt &&
+    latestDependencyAt.localeCompare(input.currentRevision.createdAt) > 0
+  ) {
+    return {
+      isStale: true,
+      staleReason:
+        "Linked source or claim updates are newer than the current page revision. Canon should be refreshed before downstream interpretation hardens.",
+    };
+  }
+
+  if (!input.isGenerated) {
+    return {
+      isStale: true,
+      staleReason:
+        "This page still reflects seeded or manually carried-forward canon and has not been refreshed through the current deterministic compiler.",
+    };
+  }
+
+  return {
+    isStale: false,
+    staleReason: "Current revision is aligned with the latest linked source and claim state.",
+  };
 }
 
 async function buildSourceRecordSummary(source: Source): Promise<SourceRecordSummary> {
@@ -724,6 +842,52 @@ const buildWikiPageSummaries = cache(async function buildWikiPageSummaries(
           claims.map((claim) => evidenceLinksRepository.listByClaimId(claim.id)),
         )
       ).flat();
+      const linkedSourceIds = await wikiRepository.listSourceIdsForPage(page.id);
+      const linkedSources = await Promise.all(
+        linkedSourceIds.map((sourceId) => sourcesRepository.getById(sourceId)),
+      );
+      const latestSourceAt =
+        linkedSources
+          .filter((source): source is Source => Boolean(source))
+          .map((source) => source.updatedAt)
+          .sort((left, right) => right.localeCompare(left))[0] ?? null;
+      const latestClaimAt =
+        claims
+          .map((claim) => claim.updatedAt)
+          .sort((left, right) => right.localeCompare(left))[0] ?? null;
+      const weakSupportClaimCount = countClaimStatus(claims, "weak-support");
+      const sourceDiversityCount = new Set(
+        claims
+          .flatMap((claim) =>
+            evidenceLinks
+              .filter((link) => link.claimId === claim.id)
+              .map((link) => link.sourceId),
+          )
+          .filter(Boolean),
+      ).size;
+      const supportSignals = buildWikiSupportSignals({
+        claimCount: claims.length,
+        supportedClaimCount: countClaimStatus(claims, "supported"),
+        weakSupportClaimCount,
+        unresolvedClaimCount: countClaimStatus(claims, "unresolved"),
+        sourceDiversityCount,
+      });
+      const isGenerated =
+        page.generationMetadata?.generatedBy === "deterministic-compiler";
+      const freshnessSignals = buildWikiFreshnessSignals({
+        currentRevision,
+        latestSourceAt,
+        latestClaimAt,
+        isGenerated,
+      });
+      const changedSections = parseJsonArray(
+        currentRevision?.generationMetadata?.changedSections ??
+          page.generationMetadata?.changedSections,
+      );
+      const revisionChangeSummary =
+        currentRevision?.changeNote ??
+        currentRevision?.summary ??
+        "No revision change summary is available yet.";
 
       return {
         page,
@@ -732,11 +896,18 @@ const buildWikiPageSummaries = cache(async function buildWikiPageSummaries(
         sourceCount,
         claimCount: claims.length,
         supportedClaimCount: countClaimStatus(claims, "supported"),
+        weakSupportClaimCount,
         unresolvedClaimCount: countClaimStatus(claims, "unresolved"),
         evidenceLinkCount: evidenceLinks.length,
+        sourceDiversityCount,
+        supportPosture: supportSignals.supportPosture,
+        supportDensityLabel: supportSignals.supportDensityLabel,
+        isStale: freshnessSignals.isStale,
+        staleReason: freshnessSignals.staleReason,
+        changedSections,
+        revisionChangeSummary,
         latestRevisionAt: currentRevision?.createdAt ?? null,
-        isGenerated:
-          page.generationMetadata?.generatedBy === "deterministic-compiler",
+        isGenerated,
       };
     }),
   );
@@ -961,11 +1132,23 @@ export async function getWikiPageData(projectId: string) {
         note: "Supported claims now express first-pass traceable knowledge over the compiled wiki.",
       },
       {
+        label: "Strong Support Pages",
+        value: String(
+          pages.filter((page) => page.supportDensityLabel === "strong").length,
+        ),
+        note: "These pages currently carry stronger support density and source diversity across their claim set.",
+      },
+      {
         label: "Unresolved Claims",
         value: String(
           pages.reduce((sum, page) => sum + page.unresolvedClaimCount, 0),
         ),
         note: "Unresolved claims expose areas where canon is still weak, sparse, or structurally incomplete.",
+      },
+      {
+        label: "Stale Pages",
+        value: String(pages.filter((page) => page.isStale).length),
+        note: "These pages likely lag newer source or claim changes and should be reviewed before downstream refreshes.",
       },
       {
         label: "Latest Compile",
@@ -977,7 +1160,7 @@ export async function getWikiPageData(projectId: string) {
     ],
     latestCompile,
     compilerNote: latestCompile
-      ? "Current canon reflects the deterministic compiler with first-pass claims, fragment-level evidence links, and project-scoped linting signals."
+      ? "Current canon reflects deterministic compilation with page-level support posture, revision-aware change summaries, and first-pass freshness signals."
       : "Current canon is still seeded from project setup data and has not yet been refreshed from active project sources.",
     compiledSourceCount: sources.filter((source) => source.status === "compiled").length,
     latestCompileAtLabel: formatDateTime(latestCompile?.completedAt ?? null),
@@ -1481,6 +1664,38 @@ export async function getWikiPageDetailData(
       };
     }),
   );
+  const latestSourceAt =
+    linkedSources
+      .map((entry) => entry.source.updatedAt)
+      .sort((left, right) => right.localeCompare(left))[0] ?? null;
+  const weakSupport = countClaimStatus(claims, "weak-support");
+  const unresolved = countClaimStatus(claims, "unresolved");
+  const supported = countClaimStatus(claims, "supported");
+  const sourceDiversityCount = new Set(
+    claimDetails
+      .flatMap((entry) => entry.evidenceLinks.map((link) => link.sourceId))
+      .filter(Boolean),
+  ).size;
+  const supportSignals = buildWikiSupportSignals({
+    claimCount: claims.length,
+    supportedClaimCount: supported,
+    weakSupportClaimCount: weakSupport,
+    unresolvedClaimCount: unresolved,
+    sourceDiversityCount,
+  });
+  const freshnessSignals = buildWikiFreshnessSignals({
+    currentRevision,
+    latestSourceAt,
+    latestClaimAt:
+      claims
+        .map((claim) => claim.updatedAt)
+        .sort((left, right) => right.localeCompare(left))[0] ?? null,
+    isGenerated: page.generationMetadata?.generatedBy === "deterministic-compiler",
+  });
+  const changedSections = parseJsonArray(
+    currentRevision?.generationMetadata?.changedSections ??
+      page.generationMetadata?.changedSections,
+  );
 
   return {
     summary,
@@ -1493,14 +1708,23 @@ export async function getWikiPageDetailData(
     linkedSources,
     linkedPagesFromSameSource,
     supportSummary: {
-      supported: countClaimStatus(claims, "supported"),
-      weakSupport: countClaimStatus(claims, "weak-support"),
-      unresolved: countClaimStatus(claims, "unresolved"),
+      supported,
+      weakSupport,
+      unresolved,
       evidenceLinks: claimDetails.reduce(
         (sum, claimDetail) => sum + claimDetail.evidenceLinks.length,
         0,
       ),
+      sourceDiversityCount,
+      supportPosture: supportSignals.supportPosture,
+      supportDensityLabel: supportSignals.supportDensityLabel,
     },
+    freshness: {
+      isStale: freshnessSignals.isStale,
+      reason: freshnessSignals.staleReason,
+      latestSourceAt,
+    },
+    changedSections,
   };
 }
 
