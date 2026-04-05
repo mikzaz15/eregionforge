@@ -136,7 +136,7 @@ This is intentionally not the full filing system yet. It only makes the product 
 
 ## Current Limitations
 
-- artifacts are still persisted in-memory
+- artifacts are durable, but they still store only the current artifact record rather than a richer artifact revision history
 - no artifact editing flow yet
 - no artifact-to-wiki conversion yet
 - no artifact version history yet

@@ -8,6 +8,14 @@ import type {
   ContradictionDraft,
   ContradictionStatus,
 } from "@/lib/domain/types";
+import {
+  deleteRecordsByIds,
+  getPersistedRecord,
+  getPersistenceMode,
+  listPersistedRecords,
+  upsertContradictionAnalysisStateRecord,
+  upsertContradictionRecord,
+} from "@/lib/persistence/database";
 
 const contradictionsStore: Contradiction[] = structuredClone(seedContradictions);
 const contradictionAnalysisStateStore = new Map(
@@ -146,5 +154,108 @@ class InMemoryContradictionsRepository implements ContradictionsRepository {
   }
 }
 
+class SqliteContradictionsRepository implements ContradictionsRepository {
+  async listByProjectId(projectId: string): Promise<Contradiction[]> {
+    return listPersistedRecords<Contradiction>(
+      "contradictions_store",
+      `SELECT payload
+       FROM contradictions_store
+       WHERE project_id = ?
+       ORDER BY updated_at DESC`,
+      projectId,
+    );
+  }
+
+  async syncProjectContradictions(
+    projectId: string,
+    contradictionDrafts: ContradictionDraft[],
+    summary: string,
+  ): Promise<Contradiction[]> {
+    const now = new Date().toISOString();
+    const existing = await this.listByProjectId(projectId);
+    const existingById = new Map(existing.map((entry) => [entry.id, entry] as const));
+    const nextContradictions = contradictionDrafts.map<Contradiction>((draft) => {
+      const id = contradictionId(projectId, draft.stableKey);
+      const previous = existingById.get(id);
+      const contradiction: Contradiction = {
+        id,
+        projectId,
+        contradictionType: draft.contradictionType,
+        title: draft.title,
+        description: draft.description,
+        severity: draft.severity,
+        status: previous?.status ?? draft.status ?? "open",
+        confidence: draft.confidence,
+        leftClaimId: draft.leftClaimId ?? null,
+        rightClaimId: draft.rightClaimId ?? null,
+        relatedPageIds: structuredClone(draft.relatedPageIds),
+        relatedSourceIds: structuredClone(draft.relatedSourceIds),
+        relatedTimelineEventIds: structuredClone(draft.relatedTimelineEventIds),
+        rationale: draft.rationale,
+        metadata: draft.metadata ? structuredClone(draft.metadata) : {},
+        createdAt: previous?.createdAt ?? now,
+        updatedAt: now,
+      };
+
+      upsertContradictionRecord(contradiction);
+      return contradiction;
+    });
+
+    const nextIds = new Set(nextContradictions.map((entry) => entry.id));
+    deleteRecordsByIds(
+      "contradictions_store",
+      existing.filter((entry) => !nextIds.has(entry.id)).map((entry) => entry.id),
+    );
+
+    upsertContradictionAnalysisStateRecord({
+      projectId,
+      lastAnalyzedAt: now,
+      contradictionCount: nextContradictions.length,
+      summary,
+    });
+
+    return this.listByProjectId(projectId);
+  }
+
+  async updateStatus(
+    targetContradictionId: string,
+    status: ContradictionStatus,
+  ): Promise<Contradiction | null> {
+    const contradiction = await getPersistedRecord<Contradiction>(
+      "SELECT payload FROM contradictions_store WHERE id = ?",
+      targetContradictionId,
+    );
+
+    if (!contradiction) {
+      return null;
+    }
+
+    const updated: Contradiction = {
+      ...contradiction,
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+
+    upsertContradictionRecord(updated);
+    return structuredClone(updated);
+  }
+
+  async getAnalysisState(projectId: string): Promise<ContradictionAnalysisState> {
+    return (
+      getPersistedRecord<ContradictionAnalysisState>(
+        "SELECT payload FROM contradiction_analysis_states_store WHERE project_id = ?",
+        projectId,
+      ) ?? {
+        projectId,
+        lastAnalyzedAt: null,
+        contradictionCount: 0,
+        summary: "Contradiction analysis has not been run for this project yet.",
+      }
+    );
+  }
+}
+
 export const contradictionsRepository: ContradictionsRepository =
-  new InMemoryContradictionsRepository();
+  getPersistenceMode() === "sqlite"
+    ? new SqliteContradictionsRepository()
+    : new InMemoryContradictionsRepository();

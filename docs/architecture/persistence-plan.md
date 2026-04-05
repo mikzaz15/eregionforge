@@ -4,7 +4,7 @@
 
 EregionForge started as an in-memory showcase so the product loop could be proven quickly.
 
-This phase extends the first durable path into the canon layer without forcing a risky migration of every derived object at once.
+This phase extends the durable path through the major derived intelligence layer without forcing a risky migration of every operational record at once.
 
 ## Current Persistence Shape
 
@@ -31,6 +31,11 @@ These repositories now persist to the local SQLite store:
 9. `theses-repository.ts`
 10. `thesis-revisions-repository.ts`
 11. `source-monitoring-repository.ts`
+12. `catalysts-repository.ts`
+13. `contradictions-repository.ts`
+14. `timeline-events-repository.ts`
+15. `company-dossiers-repository.ts`
+16. `lint-issues-repository.ts`
 
 This means the following now survive app restarts:
 
@@ -45,23 +50,23 @@ This means the following now survive app restarts:
 - thesis state
 - thesis revision history
 - monitoring records and stale alerts
+- catalysts and catalyst compile state
+- contradictions and contradiction analysis state
+- timeline events and timeline compile state
+- company dossiers
+- lint issues and local workflow status
 
 ## Still In Memory
 
 These repositories remain in-memory for now:
 
 1. `compile-jobs-repository.ts`
-2. `lint-issues-repository.ts`
-3. `catalysts-repository.ts`
-4. `contradictions-repository.ts`
-5. `timeline-events-repository.ts`
-6. `company-dossiers-repository.ts`
 
-Those objects are still safe to keep in-memory for the current product story because:
+That remaining object is still safe to keep in-memory for the current product story because:
 
 - the seeded Northstar demo is still the canonical showcase
-- the UI already demonstrates the full workflow without requiring full write-back on every object
-- the canon layer is now durable, so the remaining gap is mostly higher-order compiled analysis rather than the research base itself
+- compile jobs act more like operational telemetry than research state
+- the durable research objects now survive restarts across the main demo loop
 
 ## Seed And Demo Strategy
 
@@ -92,9 +97,10 @@ The intended migration order remains:
 11. contradictions
 12. timeline events
 13. dossier records
-14. compile jobs and lint issue history
+14. lint issues
+15. compile jobs and deeper operational history
 
-The first nine are now on the durable path.
+The first fourteen are now on the durable path.
 
 ## Why SQLite First
 
@@ -109,19 +115,17 @@ SQLite is the safest hardening step right now because:
 
 For now, these can remain seeded or showcase-oriented:
 
-- the current contradictions, catalysts, timeline, and dossier projections
-- compile job history and lint issue state
+- compile job history
+- any future richer audit trails beyond current object snapshots
 
-Those systems already work well as research surfaces. Their persistence can be promoted next without changing the UI contract.
+The main research surfaces now persist. The remaining migration work is operational rather than product-defining.
 
 ## Near-Term Next Step
 
-The next persistence sprint should move the higher-order derived analysis layer into durable storage:
+The next persistence sprint should focus on operational durability:
 
-- timeline events
-- contradictions
-- catalysts
-- dossier records
-- compile jobs and lint issue history
+- compile jobs
+- object refresh ledgers or audit trails
+- explicit revision history for catalysts, dossiers, contradictions, and timeline compiles where needed
 
-That is the point where EregionForge stops at a durable canon and starts becoming durable across the full intelligence stack.
+EregionForge now has a durable canon and durable derived intelligence objects. The next gap is durable operations history.

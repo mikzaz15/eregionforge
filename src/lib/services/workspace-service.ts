@@ -433,11 +433,11 @@ export const settingsGroups: SettingsGroup[] = [
     items: [
       {
         label: "Current adapter",
-        value: "Hybrid repository layer: local SQLite for core durable objects, with in-memory adapters remaining only for higher-order compiled analysis.",
+        value: "Hybrid repository layer: local SQLite for canon, outputs, monitoring, and derived intelligence objects, with only compile jobs remaining in-memory.",
       },
       {
         label: "Next adapter",
-        value: "Promote timeline, contradictions, catalysts, dossiers, compile jobs, and lint history next, then add a production database adapter behind the same interfaces.",
+        value: "Promote compile jobs and any future audit-history layers next, then add a production database adapter behind the same interfaces.",
       },
       {
         label: "Guiding rule",
@@ -1580,7 +1580,7 @@ export async function getSettingsPageData(projectId: string) {
           {
             label: "Repository Mode",
             value: "Hybrid",
-            note: "Projects, sources, source fragments, canon pages, claims, evidence, artifacts, ask sessions, thesis records, thesis revisions, and monitoring state now persist locally while the remaining analysis objects stay in-memory.",
+            note: "Projects, sources, source fragments, canon pages, claims, evidence, artifacts, ask sessions, thesis records, thesis revisions, monitoring, catalysts, contradictions, timeline events, dossiers, and lint issues now persist locally while compile jobs remain in-memory.",
           },
           {
             label: "Domain Center",

@@ -31,7 +31,7 @@ Each lint issue currently carries:
 - `updatedAt`
 - optional `metadata`
 
-The repository is in-memory today, but it is isolated behind `lint-issues-repository.ts` so persistent storage can replace it later without changing the route layer.
+Lint issues now persist through `lint-issues-repository.ts`, while still remaining isolated behind the same repository seam for later database upgrades.
 
 ## Current Heuristics
 
@@ -109,7 +109,7 @@ Issues currently support lightweight operational actions:
 - mark resolved
 - create placeholder for missing expected page
 
-Status is mutable in-memory. This is enough to test the workflow shape before durable persistence lands.
+Status is mutable and now durable, which makes lint review and resolution survive restarts without changing the route layer.
 
 ## Known Placeholder Areas
 
@@ -118,12 +118,12 @@ The following logic is explicitly temporary:
 - stale detection for seeded pages without generation fingerprints
 - duplicate concept detection based only on title overlap
 - orphan detection without a first-class link graph
-- local in-memory issue status instead of persistent audit history
+- no persistent lint audit history beyond the current issue snapshot
 - project-wide recompilation standing in for page-scoped rebuild orchestration
 
 ## Likely Next Steps
 
-- persist lint issues and status history in the database
+- add persistent lint audit history rather than only the current issue snapshot
 - store compile input fingerprints so freshness is based on source versions, not timestamps alone
 - add richer page graph analysis using explicit page links and concept references
 - promote lint output into compiler and ask-mode retrieval policies

@@ -76,7 +76,7 @@ This keeps catalysts inspectable and prevents them from collapsing into generic 
 
 ## Current Limitations
 
-- catalyst persistence is still in-memory
+- catalyst state is now durable, but it still stores only the latest compiled set rather than a full catalyst revision history
 - extraction is heuristic-heavy and keyword-driven
 - status is inferred from timeframe windows rather than explicit event resolution tracking
 - deduplication is still stable-key based, not semantic clustering

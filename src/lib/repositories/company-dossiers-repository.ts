@@ -1,5 +1,10 @@
 import { seedCompanyDossiers } from "@/lib/domain/seed-data";
 import type { CompanyDossier } from "@/lib/domain/types";
+import {
+  getPersistedRecord,
+  getPersistenceMode,
+  upsertCompanyDossierRecord,
+} from "@/lib/persistence/database";
 
 const companyDossiersStore: CompanyDossier[] = structuredClone(seedCompanyDossiers);
 
@@ -69,5 +74,55 @@ class InMemoryCompanyDossiersRepository implements CompanyDossiersRepository {
   }
 }
 
+class SqliteCompanyDossiersRepository implements CompanyDossiersRepository {
+  async getByProjectId(projectId: string): Promise<CompanyDossier | null> {
+    return getPersistedRecord<CompanyDossier>(
+      "SELECT payload FROM company_dossiers_store WHERE project_id = ?",
+      projectId,
+    );
+  }
+
+  async upsertForProject(
+    input: Omit<CompanyDossier, "id" | "createdAt" | "updatedAt">,
+  ): Promise<CompanyDossier> {
+    const existing = await this.getByProjectId(input.projectId);
+    const now = new Date().toISOString();
+
+    const dossier: CompanyDossier = existing
+      ? {
+          ...existing,
+          ...input,
+          supportBySection: structuredClone(input.supportBySection),
+          metadata: input.metadata ? structuredClone(input.metadata) : {},
+          updatedAt: now,
+        }
+      : {
+          id: `dossier-${input.projectId}`,
+          projectId: input.projectId,
+          companyName: input.companyName,
+          ticker: input.ticker,
+          sector: input.sector,
+          geography: input.geography,
+          status: input.status,
+          businessOverviewMarkdown: input.businessOverviewMarkdown,
+          productsAndSegmentsMarkdown: input.productsAndSegmentsMarkdown,
+          managementAndOperatorsMarkdown: input.managementAndOperatorsMarkdown,
+          marketAndCompetitionMarkdown: input.marketAndCompetitionMarkdown,
+          keyMetricsAndFactsMarkdown: input.keyMetricsAndFactsMarkdown,
+          sourceCoverageSummaryMarkdown: input.sourceCoverageSummaryMarkdown,
+          confidence: input.confidence,
+          supportBySection: structuredClone(input.supportBySection),
+          metadata: input.metadata ? structuredClone(input.metadata) : {},
+          createdAt: now,
+          updatedAt: now,
+        };
+
+    upsertCompanyDossierRecord(dossier);
+    return structuredClone(dossier);
+  }
+}
+
 export const companyDossiersRepository: CompanyDossiersRepository =
-  new InMemoryCompanyDossiersRepository();
+  getPersistenceMode() === "sqlite"
+    ? new SqliteCompanyDossiersRepository()
+    : new InMemoryCompanyDossiersRepository();

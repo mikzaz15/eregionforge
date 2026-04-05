@@ -100,12 +100,17 @@ Durable now:
 - ask sessions
 - thesis records and thesis revisions
 - monitoring records and stale alerts
+- catalysts and catalyst compile state
+- contradictions and contradiction analysis state
+- timeline events and timeline compile state
+- company dossiers
+- lint issues
 
 Still in-memory:
 
-- higher-order derived intelligence that still sits above canon, including timeline, contradictions, catalysts, dossier, compile jobs, and lint issues
+- compile jobs and deeper operational audit history that has not yet been promoted into the durable path
 
-That split is intentional. The compiled canon is now durable, while the more volatile analysis projections can migrate next without changing the route contracts.
+That split is intentional. The compiled canon and main derived intelligence objects are now durable, while operational telemetry can migrate next without changing the route contracts.
 
 ## How The Major Views Fit Together
 

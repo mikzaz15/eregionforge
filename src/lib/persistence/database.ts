@@ -5,10 +5,17 @@ import {
   activeProjectId,
   seedEntities,
   seedEntityAnalysisStates,
+  seedCatalysts,
+  seedCatalystCompileStates,
   seedClaims,
+  seedCompanyDossiers,
+  seedContradictions,
+  seedContradictionAnalysisStates,
   seedEvidenceLinks,
   seedArtifacts,
   seedAskSessions,
+  seedTimelineEvents,
+  seedTimelineCompileStates,
   seedMonitoringAnalysisStates,
   seedProjects,
   seedSourceFragments,
@@ -24,7 +31,13 @@ import {
 import type {
   Artifact,
   AskSession,
+  Catalyst,
+  CatalystCompileState,
+  CompanyDossier,
+  Contradiction,
+  ContradictionAnalysisState,
   EntityAnalysisState,
+  LintIssue,
   MonitoringAnalysisState,
   Project,
   ResearchEntity,
@@ -34,6 +47,8 @@ import type {
   StaleAlert,
   Thesis,
   ThesisRevision,
+  TimelineCompileState,
+  TimelineEvent,
 } from "@/lib/domain/types";
 
 type SqliteRow = Record<string, unknown>;
@@ -290,6 +305,76 @@ function ensureSchema(database: SqliteDatabase) {
       last_evaluated_at TEXT,
       payload TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS catalysts_store (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      catalyst_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      importance TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_catalysts_store_project ON catalysts_store(project_id, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS catalyst_compile_states_store (
+      project_id TEXT PRIMARY KEY,
+      last_compiled_at TEXT,
+      payload TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS contradictions_store (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      contradiction_type TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      status TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_contradictions_store_project ON contradictions_store(project_id, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS contradiction_analysis_states_store (
+      project_id TEXT PRIMARY KEY,
+      last_analyzed_at TEXT,
+      payload TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS timeline_events_store (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      event_date TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_timeline_events_store_project ON timeline_events_store(project_id, event_date ASC, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS timeline_compile_states_store (
+      project_id TEXT PRIMARY KEY,
+      last_compiled_at TEXT,
+      payload TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS company_dossiers_store (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_company_dossiers_store_project ON company_dossiers_store(project_id, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS lint_issues_store (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      issue_type TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      status TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_lint_issues_store_project ON lint_issues_store(project_id, updated_at DESC);
   `);
 
   const insertSetting = database.prepare(`
@@ -562,6 +647,110 @@ function ensureSchema(database: SqliteDatabase) {
       state.projectId,
       state.lastEvaluatedAt,
       serializeRecord(state),
+    );
+  }
+
+  const insertCatalyst = database.prepare(`
+    INSERT OR IGNORE INTO catalysts_store (
+      id, project_id, catalyst_type, status, importance, updated_at, payload
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const catalyst of seedCatalysts) {
+    insertCatalyst.run(
+      catalyst.id,
+      catalyst.projectId,
+      catalyst.catalystType,
+      catalyst.status,
+      catalyst.importance,
+      catalyst.updatedAt,
+      serializeRecord(catalyst),
+    );
+  }
+
+  const insertCatalystCompileState = database.prepare(`
+    INSERT OR IGNORE INTO catalyst_compile_states_store (
+      project_id, last_compiled_at, payload
+    ) VALUES (?, ?, ?)
+  `);
+  for (const state of seedCatalystCompileStates) {
+    insertCatalystCompileState.run(
+      state.projectId,
+      state.lastCompiledAt,
+      serializeRecord(state),
+    );
+  }
+
+  const insertContradiction = database.prepare(`
+    INSERT OR IGNORE INTO contradictions_store (
+      id, project_id, contradiction_type, severity, status, updated_at, payload
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const contradiction of seedContradictions) {
+    insertContradiction.run(
+      contradiction.id,
+      contradiction.projectId,
+      contradiction.contradictionType,
+      contradiction.severity,
+      contradiction.status,
+      contradiction.updatedAt,
+      serializeRecord(contradiction),
+    );
+  }
+
+  const insertContradictionAnalysisState = database.prepare(`
+    INSERT OR IGNORE INTO contradiction_analysis_states_store (
+      project_id, last_analyzed_at, payload
+    ) VALUES (?, ?, ?)
+  `);
+  for (const state of seedContradictionAnalysisStates) {
+    insertContradictionAnalysisState.run(
+      state.projectId,
+      state.lastAnalyzedAt,
+      serializeRecord(state),
+    );
+  }
+
+  const insertTimelineEvent = database.prepare(`
+    INSERT OR IGNORE INTO timeline_events_store (
+      id, project_id, event_date, event_type, updated_at, payload
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  for (const event of seedTimelineEvents) {
+    insertTimelineEvent.run(
+      event.id,
+      event.projectId,
+      event.eventDate,
+      event.eventType,
+      event.updatedAt,
+      serializeRecord(event),
+    );
+  }
+
+  const insertTimelineCompileState = database.prepare(`
+    INSERT OR IGNORE INTO timeline_compile_states_store (
+      project_id, last_compiled_at, payload
+    ) VALUES (?, ?, ?)
+  `);
+  for (const state of seedTimelineCompileStates) {
+    insertTimelineCompileState.run(
+      state.projectId,
+      state.lastCompiledAt,
+      serializeRecord(state),
+    );
+  }
+
+  const insertCompanyDossier = database.prepare(`
+    INSERT OR IGNORE INTO company_dossiers_store (
+      id, project_id, status, updated_at, payload
+    ) VALUES (?, ?, ?, ?, ?)
+  `);
+  for (const dossier of seedCompanyDossiers) {
+    insertCompanyDossier.run(
+      dossier.id,
+      dossier.projectId,
+      dossier.status,
+      dossier.updatedAt,
+      serializeRecord(dossier),
     );
   }
 
@@ -986,6 +1175,214 @@ export function upsertMonitoringAnalysisStateRecord(
       state.projectId,
       state.lastEvaluatedAt,
       serializeRecord(state),
+    );
+}
+
+export function upsertCatalystRecord(catalyst: Catalyst): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO catalysts_store (
+        id, project_id, catalyst_type, status, importance, updated_at, payload
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        project_id = excluded.project_id,
+        catalyst_type = excluded.catalyst_type,
+        status = excluded.status,
+        importance = excluded.importance,
+        updated_at = excluded.updated_at,
+        payload = excluded.payload
+    `)
+    .run(
+      catalyst.id,
+      catalyst.projectId,
+      catalyst.catalystType,
+      catalyst.status,
+      catalyst.importance,
+      catalyst.updatedAt,
+      serializeRecord(catalyst),
+    );
+}
+
+export function upsertCatalystCompileStateRecord(state: CatalystCompileState): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO catalyst_compile_states_store (
+        project_id, last_compiled_at, payload
+      ) VALUES (?, ?, ?)
+      ON CONFLICT(project_id) DO UPDATE SET
+        last_compiled_at = excluded.last_compiled_at,
+        payload = excluded.payload
+    `)
+    .run(state.projectId, state.lastCompiledAt, serializeRecord(state));
+}
+
+export function upsertContradictionRecord(contradiction: Contradiction): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO contradictions_store (
+        id, project_id, contradiction_type, severity, status, updated_at, payload
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        project_id = excluded.project_id,
+        contradiction_type = excluded.contradiction_type,
+        severity = excluded.severity,
+        status = excluded.status,
+        updated_at = excluded.updated_at,
+        payload = excluded.payload
+    `)
+    .run(
+      contradiction.id,
+      contradiction.projectId,
+      contradiction.contradictionType,
+      contradiction.severity,
+      contradiction.status,
+      contradiction.updatedAt,
+      serializeRecord(contradiction),
+    );
+}
+
+export function upsertContradictionAnalysisStateRecord(
+  state: ContradictionAnalysisState,
+): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO contradiction_analysis_states_store (
+        project_id, last_analyzed_at, payload
+      ) VALUES (?, ?, ?)
+      ON CONFLICT(project_id) DO UPDATE SET
+        last_analyzed_at = excluded.last_analyzed_at,
+        payload = excluded.payload
+    `)
+    .run(state.projectId, state.lastAnalyzedAt, serializeRecord(state));
+}
+
+export function upsertTimelineEventRecord(event: TimelineEvent): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO timeline_events_store (
+        id, project_id, event_date, event_type, updated_at, payload
+      ) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        project_id = excluded.project_id,
+        event_date = excluded.event_date,
+        event_type = excluded.event_type,
+        updated_at = excluded.updated_at,
+        payload = excluded.payload
+    `)
+    .run(
+      event.id,
+      event.projectId,
+      event.eventDate,
+      event.eventType,
+      event.updatedAt,
+      serializeRecord(event),
+    );
+}
+
+export function upsertTimelineCompileStateRecord(state: TimelineCompileState): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO timeline_compile_states_store (
+        project_id, last_compiled_at, payload
+      ) VALUES (?, ?, ?)
+      ON CONFLICT(project_id) DO UPDATE SET
+        last_compiled_at = excluded.last_compiled_at,
+        payload = excluded.payload
+    `)
+    .run(state.projectId, state.lastCompiledAt, serializeRecord(state));
+}
+
+export function upsertCompanyDossierRecord(dossier: CompanyDossier): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO company_dossiers_store (
+        id, project_id, status, updated_at, payload
+      ) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        project_id = excluded.project_id,
+        status = excluded.status,
+        updated_at = excluded.updated_at,
+        payload = excluded.payload
+    `)
+    .run(
+      dossier.id,
+      dossier.projectId,
+      dossier.status,
+      dossier.updatedAt,
+      serializeRecord(dossier),
+    );
+}
+
+export function upsertLintIssueRecord(issue: LintIssue): void {
+  const database = getPersistenceDatabase();
+
+  if (!database) {
+    return;
+  }
+
+  database
+    .prepare(`
+      INSERT INTO lint_issues_store (
+        id, project_id, issue_type, severity, status, updated_at, payload
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        project_id = excluded.project_id,
+        issue_type = excluded.issue_type,
+        severity = excluded.severity,
+        status = excluded.status,
+        updated_at = excluded.updated_at,
+        payload = excluded.payload
+    `)
+    .run(
+      issue.id,
+      issue.projectId,
+      issue.issueType,
+      issue.severity,
+      issue.status,
+      issue.updatedAt,
+      serializeRecord(issue),
     );
 }
 

@@ -58,7 +58,7 @@ Coverage is based on whether a section has at least some compiled supporting ref
 
 ## Current Limitations
 
-- dossier persistence is still in-memory
+- dossier state is now durable, but dossier refreshes still overwrite the current compiled record rather than creating dossier revisions
 - extraction and synthesis are heuristic-heavy
 - operator and management coverage depends on existing source language
 - key metrics are compiled from research facts already present in claims and source metadata, not live market feeds

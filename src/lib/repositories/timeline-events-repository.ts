@@ -4,6 +4,14 @@ import type {
   TimelineEvent,
   TimelineEventDraft,
 } from "@/lib/domain/types";
+import {
+  deleteRecordsByIds,
+  getPersistedRecord,
+  getPersistenceMode,
+  listPersistedRecords,
+  upsertTimelineCompileStateRecord,
+  upsertTimelineEventRecord,
+} from "@/lib/persistence/database";
 
 const timelineEventsStore: TimelineEvent[] = structuredClone(seedTimelineEvents);
 const timelineCompileStateStore = new Map(
@@ -121,5 +129,83 @@ class InMemoryTimelineEventsRepository implements TimelineEventsRepository {
   }
 }
 
+class SqliteTimelineEventsRepository implements TimelineEventsRepository {
+  async listByProjectId(projectId: string): Promise<TimelineEvent[]> {
+    return listPersistedRecords<TimelineEvent>(
+      "timeline_events_store",
+      `SELECT payload
+       FROM timeline_events_store
+       WHERE project_id = ?
+       ORDER BY event_date ASC, updated_at DESC`,
+      projectId,
+    );
+  }
+
+  async syncProjectEvents(
+    projectId: string,
+    eventDrafts: TimelineEventDraft[],
+    summary: string,
+  ): Promise<TimelineEvent[]> {
+    const now = new Date().toISOString();
+    const existing = await this.listByProjectId(projectId);
+    const existingById = new Map(existing.map((entry) => [entry.id, entry] as const));
+    const nextEvents = eventDrafts.map<TimelineEvent>((draft) => {
+      const id = timelineEventId(projectId, draft.stableKey);
+      const previous = existingById.get(id);
+      const event: TimelineEvent = {
+        id,
+        projectId,
+        title: draft.title,
+        description: draft.description,
+        eventDate: draft.eventDate,
+        eventDatePrecision: draft.eventDatePrecision,
+        eventType: draft.eventType,
+        confidence: draft.confidence,
+        sourceIds: structuredClone(draft.sourceIds),
+        wikiPageIds: structuredClone(draft.wikiPageIds),
+        claimIds: structuredClone(draft.claimIds),
+        provenance: draft.provenance,
+        metadata: draft.metadata ? structuredClone(draft.metadata) : {},
+        createdAt: previous?.createdAt ?? now,
+        updatedAt: now,
+      };
+
+      upsertTimelineEventRecord(event);
+      return event;
+    });
+
+    const nextIds = new Set(nextEvents.map((entry) => entry.id));
+    deleteRecordsByIds(
+      "timeline_events_store",
+      existing.filter((entry) => !nextIds.has(entry.id)).map((entry) => entry.id),
+    );
+
+    upsertTimelineCompileStateRecord({
+      projectId,
+      lastCompiledAt: now,
+      eventCount: nextEvents.length,
+      summary,
+    });
+
+    return this.listByProjectId(projectId);
+  }
+
+  async getCompileState(projectId: string): Promise<TimelineCompileState> {
+    return (
+      getPersistedRecord<TimelineCompileState>(
+        "SELECT payload FROM timeline_compile_states_store WHERE project_id = ?",
+        projectId,
+      ) ?? {
+        projectId,
+        lastCompiledAt: null,
+        eventCount: 0,
+        summary: "Timeline has not been compiled for this project yet.",
+      }
+    );
+  }
+}
+
 export const timelineEventsRepository: TimelineEventsRepository =
-  new InMemoryTimelineEventsRepository();
+  getPersistenceMode() === "sqlite"
+    ? new SqliteTimelineEventsRepository()
+    : new InMemoryTimelineEventsRepository();

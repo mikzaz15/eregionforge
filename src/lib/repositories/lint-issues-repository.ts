@@ -3,6 +3,13 @@ import type {
   LintIssueDraft,
   LintIssueStatus,
 } from "@/lib/domain/types";
+import {
+  deleteRecordsByIds,
+  getPersistedRecord,
+  getPersistenceMode,
+  listPersistedRecords,
+  upsertLintIssueRecord,
+} from "@/lib/persistence/database";
 
 const lintIssuesStore: LintIssue[] = [];
 
@@ -108,5 +115,82 @@ class InMemoryLintIssuesRepository implements LintIssuesRepository {
   }
 }
 
+class SqliteLintIssuesRepository implements LintIssuesRepository {
+  async listByProjectId(projectId: string): Promise<LintIssue[]> {
+    return listPersistedRecords<LintIssue>(
+      "lint_issues_store",
+      `SELECT payload
+       FROM lint_issues_store
+       WHERE project_id = ?
+       ORDER BY updated_at DESC`,
+      projectId,
+    );
+  }
+
+  async syncProjectIssues(
+    projectId: string,
+    issueDrafts: LintIssueDraft[],
+  ): Promise<LintIssue[]> {
+    const now = new Date().toISOString();
+    const existing = await this.listByProjectId(projectId);
+    const existingById = new Map(existing.map((entry) => [entry.id, entry] as const));
+    const nextIssues = issueDrafts.map<LintIssue>((draft) => {
+      const id = issueId(projectId, draft.stableKey);
+      const previous = existingById.get(id);
+      const issue: LintIssue = {
+        id,
+        projectId,
+        issueType: draft.issueType,
+        severity: draft.severity,
+        status: previous?.status ?? draft.status ?? "open",
+        relatedPageId: draft.relatedPageId ?? null,
+        relatedClaimIds: structuredClone(draft.relatedClaimIds),
+        title: draft.title,
+        description: draft.description,
+        recommendedAction: draft.recommendedAction,
+        metadata: draft.metadata ? structuredClone(draft.metadata) : {},
+        createdAt: previous?.createdAt ?? now,
+        updatedAt: now,
+      };
+
+      upsertLintIssueRecord(issue);
+      return issue;
+    });
+
+    const nextIds = new Set(nextIssues.map((entry) => entry.id));
+    deleteRecordsByIds(
+      "lint_issues_store",
+      existing.filter((entry) => !nextIds.has(entry.id)).map((entry) => entry.id),
+    );
+
+    return this.listByProjectId(projectId);
+  }
+
+  async updateStatus(
+    targetIssueId: string,
+    status: LintIssueStatus,
+  ): Promise<LintIssue | null> {
+    const issue = getPersistedRecord<LintIssue>(
+      "SELECT payload FROM lint_issues_store WHERE id = ?",
+      targetIssueId,
+    );
+
+    if (!issue) {
+      return null;
+    }
+
+    const updated: LintIssue = {
+      ...issue,
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+
+    upsertLintIssueRecord(updated);
+    return structuredClone(updated);
+  }
+}
+
 export const lintIssuesRepository: LintIssuesRepository =
-  new InMemoryLintIssuesRepository();
+  getPersistenceMode() === "sqlite"
+    ? new SqliteLintIssuesRepository()
+    : new InMemoryLintIssuesRepository();
